@@ -3,8 +3,10 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <utils/hello.h>
+#include <utils/logUtils.h>
+#include <utils/configUtils.h>
 #include <commons/string.h>
+#include <utils/sockets.h>
 
 int main(int argc, char *argv[]);
 
