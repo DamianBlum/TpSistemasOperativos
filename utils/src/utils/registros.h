@@ -17,3 +17,5 @@ typedef enum
     // Cantidad de registros
     CANTIDAD_REGISTROS,
 } e_registros;
+
+#endif

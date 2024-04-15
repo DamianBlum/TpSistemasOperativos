@@ -7,11 +7,11 @@
 
 typedef enum
 {
-    NEW = 0,
-    READY,
-    EXEC,
-    BLOCKED,
-    EXIT,
+    E_NEW = 0,
+    E_READY,
+    E_EXECUTE,
+    E_BLOCKED,
+    E_EXIT,
 } e_estado_proceso;
 
 typedef struct
@@ -19,11 +19,11 @@ typedef struct
     uint32_t processID;
     uint32_t programCounter;
     uint32_t quantum; // esto no tiene mucho sentido q este aca
-    uint32_t registros[CANTIDAD_REGISTROS];
     e_estado_proceso estado;
+    uint32_t registros[CANTIDAD_REGISTROS];
 } t_PCB;
 
-t_PCB *crear_pcb(int *contadorProcesos);
+t_PCB *crear_pcb(int *contadorProcesos, int quantum);
 
 void empaquetar_pcb(t_paquete *p, t_PCB pcb); // mete en el paquete (tiene q estar ya creado), toda la data del pcb
 
