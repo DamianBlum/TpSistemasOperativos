@@ -29,7 +29,7 @@ void empaquetar_pcb(t_paquete *p, t_PCB pcb)
     agregar_a_paquete(p, pcb.registros[DX], sizeof(uint32_t));
 }
 
-t_PCB *desempaquetar_pcb(t_list *paquetes)
+t_PCB *desempaquetar_pcb(t_list *paquetes, t_log *logger)
 {
     t_PCB *pcb;
     if (MOCKUP_RESPUESTA_CPU)
@@ -47,8 +47,19 @@ t_PCB *desempaquetar_pcb(t_list *paquetes)
     }
     else
     {
-        // pass
+        pcb = crear_pcb((int)list_get(paquetes, 0), list_get(paquetes, 2));
+        pcb->programCounter = (uint32_t)list_get(paquetes, 1);
+        pcb->estado = (e_estado_proceso)list_get(paquetes, 3);
+        pcb->registros[SS] = (uint32_t)list_get(paquetes, 4);
+        pcb->registros[DS] = (uint32_t)list_get(paquetes, 5);
+        pcb->registros[CS] = (uint32_t)list_get(paquetes, 6);
+        pcb->registros[AX] = (uint32_t)list_get(paquetes, 7);
+        pcb->registros[BX] = (uint32_t)list_get(paquetes, 8);
+        pcb->registros[CX] = (uint32_t)list_get(paquetes, 9);
+        pcb->registros[DX] = (uint32_t)list_get(paquetes, 10);
     }
+    log_debug(logger, "\nContenido del pcb desempaquetado:\n|Process id: %d|\n|Program counter: %d|\n|Quantum: %d|\n|Estado: %d|\n|SS: %d|\n|DS: %d|\n|CS: %d|\n|AX: %d|\n|BX: %d|\n|CX: %d|\n|DX: %d|\n", pcb->processID, pcb->programCounter, pcb->quantum, (int)pcb->estado, pcb->registros[SS], pcb->registros[DS], pcb->registros[CS], pcb->registros[AX], pcb->registros[BX], pcb->registros[CX], pcb->registros[DX]);
+
     return pcb;
 }
 

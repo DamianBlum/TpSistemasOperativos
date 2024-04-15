@@ -6,6 +6,7 @@
 #include <utils/logUtils.h>
 #include <utils/configUtils.h>
 #include <utils/sockets.h>
+#include <utils/pcb.h>
 #include <commons/string.h>
 
 int main(int argc, char *argv[]);

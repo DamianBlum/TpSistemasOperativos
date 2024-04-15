@@ -27,7 +27,7 @@ t_PCB *crear_pcb(int *contadorProcesos, int quantum);
 
 void empaquetar_pcb(t_paquete *p, t_PCB pcb); // mete en el paquete (tiene q estar ya creado), toda la data del pcb
 
-t_PCB *desempaquetar_pcb(t_list *paquetes); // con la lista q tenes cuando recibis un paquete, arma un pcb de vuelta, la idea de esta funcion es q se use en el modulo de CPU cuando recibis un contexto
+t_PCB *desempaquetar_pcb(t_list *paquetes, t_log *logger); // con la lista q tenes cuando recibis un paquete, arma un pcb de vuelta, la idea de esta funcion es q se use en el modulo de CPU cuando recibis un contexto
 
 void actualizar_pcb(t_list *paquetes, t_PCB *pcb); // lo mismo q el de arriba pero en vez de darte un pcb, te actualiza el enviado x param
 
