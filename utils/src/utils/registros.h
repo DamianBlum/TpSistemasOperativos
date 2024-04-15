@@ -3,19 +3,20 @@
 
 #include <netdb.h>
 
-typedef enum
+// estructura que se va a usar en el modulo CPU
+typedef struct
 {
-    // Segmentos
-    SS,
-    DS,
-    CS,
-    // Uso comun
-    AX,
-    BX,
-    CX,
-    DX,
-    // Cantidad de registros
-    CANTIDAD_REGISTROS,
-} e_registros;
+    uint32_t PC; // program counter
+    uint8_t AX;  // los 8 de proposito general
+    uint8_t BX;
+    uint8_t CX;
+    uint8_t DX;
+    uint32_t EAX;
+    uint32_t EBX;
+    uint32_t ECX;
+    uint32_t EDX;
+    uint32_t SI; // tiene la dir logica de origen desde donde se va a copiar un string
+    uint32_t DI; // tiene la dir logica de memoria de destino a donde se va a copiar un string
+} t_registros;
 
 #endif

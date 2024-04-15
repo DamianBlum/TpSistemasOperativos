@@ -20,14 +20,23 @@ typedef struct
     uint32_t programCounter;
     uint32_t quantum; // esto no tiene mucho sentido q este aca
     e_estado_proceso estado;
-    uint32_t registros[CANTIDAD_REGISTROS];
+    uint8_t AX;
+    uint8_t BX;
+    uint8_t CX;
+    uint8_t DX;
+    uint32_t EAX;
+    uint32_t EBX;
+    uint32_t ECX;
+    uint32_t EDX;
+    uint32_t SI;
+    uint32_t DI;
 } t_PCB;
 
 t_PCB *crear_pcb(int *contadorProcesos, int quantum);
 
 void empaquetar_pcb(t_paquete *p, t_PCB *pcb); // mete en el paquete (tiene q estar ya creado), toda la data del pcb
 
-t_PCB *desempaquetar_pcb(t_list *paquetes, t_log *logger); // con la lista q tenes cuando recibis un paquete, arma un pcb de vuelta, la idea de esta funcion es q se use en el modulo de CPU cuando recibis un contexto
+t_registros *desempaquetar_pcb_a_registros(t_list *paquetes, t_log *logger); // con la lista q tenes cuando recibis un paquete, arma un pcb de vuelta, la idea de esta funcion es q se use en el modulo de CPU cuando recibis un contexto
 
 void actualizar_pcb(t_list *paquetes, t_PCB *pcb, t_log *logger); // lo mismo q el de arriba pero en vez de darte un pcb, te actualiza el enviado x param
 
