@@ -9,6 +9,8 @@ int socket_cliente_io;
 int cliente_cpu_dispatch;
 int cliente_cpu_interrupt;
 int cliente_memoria;
+// hilo servidor I/O
+pthread_t hilo_servidor_io;
 // otro
 int contadorProcesos = 0;
 t_queue *cola_procesos;
@@ -36,22 +38,63 @@ main(int argc, char *argv[])
     queue_push(cola_procesos, pcb5);
 
     // PARTE CLIENTE
+    /*
+        if (generar_clientes()) // error al crear los clientes de cpu
+            return EXIT_FAILURE;
 
-    if (generar_clientes()) // error al crear los clientes de cpu
+        t_PCB *pcb = crear_pcb(&contadorProcesos, 3);
+        t_paquete *p = crear_paquete();
+        pcb->AX = (uint8_t)15;
+        pcb->DI = (uint32_t)1231156;
+        empaquetar_pcb(p, pcb);
+        enviar_paquete(p, cliente_cpu_dispatch, logger);
+
+    // CREACION HILO SERVIDOR I/O
+
+    pthread_create(&hilo_servidor_io, NULL, atender_servidor_io, NULL);
+    pthread_join(hilo_servidor_io, NULL);
+    */
+
+    // PARTE CONSOLA INTERACTIVA
+    int seguir = 1;
+    while (seguir)
+    {
+        // mostrar_menu();
+        char *comandoLeido;
+        comandoLeido = readline(">"); // ee de consola lo ingresado
+        char **comandoSpliteado = string_split(comandoLeido, " ");
+
+        if (string_equals_ignore_case("INICIAR_PROCESO", comandoSpliteado[0]) && comandoSpliteado[1] != NULL)
+        {
+            log_info(logger, "Entraste a iniciar proceso para el proceso: %s", comandoSpliteado[1]);
+        }
+        else if (string_equals_ignore_case("SALIR", comandoSpliteado[0]))
+            seguir = 0;
+    }
+
+    liberar_conexion(cliente_cpu_dispatch, logger);
+    liberar_conexion(cliente_cpu_interrupt, logger);
+    liberar_conexion(cliente_memoria, logger);
+    destruir_logger(logger);
+    destruir_config(config);
+
+    return EXIT_SUCCESS;
+}
+
+int generar_clientes()
+{
+    cliente_cpu_dispatch = crear_conexion(config, "IP_CPU", "PUERTO_CPU_DISPATCH", logger);
+    cliente_cpu_interrupt = crear_conexion(config, "IP_CPU", "PUERTO_CPU_INTERRUPT", logger);
+    cliente_memoria = crear_conexion(config, "IP_MEMORIA", "PUERTO_MEMORIA", logger);
+
+    if (cliente_cpu_dispatch == -1 || cliente_cpu_interrupt == -1)
         return EXIT_FAILURE;
-    enviar_mensaje("HOLA DESDE KERNEL A CPU (DISPATCH)", cliente_cpu_dispatch, logger);
-    enviar_mensaje("HOLA DESDE KERNEL A CPU (INTERRUPT)", cliente_cpu_interrupt, logger);
-    enviar_mensaje("HOLA DESDE KERNEL A MEMORIA", cliente_memoria, logger);
+    return EXIT_SUCCESS;
+}
 
-    /*t_PCB *pcb = crear_pcb(&contadorProcesos, 3);
-    t_paquete *p = crear_paquete();
-    pcb->AX = (uint8_t)15;
-    pcb->DI = (uint32_t)1231156;
-    empaquetar_pcb(p, pcb);
-    enviar_paquete(p, cliente_cpu_dispatch, logger);*/
-
+void *atender_servidor_io(void *arg)
+{
     // PARTE SERVIDOR
-
     socket_servidor = iniciar_servidor(config, "PUERTO_ESCUCHA");
 
     log_info(logger, "Servidor %d creado.", socket_servidor);
@@ -87,23 +130,4 @@ main(int argc, char *argv[])
             return EXIT_FAILURE;
         }
     }
-
-    liberar_conexion(cliente_cpu_dispatch, logger);
-    liberar_conexion(cliente_cpu_interrupt, logger);
-    liberar_conexion(cliente_memoria, logger);
-    destruir_logger(logger);
-    destruir_config(config);
-
-    return EXIT_SUCCESS;
-}
-
-int generar_clientes()
-{
-    cliente_cpu_dispatch = crear_conexion(config, "IP_CPU", "PUERTO_CPU_DISPATCH", logger);
-    cliente_cpu_interrupt = crear_conexion(config, "IP_CPU", "PUERTO_CPU_INTERRUPT", logger);
-    cliente_memoria = crear_conexion(config, "IP_MEMORIA", "PUERTO_MEMORIA", logger);
-
-    if (cliente_cpu_dispatch == -1 || cliente_cpu_interrupt == -1)
-        return EXIT_FAILURE;
-    return EXIT_SUCCESS;
 }
