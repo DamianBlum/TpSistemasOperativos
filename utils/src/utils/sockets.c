@@ -264,11 +264,22 @@ t_list *recibir_paquete(int socket_cliente, t_log *logger)
 		memcpy(&tamanio, buffer + desplazamiento, sizeof(int));
 		log_debug(logger, "Tamanio obtenido: %d.", tamanio);
 		desplazamiento += sizeof(int);
-		int valor;
-		memcpy(&valor, buffer + desplazamiento, tamanio);
-		log_debug(logger, "Valor obtenido: %d.", valor);
-		desplazamiento += tamanio;
-		list_add(valores, valor);
+		if (tamanio == sizeof(uint32_t))
+		{
+			uint32_t valor;
+			memcpy(&valor, buffer + desplazamiento, tamanio);
+			log_debug(logger, "Valor uint32 obtenido: %d.", (int)valor);
+			desplazamiento += tamanio;
+			list_add(valores, valor);
+		}
+		else
+		{
+			uint8_t valor;
+			memcpy(&valor, buffer + desplazamiento, tamanio);
+			log_debug(logger, "Valor uint8 obtenido: %d.", (int)valor);
+			desplazamiento += tamanio;
+			list_add(valores, valor);
+		}
 	}
 	free(buffer);
 	return valores;

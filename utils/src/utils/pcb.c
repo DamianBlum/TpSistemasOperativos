@@ -1,6 +1,6 @@
 #include "pcb.h"
 
-bool MOCKUP_RESPUESTA_CPU = true;
+bool MOCKUP_RESPUESTA_CPU = false;
 
 t_PCB *crear_pcb(int *contadorProcesos, int quantum)
 {
@@ -10,11 +10,16 @@ t_PCB *crear_pcb(int *contadorProcesos, int quantum)
     pcb->estado = E_NEW;
     pcb->programCounter = 0;
     pcb->quantum = quantum;
-    for (int i = 0; i < CANTIDAD_REGISTROS; i++)
-    {
-        pcb->registros[i] = 0;
-    }
-
+    pcb->AX = 0;
+    pcb->BX = 0;
+    pcb->CX = 0;
+    pcb->DX = 0;
+    pcb->EAX = 0;
+    pcb->EBX = 0;
+    pcb->ECX = 0;
+    pcb->EDX = 0;
+    pcb->SI = 0;
+    pcb->DI = 0;
     return pcb;
 }
 
@@ -73,7 +78,7 @@ void desempaquetar_pcb_a_registros(t_list *paquetes, t_registros *regs, t_log *l
 
 void actualizar_pcb(t_list *paquetes, t_PCB *pcb, t_log *logger)
 {
-    log_debug(logger, "\nContenido del pcb antes de actualizarlo:\n|Process id: %d|\n|Program counter: %d|\n|Quantum: %d|\n|Estado: %d|\n|AX: %d|\n|BX: %d|\n|CX: %d|\n|DX: %d|\n|EAX=%d|\n|EBX=%d|\n|ECX=%d|\n|EDX=%d|\n|SI=%d|\n|DI=%d", pcb->processID, pcb->programCounter, pcb->quantum, (int)pcb->estado, regs->AX, regs->BX, regs->CX, regs->DX, regs->EAX, regs->EBX, regs->ECX, regs->EDX, regs->SI, regs->DI);
+    log_debug(logger, "\nContenido del pcb antes de actualizarlo:\n|Process id: %d|\n|Program counter: %d|\n|Quantum: %d|\n|Estado: %d|\n|AX: %d|\n|BX: %d|\n|CX: %d|\n|DX: %d|\n|EAX=%d|\n|EBX=%d|\n|ECX=%d|\n|EDX=%d|\n|SI=%d|\n|DI=%d", pcb->processID, pcb->programCounter, pcb->quantum, (int)pcb->estado, pcb->AX, pcb->BX, pcb->CX, pcb->DX, pcb->EAX, pcb->EBX, pcb->ECX, pcb->EDX, pcb->SI, pcb->DI);
 
     pcb->programCounter = (uint32_t)list_get(paquetes, 0);
     pcb->AX = (uint8_t)list_get(paquetes, 1);
@@ -87,7 +92,7 @@ void actualizar_pcb(t_list *paquetes, t_PCB *pcb, t_log *logger)
     pcb->SI = (uint32_t)list_get(paquetes, 9);
     pcb->DI = (uint32_t)list_get(paquetes, 10);
 
-    log_debug(logger, "\nContenido del pcb despues de actualizarlo:\n|Process id: %d|\n|Program counter: %d|\n|Quantum: %d|\n|Estado: %d|\n|AX: %d|\n|BX: %d|\n|CX: %d|\n|DX: %d|\n|EAX=%d|\n|EBX=%d|\n|ECX=%d|\n|EDX=%d|\n|SI=%d|\n|DI=%d", pcb->processID, pcb->programCounter, pcb->quantum, (int)pcb->estado, regs->AX, regs->BX, regs->CX, regs->DX, regs->EAX, regs->EBX, regs->ECX, regs->EDX, regs->SI, regs->DI);
+    log_debug(logger, "\nContenido del pcb despues de actualizarlo:\n|Process id: %d|\n|Program counter: %d|\n|Quantum: %d|\n|Estado: %d|\n|AX: %d|\n|BX: %d|\n|CX: %d|\n|DX: %d|\n|EAX=%d|\n|EBX=%d|\n|ECX=%d|\n|EDX=%d|\n|SI=%d|\n|DI=%d", pcb->processID, pcb->programCounter, pcb->quantum, (int)pcb->estado, pcb->AX, pcb->BX, pcb->CX, pcb->DX, pcb->EAX, pcb->EBX, pcb->ECX, pcb->EDX, pcb->SI, pcb->DI);
 }
 
 void destruir_pcb(t_PCB *pcb)

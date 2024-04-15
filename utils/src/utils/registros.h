@@ -21,5 +21,7 @@ typedef struct
 } t_registros;
 
 void empaquetar_registros(t_paquete *p, t_registros *t);
+t_registros *crear_registros();
+t_registros *destruir_registros();
 
 #endif
