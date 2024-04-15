@@ -8,6 +8,7 @@
 #include <utils/sockets.h>
 #include <utils/pcb.h>
 #include <commons/string.h>
+#include <commons/collections/queue.h>
 
 int main(int argc, char *argv[]);
 int generar_clientes();

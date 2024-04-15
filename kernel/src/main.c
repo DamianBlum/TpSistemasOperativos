@@ -9,11 +9,31 @@ int socket_cliente_io;
 int cliente_cpu_dispatch;
 int cliente_cpu_interrupt;
 int cliente_memoria;
+// otro
+int contadorProcesos = 0;
+t_queue *cola_procesos;
+int quantum;
 
 main(int argc, char *argv[])
 {
     logger = iniciar_logger("kernel.log", "KERNEL", argc, argv);
     config = iniciar_config("kernel.config");
+    cola_procesos = queue_create();
+    // Instancio el quantum desde el config
+    quantum = config_get_int_value(config, "QUANTUM");
+
+    // harcodeo de la cola de procesos
+    t_PCB *pcb1 = crear_pcb(&contadorProcesos, quantum);
+    t_PCB *pcb2 = crear_pcb(&contadorProcesos, quantum);
+    t_PCB *pcb3 = crear_pcb(&contadorProcesos, quantum);
+    t_PCB *pcb4 = crear_pcb(&contadorProcesos, quantum);
+    t_PCB *pcb5 = crear_pcb(&contadorProcesos, quantum);
+
+    queue_push(cola_procesos, pcb1);
+    queue_push(cola_procesos, pcb2);
+    queue_push(cola_procesos, pcb3);
+    queue_push(cola_procesos, pcb4);
+    queue_push(cola_procesos, pcb5);
 
     // PARTE CLIENTE
 
@@ -22,6 +42,13 @@ main(int argc, char *argv[])
     enviar_mensaje("HOLA DESDE KERNEL A CPU (DISPATCH)", cliente_cpu_dispatch, logger);
     enviar_mensaje("HOLA DESDE KERNEL A CPU (INTERRUPT)", cliente_cpu_interrupt, logger);
     enviar_mensaje("HOLA DESDE KERNEL A MEMORIA", cliente_memoria, logger);
+
+    /*t_PCB *pcb = crear_pcb(&contadorProcesos, 3);
+    t_paquete *p = crear_paquete();
+    pcb->AX = (uint8_t)15;
+    pcb->DI = (uint32_t)1231156;
+    empaquetar_pcb(p, pcb);
+    enviar_paquete(p, cliente_cpu_dispatch, logger);*/
 
     // PARTE SERVIDOR
 
