@@ -36,6 +36,7 @@ main(int argc, char *argv[])
     queue_push(cola_procesos, pcb3);
     queue_push(cola_procesos, pcb4);
     queue_push(cola_procesos, pcb5);
+// hola soy prueba
 
     // PARTE CLIENTE
     /*
