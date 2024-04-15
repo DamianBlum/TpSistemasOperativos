@@ -19,72 +19,75 @@ t_PCB *crear_pcb(int *contadorProcesos, int quantum)
 }
 
 void empaquetar_pcb(t_paquete *p, t_PCB *pcb)
-{
+{ // yo mando todo el pcb, pero en cpu dudo q usen todo
     agregar_a_paquete(p, pcb->processID, sizeof(uint32_t));
     agregar_a_paquete(p, pcb->programCounter, sizeof(uint32_t));
     agregar_a_paquete(p, pcb->quantum, sizeof(uint32_t));
     agregar_a_paquete(p, (uint32_t)pcb->estado, sizeof(uint32_t));
-    agregar_a_paquete(p, pcb->registros[SS], sizeof(uint32_t));
-    agregar_a_paquete(p, pcb->registros[DS], sizeof(uint32_t));
-    agregar_a_paquete(p, pcb->registros[CS], sizeof(uint32_t));
-    agregar_a_paquete(p, pcb->registros[AX], sizeof(uint32_t));
-    agregar_a_paquete(p, pcb->registros[BX], sizeof(uint32_t));
-    agregar_a_paquete(p, pcb->registros[CX], sizeof(uint32_t));
-    agregar_a_paquete(p, pcb->registros[DX], sizeof(uint32_t));
+    agregar_a_paquete(p, pcb->AX, sizeof(uint8_t));
+    agregar_a_paquete(p, pcb->BX, sizeof(uint8_t));
+    agregar_a_paquete(p, pcb->CX, sizeof(uint8_t));
+    agregar_a_paquete(p, pcb->DX, sizeof(uint8_t));
+    agregar_a_paquete(p, pcb->EAX, sizeof(uint32_t));
+    agregar_a_paquete(p, pcb->EBX, sizeof(uint32_t));
+    agregar_a_paquete(p, pcb->ECX, sizeof(uint32_t));
+    agregar_a_paquete(p, pcb->EDX, sizeof(uint32_t));
+    agregar_a_paquete(p, pcb->SI, sizeof(uint32_t));
+    agregar_a_paquete(p, pcb->DI, sizeof(uint32_t));
 }
 
-t_PCB *desempaquetar_pcb(t_list *paquetes, t_log *logger)
+void desempaquetar_pcb_a_registros(t_list *paquetes, t_registros *regs, t_log *logger)
 {
-    t_PCB *pcb;
+    log_debug(logger, "Voy a actualizar los registros con el contexto del proceso %d", (int)list_get(paquetes, 0));
+    log_debug(logger, "Valores de los registros antes de ser modificados: PC=%d | AX=%d | BX=%d | CX=%d | DX=%d | EAX=%d | EBX=%d | ECX=%d | EDX=%d | SI=%d | DI=%d", regs->PC, regs->AX, regs->BX, regs->CX, regs->DX, regs->EAX, regs->EBX, regs->ECX, regs->EDX, regs->SI, regs->DI);
     if (MOCKUP_RESPUESTA_CPU) // esto desp vuela
     {                         // es para q puedan avanzar en cpu antes de q tengamos lo de kernel
-        int empanada = 0;
-        pcb = crear_pcb(&empanada, 44);
-        pcb->estado = E_EXECUTE;
-        pcb->registros[SS] = 1;
-        pcb->registros[DS] = 2;
-        pcb->registros[CS] = 3;
-        pcb->registros[AX] = 4;
-        pcb->registros[BX] = 5;
-        pcb->registros[CX] = 6;
-        pcb->registros[DX] = 7;
+        regs->PC = (uint32_t)0;
+        regs->AX = (uint8_t)1;
+        regs->BX = (uint8_t)2;
+        regs->CX = (uint8_t)3;
+        regs->DX = (uint8_t)4;
+        regs->EAX = (uint32_t)11;
+        regs->EBX = (uint32_t)12;
+        regs->ECX = (uint32_t)13;
+        regs->EDX = (uint32_t)14;
+        regs->SI = (uint32_t)44;
+        regs->DI = (uint32_t)45;
     }
     else
     {
-        pcb = crear_pcb((int)list_get(paquetes, 0), list_get(paquetes, 2));
-        pcb->programCounter = (uint32_t)list_get(paquetes, 1);
-        pcb->estado = (e_estado_proceso)list_get(paquetes, 3);
-        pcb->registros[SS] = (uint32_t)list_get(paquetes, 4);
-        pcb->registros[DS] = (uint32_t)list_get(paquetes, 5);
-        pcb->registros[CS] = (uint32_t)list_get(paquetes, 6);
-        pcb->registros[AX] = (uint32_t)list_get(paquetes, 7);
-        pcb->registros[BX] = (uint32_t)list_get(paquetes, 8);
-        pcb->registros[CX] = (uint32_t)list_get(paquetes, 9);
-        pcb->registros[DX] = (uint32_t)list_get(paquetes, 10);
+        regs->PC = (uint32_t)list_get(paquetes, 1);
+        regs->AX = (uint8_t)list_get(paquetes, 4);
+        regs->BX = (uint8_t)list_get(paquetes, 5);
+        regs->CX = (uint8_t)list_get(paquetes, 6);
+        regs->DX = (uint8_t)list_get(paquetes, 7);
+        regs->EAX = (uint32_t)list_get(paquetes, 8);
+        regs->EBX = (uint32_t)list_get(paquetes, 9);
+        regs->ECX = (uint32_t)list_get(paquetes, 10);
+        regs->EDX = (uint32_t)list_get(paquetes, 11);
+        regs->SI = (uint32_t)list_get(paquetes, 12);
+        regs->DI = (uint32_t)list_get(paquetes, 13);
     }
-    log_debug(logger, "\nContenido del pcb desempaquetado:\n|Process id: %d|\n|Program counter: %d|\n|Quantum: %d|\n|Estado: %d|\n|SS: %d|\n|DS: %d|\n|CS: %d|\n|AX: %d|\n|BX: %d|\n|CX: %d|\n|DX: %d|\n", pcb->processID, pcb->programCounter, pcb->quantum, (int)pcb->estado, pcb->registros[SS], pcb->registros[DS], pcb->registros[CS], pcb->registros[AX], pcb->registros[BX], pcb->registros[CX], pcb->registros[DX]);
-
-    return pcb;
+    log_debug(logger, "Valores de los registros ya modificados: PC=%d | AX=%d | BX=%d | CX=%d | DX=%d | EAX=%d | EBX=%d | ECX=%d | EDX=%d | SI=%d | DI=%d", regs->PC, regs->AX, regs->BX, regs->CX, regs->DX, regs->EAX, regs->EBX, regs->ECX, regs->EDX, regs->SI, regs->DI);
 }
 
 void actualizar_pcb(t_list *paquetes, t_PCB *pcb, t_log *logger)
 {
-    log_debug(logger, "\nContenido del pcb antes de actualizarlo:\n|Process id: %d|\n|Program counter: %d|\n|Quantum: %d|\n|Estado: %d|\n|SS: %d|\n|DS: %d|\n|CS: %d|\n|AX: %d|\n|BX: %d|\n|CX: %d|\n|DX: %d|\n", pcb->processID, pcb->programCounter, pcb->quantum, (int)pcb->estado, pcb->registros[SS], pcb->registros[DS], pcb->registros[CS], pcb->registros[AX], pcb->registros[BX], pcb->registros[CX], pcb->registros[DX]);
-    log_error(logger, "%d", (uint32_t)list_get(paquetes, 2));
-    int id = (int)list_get(paquetes, 0);
-    int quantum = (int)list_get(paquetes, 2);
-    pcb = crear_pcb(&id, quantum);
-    pcb->programCounter = (uint32_t)list_get(paquetes, 1);
-    pcb->estado = (e_estado_proceso)list_get(paquetes, 3);
-    pcb->registros[SS] = (uint32_t)list_get(paquetes, 4);
-    pcb->registros[DS] = (uint32_t)list_get(paquetes, 5);
-    pcb->registros[CS] = (uint32_t)list_get(paquetes, 6);
-    pcb->registros[AX] = (uint32_t)list_get(paquetes, 7);
-    pcb->registros[BX] = (uint32_t)list_get(paquetes, 8);
-    pcb->registros[CX] = (uint32_t)list_get(paquetes, 9);
-    pcb->registros[DX] = (uint32_t)list_get(paquetes, 10);
+    log_debug(logger, "\nContenido del pcb antes de actualizarlo:\n|Process id: %d|\n|Program counter: %d|\n|Quantum: %d|\n|Estado: %d|\n|AX: %d|\n|BX: %d|\n|CX: %d|\n|DX: %d|\n|EAX=%d|\n|EBX=%d|\n|ECX=%d|\n|EDX=%d|\n|SI=%d|\n|DI=%d", pcb->processID, pcb->programCounter, pcb->quantum, (int)pcb->estado, regs->AX, regs->BX, regs->CX, regs->DX, regs->EAX, regs->EBX, regs->ECX, regs->EDX, regs->SI, regs->DI);
 
-    log_debug(logger, "\nContenido del pcb despues de actualizarlo:\n|Process id: %d|\n|Program counter: %d|\n|Quantum: %d|\n|Estado: %d|\n|SS: %d|\n|DS: %d|\n|CS: %d|\n|AX: %d|\n|BX: %d|\n|CX: %d|\n|DX: %d|\n", pcb->processID, pcb->programCounter, pcb->quantum, (int)pcb->estado, pcb->registros[SS], pcb->registros[DS], pcb->registros[CS], pcb->registros[AX], pcb->registros[BX], pcb->registros[CX], pcb->registros[DX]);
+    pcb->programCounter = (uint32_t)list_get(paquetes, 0);
+    pcb->AX = (uint8_t)list_get(paquetes, 1);
+    pcb->BX = (uint8_t)list_get(paquetes, 2);
+    pcb->CX = (uint8_t)list_get(paquetes, 3);
+    pcb->DX = (uint8_t)list_get(paquetes, 4);
+    pcb->EAX = (uint32_t)list_get(paquetes, 5);
+    pcb->EBX = (uint32_t)list_get(paquetes, 6);
+    pcb->ECX = (uint32_t)list_get(paquetes, 7);
+    pcb->EDX = (uint32_t)list_get(paquetes, 8);
+    pcb->SI = (uint32_t)list_get(paquetes, 9);
+    pcb->DI = (uint32_t)list_get(paquetes, 10);
+
+    log_debug(logger, "\nContenido del pcb despues de actualizarlo:\n|Process id: %d|\n|Program counter: %d|\n|Quantum: %d|\n|Estado: %d|\n|AX: %d|\n|BX: %d|\n|CX: %d|\n|DX: %d|\n|EAX=%d|\n|EBX=%d|\n|ECX=%d|\n|EDX=%d|\n|SI=%d|\n|DI=%d", pcb->processID, pcb->programCounter, pcb->quantum, (int)pcb->estado, regs->AX, regs->BX, regs->CX, regs->DX, regs->EAX, regs->EBX, regs->ECX, regs->EDX, regs->SI, regs->DI);
 }
 
 void destruir_pcb(t_PCB *pcb)

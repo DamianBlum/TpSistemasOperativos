@@ -2,6 +2,7 @@
 #define REGISTROS_H_
 
 #include <netdb.h>
+#include <utils/sockets.h>
 
 // estructura que se va a usar en el modulo CPU
 typedef struct
@@ -18,5 +19,7 @@ typedef struct
     uint32_t SI; // tiene la dir logica de origen desde donde se va a copiar un string
     uint32_t DI; // tiene la dir logica de memoria de destino a donde se va a copiar un string
 } t_registros;
+
+void empaquetar_registros(t_paquete *p, t_registros *t);
 
 #endif
