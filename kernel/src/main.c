@@ -36,7 +36,7 @@ main(int argc, char *argv[])
     queue_push(cola_procesos, pcb3);
     queue_push(cola_procesos, pcb4);
     queue_push(cola_procesos, pcb5);
-// hola soy prueba
+    
 
     // PARTE CLIENTE
     /*
@@ -62,15 +62,41 @@ main(int argc, char *argv[])
     {
         // mostrar_menu();
         char *comandoLeido;
-        comandoLeido = readline(">"); // ee de consola lo ingresado
+        comandoLeido = readline(">"); // Lee de consola lo ingresado
         char **comandoSpliteado = string_split(comandoLeido, " ");
 
         if (string_equals_ignore_case("INICIAR_PROCESO", comandoSpliteado[0]) && comandoSpliteado[1] != NULL)
         {
             log_info(logger, "Entraste a iniciar proceso para el proceso: %s", comandoSpliteado[1]);
         }
-        else if (string_equals_ignore_case("SALIR", comandoSpliteado[0]))
+        else if (string_equals_ignore_case("PROCESO_ESTADO", comandoSpliteado[0]) && comandoSpliteado[1] != NULL)
+        {
+            log_info(logger, "Entraste a Procesos de Estado y son los siguientes: %s"); //lista de procesos
+        }
+        else if (string_equals_ignore_case("FINALIZAR_PROCESO", comandoSpliteado[0]) && comandoSpliteado[1] != NULL)
+        {
+            log_info(logger, "Finalizando Estado: %s");
             seguir = 0;
+        }
+        else if (string_equals_ignore_case("INICIAR_PLAFICACION", comandoSpliteado[0])&& comandoSpliteado[1] != NULL)
+        {
+        }
+        else if (string_equals_ignore_case("DETENER_PLANIFICACION", comandoSpliteado[0]) && comandoSpliteado[1] != NULL)
+            seguir = 0;
+        else if (string_equals_ignore_case("EJECUTAR_SCRIPT", comandoSpliteado[0]))
+        {
+            log_info(logger, "Entraste a Ejecutar Script, ingresa el path: %s", comandoSpliteado[1]);
+        }
+        else if (string_equals_ignore_case("MULTIPROGRAMACION", comandoSpliteado[0]))
+        {
+            log_info(logger, "Entraste a Multiprogramacion, ingrese valor: %d", comandoSpliteado[1]);
+        }
+        else if (string_equals_ignore_case("SALIR", comandoSpliteado[0]) && comandoSpliteado[1] != NULL)
+        {
+            seguir = 0;
+        }
+        else {log_info(logger, "COMANDO NO VALIDO");}// hacer logger comando no valido
+        
     }
 
     liberar_conexion(cliente_cpu_dispatch, logger);
