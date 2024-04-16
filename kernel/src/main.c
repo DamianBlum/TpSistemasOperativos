@@ -15,14 +15,16 @@ pthread_t hilo_servidor_io;
 int contadorProcesos = 0;
 t_queue *cola_procesos;
 int quantum;
+int grado_multiprogramacion;
 
 main(int argc, char *argv[])
 {
     logger = iniciar_logger("kernel.log", "KERNEL", argc, argv);
     config = iniciar_config("kernel.config");
     cola_procesos = queue_create();
-    // Instancio el quantum desde el config
+    // Instancio el quantum y grado de multiprogramacion desde el config
     quantum = config_get_int_value(config, "QUANTUM");
+    grado_multiprogramacion = config_get_int_value(config, "GRADO_MULTIPROGRAMACION");
 
     // harcodeo de la cola de procesos
     t_PCB *pcb1 = crear_pcb(&contadorProcesos, quantum);
@@ -91,6 +93,8 @@ main(int argc, char *argv[])
         else if (string_equals_ignore_case("MULTIPROGRAMACION", comandoSpliteado[0]) && comandoSpliteado[1] != NULL)
         {
             log_info(logger, "Entraste a MULTIPROGRAMACION, nuevo grado: %s.", comandoSpliteado[1]);
+            log_debug(logger, "Se va a modificar el grado de multiprogramacion de %d a %s.", grado_multiprogramacion, comandoSpliteado[1]);
+            grado_multiprogramacion = atoi(comandoSpliteado[1]);
         }
         else if (string_equals_ignore_case("SALIR", comandoSpliteado[0]))
         {
