@@ -36,7 +36,6 @@ main(int argc, char *argv[])
     queue_push(cola_procesos, pcb3);
     queue_push(cola_procesos, pcb4);
     queue_push(cola_procesos, pcb5);
-    
 
     // PARTE CLIENTE
     /*
@@ -67,36 +66,39 @@ main(int argc, char *argv[])
 
         if (string_equals_ignore_case("INICIAR_PROCESO", comandoSpliteado[0]) && comandoSpliteado[1] != NULL)
         {
-            log_info(logger, "Entraste a iniciar proceso para el proceso: %s", comandoSpliteado[1]);
+            log_info(logger, "Entraste a INICIAR_PROCESO, path: %s.", comandoSpliteado[1]);
         }
         else if (string_equals_ignore_case("PROCESO_ESTADO", comandoSpliteado[0]) && comandoSpliteado[1] != NULL)
         {
-            log_info(logger, "Entraste a Procesos de Estado y son los siguientes: %s"); //lista de procesos
+            log_info(logger, "Entraste a PROCESO_ESTADO."); // lista de procesos
         }
         else if (string_equals_ignore_case("FINALIZAR_PROCESO", comandoSpliteado[0]) && comandoSpliteado[1] != NULL)
         {
-            log_info(logger, "Finalizando Estado: %s");
-            seguir = 0;
+            log_info(logger, "Entraste a FINALIZAR_PROCESO para el proceso: %s.", comandoSpliteado[1]);
         }
-        else if (string_equals_ignore_case("INICIAR_PLAFICACION", comandoSpliteado[0])&& comandoSpliteado[1] != NULL)
+        else if (string_equals_ignore_case("INICIAR_PLAFICACION", comandoSpliteado[0]))
         {
+            log_info(logger, "Entraste a INICIAR_PLAFICACION.");
         }
-        else if (string_equals_ignore_case("DETENER_PLANIFICACION", comandoSpliteado[0]) && comandoSpliteado[1] != NULL)
-            seguir = 0;
+        else if (string_equals_ignore_case("DETENER_PLANIFICACION", comandoSpliteado[0]))
+        {
+            log_info(logger, "Entraste a DETENER_PLANIFICACION.");
+        }
         else if (string_equals_ignore_case("EJECUTAR_SCRIPT", comandoSpliteado[0]))
         {
-            log_info(logger, "Entraste a Ejecutar Script, ingresa el path: %s", comandoSpliteado[1]);
+            log_info(logger, "Entraste a EJECUTAR_SCRIPT, path: %s.", comandoSpliteado[1]);
         }
-        else if (string_equals_ignore_case("MULTIPROGRAMACION", comandoSpliteado[0]))
+        else if (string_equals_ignore_case("MULTIPROGRAMACION", comandoSpliteado[0]) && comandoSpliteado[1] != NULL)
         {
-            log_info(logger, "Entraste a Multiprogramacion, ingrese valor: %d", comandoSpliteado[1]);
+            log_info(logger, "Entraste a MULTIPROGRAMACION, nuevo grado: %s.", comandoSpliteado[1]);
         }
-        else if (string_equals_ignore_case("SALIR", comandoSpliteado[0]) && comandoSpliteado[1] != NULL)
+        else if (string_equals_ignore_case("SALIR", comandoSpliteado[0]))
         {
+            log_info(logger, "Entraste a SALIR, se va a terminar el modulo", comandoSpliteado[1]);
             seguir = 0;
         }
-        else {log_info(logger, "COMANDO NO VALIDO");}// hacer logger comando no valido
-        
+        else
+            log_error(logger, "COMANDO NO VALIDO: %s", comandoSpliteado[0]); // hacer logger comando no valido
     }
 
     liberar_conexion(cliente_cpu_dispatch, logger);
