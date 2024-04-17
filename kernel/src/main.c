@@ -12,7 +12,7 @@ int cliente_memoria;
 // hilo servidor I/O
 pthread_t hilo_servidor_io;
 // otro
-int contadorProcesos = 0;
+int contadorProcesos = 123;
 int quantum;
 int grado_multiprogramacion;
 e_algoritmo_planificacion algoritmo_planificacion;
@@ -179,11 +179,11 @@ void crear_proceso(char *path)
     3- mete el id a la cola de new (otro codigo es el q se encarga de moverlo a ready)
     */
     // enviar_mensaje(path, cliente_memoria, logger); // esto solo en si capaz no es suficiente, creo q ademas hay q decirle a memoria q quiero hacer
-    log_debug(logger, "1");
-    t_PCB *nuevo_pcb = crear_pcb(contadorProcesos, quantum);
-    log_debug(logger, "2");
+
+    t_PCB *nuevo_pcb = crear_pcb(&contadorProcesos, quantum);
+
     list_add(lista_de_pcbs, nuevo_pcb);
-    log_debug(logger, "3");
+
     queue_push(cola_NEW, nuevo_pcb->processID); // ahora las colas solo van a tener los ids (para manejarlo mas simple)
 
     log_info(logger, "Se crea el proceso %d en NEW.", nuevo_pcb->processID); // log obligatorio

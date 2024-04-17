@@ -19,7 +19,7 @@ typedef struct
     uint32_t processID;
     uint32_t programCounter;
     uint32_t quantum; // esto no tiene mucho sentido q este aca
-    e_estado_proceso estado;
+    uint8_t estado;
     uint8_t AX;
     uint8_t BX;
     uint8_t CX;

@@ -6,7 +6,7 @@ t_PCB *crear_pcb(int *contadorProcesos, int quantum)
 {
     t_PCB *pcb = malloc(sizeof(t_PCB));
     pcb->processID = *contadorProcesos;
-    contadorProcesos++;
+    (*contadorProcesos)++;
     pcb->estado = E_NEW;
     pcb->programCounter = 0;
     pcb->quantum = quantum;
