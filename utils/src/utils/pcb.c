@@ -110,3 +110,30 @@ void destruir_pcb(t_PCB *pcb)
 {
     // hacer desp je
 }
+
+char *estado_proceso_texto(e_estado_proceso estado)
+{
+    char *estado_texto;
+    switch (estado)
+    {
+    case E_NEW:
+        estado_texto = string_duplicate("NEW");
+        break;
+    case E_READY:
+        estado_texto = string_duplicate("READY");
+        break;
+    case E_EXECUTE:
+        estado_texto = string_duplicate("EXECUTE");
+        break;
+    case E_BLOCKED:
+        estado_texto = string_duplicate("BLOCKED");
+        break;
+    case E_EXIT:
+        estado_texto = string_duplicate("EXIT");
+        break;
+    default:
+        estado_texto = NULL;
+        break;
+    }
+    return estado_texto;
+}

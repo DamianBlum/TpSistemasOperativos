@@ -12,7 +12,7 @@ int cliente_memoria;
 // hilo servidor I/O
 pthread_t hilo_servidor_io;
 // otro
-int contadorProcesos = 123;
+int contadorProcesos = 0;
 int quantum;
 int grado_multiprogramacion;
 e_algoritmo_planificacion algoritmo_planificacion;
@@ -70,10 +70,17 @@ int main(int argc, char *argv[])
             log_debug(logger, "Entraste a INICIAR_PROCESO, path: %s.", comandoSpliteado[1]);
             crear_proceso(comandoSpliteado[1]);
         }
-        else if ((string_equals_ignore_case("PROCESO_ESTADO", comandoSpliteado[0]) || string_equals_ignore_case("PE", comandoSpliteado[0])) && comandoSpliteado[1] != NULL)
+        else if (string_equals_ignore_case("PROCESO_ESTADO", comandoSpliteado[0]) || string_equals_ignore_case("PE", comandoSpliteado[0]))
         {
             log_debug(logger, "Entraste a PROCESO_ESTADO."); // lista de procesos
-            log_info(logger, "Listado de procesos por estado:");
+            log_info(logger, "Listado de procesos con estado:");
+
+            for (int i = 0; i < list_size(lista_de_pcbs); i++)
+            {
+                t_PCB *p = list_get(lista_de_pcbs, i);
+                log_info(logger, "ID: %d Estado: %s", p->processID, estado_proceso_texto(p->estado));
+            }
+            log_info(logger, "Fin de la lista.");
         }
         else if ((string_equals_ignore_case("FINALIZAR_PROCESO", comandoSpliteado[0]) || string_equals_ignore_case("FP", comandoSpliteado[0])) && comandoSpliteado[1] != NULL)
         {
