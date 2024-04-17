@@ -12,9 +12,24 @@
 #include <pthread.h>
 #include <readline/readline.h>
 
+typedef enum
+{
+    FIFO = 0,
+    RR,
+    VRR,
+} e_algoritmo_planificacion;
+
 int main(int argc, char *argv[]);
 int generar_clientes();
 void *atender_servidor_io(void *arg);
 void mostrar_menu(t_log logger);
+e_algoritmo_planificacion obtener_algoritmo_planificacion(char *algo);
+void instanciar_colas();
+
+// planificacion de largo plazo
+void crear_proceso();
+void eliminar_proceso();
+
+// planificacion de corto plazo
 
 #endif

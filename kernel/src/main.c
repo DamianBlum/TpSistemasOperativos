@@ -13,31 +13,30 @@ int cliente_memoria;
 pthread_t hilo_servidor_io;
 // otro
 int contadorProcesos = 0;
-t_queue *cola_procesos;
 int quantum;
 int grado_multiprogramacion;
+e_algoritmo_planificacion algoritmo_planificacion;
+// lista de pcbs
+t_list *lista_de_pcbs;
+// Queues de estados
+t_queue *cola_NEW;
+t_queue *cola_READY;
+t_queue *cola_BLOCKED;
+t_queue *cola_EXIT; // esta es mas q nada para desp poder ver los procesos q ya terminaron
+// Queue de vrr
+// esto se hara en su respectivo momento
 
-main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
     logger = iniciar_logger("kernel.log", "KERNEL", argc, argv);
     config = iniciar_config("kernel.config");
-    cola_procesos = queue_create();
-    // Instancio el quantum y grado de multiprogramacion desde el config
+
+    // Instancio variables de configuracion desde el config
     quantum = config_get_int_value(config, "QUANTUM");
     grado_multiprogramacion = config_get_int_value(config, "GRADO_MULTIPROGRAMACION");
-
-    // harcodeo de la cola de procesos
-    t_PCB *pcb1 = crear_pcb(&contadorProcesos, quantum);
-    t_PCB *pcb2 = crear_pcb(&contadorProcesos, quantum);
-    t_PCB *pcb3 = crear_pcb(&contadorProcesos, quantum);
-    t_PCB *pcb4 = crear_pcb(&contadorProcesos, quantum);
-    t_PCB *pcb5 = crear_pcb(&contadorProcesos, quantum);
-
-    queue_push(cola_procesos, pcb1);
-    queue_push(cola_procesos, pcb2);
-    queue_push(cola_procesos, pcb3);
-    queue_push(cola_procesos, pcb4);
-    queue_push(cola_procesos, pcb5);
+    algoritmo_planificacion = obtener_algoritmo_planificacion(config_get_string_value(config, "ALGORITMO_PLANIFICACION"));
+    lista_de_pcbs = list_create();
+    instanciar_colas();
 
     // PARTE CLIENTE
     /*
@@ -68,41 +67,45 @@ main(int argc, char *argv[])
 
         if (string_equals_ignore_case("INICIAR_PROCESO", comandoSpliteado[0]) && comandoSpliteado[1] != NULL)
         {
-            log_info(logger, "Entraste a INICIAR_PROCESO, path: %s.", comandoSpliteado[1]);
+            log_debug(logger, "Entraste a INICIAR_PROCESO, path: %s.", comandoSpliteado[1]);
+            crear_proceso(comandoSpliteado[1]);
         }
         else if (string_equals_ignore_case("PROCESO_ESTADO", comandoSpliteado[0]) && comandoSpliteado[1] != NULL)
         {
-            log_info(logger, "Entraste a PROCESO_ESTADO."); // lista de procesos
+            log_debug(logger, "Entraste a PROCESO_ESTADO."); // lista de procesos
+            log_info(logger, "Listado de procesos por estado:");
         }
         else if (string_equals_ignore_case("FINALIZAR_PROCESO", comandoSpliteado[0]) && comandoSpliteado[1] != NULL)
         {
-            log_info(logger, "Entraste a FINALIZAR_PROCESO para el proceso: %s.", comandoSpliteado[1]);
+            log_debug(logger, "Entraste a FINALIZAR_PROCESO para el proceso: %s.", comandoSpliteado[1]);
         }
         else if (string_equals_ignore_case("INICIAR_PLAFICACION", comandoSpliteado[0]))
         {
-            log_info(logger, "Entraste a INICIAR_PLAFICACION.");
+            log_debug(logger, "Entraste a INICIAR_PLAFICACION.");
         }
         else if (string_equals_ignore_case("DETENER_PLANIFICACION", comandoSpliteado[0]))
         {
-            log_info(logger, "Entraste a DETENER_PLANIFICACION.");
+            log_debug(logger, "Entraste a DETENER_PLANIFICACION.");
         }
         else if (string_equals_ignore_case("EJECUTAR_SCRIPT", comandoSpliteado[0]))
         {
-            log_info(logger, "Entraste a EJECUTAR_SCRIPT, path: %s.", comandoSpliteado[1]);
+            log_debug(logger, "Entraste a EJECUTAR_SCRIPT, path: %s.", comandoSpliteado[1]);
         }
         else if (string_equals_ignore_case("MULTIPROGRAMACION", comandoSpliteado[0]) && comandoSpliteado[1] != NULL)
         {
-            log_info(logger, "Entraste a MULTIPROGRAMACION, nuevo grado: %s.", comandoSpliteado[1]);
+            log_debug(logger, "Entraste a MULTIPROGRAMACION, nuevo grado: %s.", comandoSpliteado[1]);
             log_debug(logger, "Se va a modificar el grado de multiprogramacion de %d a %s.", grado_multiprogramacion, comandoSpliteado[1]);
             grado_multiprogramacion = atoi(comandoSpliteado[1]);
         }
         else if (string_equals_ignore_case("SALIR", comandoSpliteado[0]))
         {
-            log_info(logger, "Entraste a SALIR, se va a terminar el modulo", comandoSpliteado[1]);
+            log_debug(logger, "Entraste a SALIR, se va a terminar el modulo", comandoSpliteado[1]);
             seguir = 0;
         }
         else
-            log_error(logger, "COMANDO NO VALIDO: %s", comandoSpliteado[0]); // hacer logger comando no valido
+        {
+            log_error(logger, "COMANDO NO VALIDO: %s", comandoSpliteado[0]);
+        }
     }
 
     liberar_conexion(cliente_cpu_dispatch, logger);
@@ -164,3 +167,47 @@ void *atender_servidor_io(void *arg)
         }
     }
 }
+
+// planificacion de largo plazo
+
+void crear_proceso(char *path)
+{
+    /* COSAS QUE HACE:
+    1- le pide a memoria q cree en memoria el proceso pasandole el path (tengo q pasarle el id tmb? desp como los relaciono?)
+    2- crea la instancia del pcb para dicho proceso
+    3- lo mete a a la lista
+    3- mete el id a la cola de new (otro codigo es el q se encarga de moverlo a ready)
+    */
+    // enviar_mensaje(path, cliente_memoria, logger); // esto solo en si capaz no es suficiente, creo q ademas hay q decirle a memoria q quiero hacer
+
+    t_PCB *nuevo_pcb = crear_pcb(contadorProcesos, quantum);
+
+    list_add(lista_de_pcbs, nuevo_pcb);
+
+    queue_push(cola_NEW, nuevo_pcb->processID); // ahora las colas solo van a tener los ids (para manejarlo mas simple)
+
+    log_info(logger, "Se crea el proceso %d en NEW.", nuevo_pcb->processID); // log obligatorio
+}
+
+void eliminar_proceso()
+{
+}
+
+e_algoritmo_planificacion obtener_algoritmo_planificacion(char *algo)
+{
+    if (string_equals_ignore_case("RR", algo))
+        return RR;
+    else if (string_equals_ignore_case("VRR", algo))
+        return VRR;
+    return FIFO;
+}
+
+void instanciar_colas()
+{
+    cola_NEW = queue_create();
+    cola_READY = queue_create();
+    cola_EXIT = queue_create();
+    cola_BLOCKED = queue_create();
+}
+
+// funciones de manejo de lista_de_pcb
