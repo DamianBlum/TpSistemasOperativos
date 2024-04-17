@@ -65,39 +65,39 @@ int main(int argc, char *argv[])
         comandoLeido = readline(">"); // Lee de consola lo ingresado
         char **comandoSpliteado = string_split(comandoLeido, " ");
 
-        if (string_equals_ignore_case("INICIAR_PROCESO", comandoSpliteado[0]) && comandoSpliteado[1] != NULL)
+        if ((string_equals_ignore_case("INICIAR_PROCESO", comandoSpliteado[0]) || string_equals_ignore_case("IP", comandoSpliteado[0])) && comandoSpliteado[1] != NULL)
         {
             log_debug(logger, "Entraste a INICIAR_PROCESO, path: %s.", comandoSpliteado[1]);
             crear_proceso(comandoSpliteado[1]);
         }
-        else if (string_equals_ignore_case("PROCESO_ESTADO", comandoSpliteado[0]) && comandoSpliteado[1] != NULL)
+        else if ((string_equals_ignore_case("PROCESO_ESTADO", comandoSpliteado[0]) || string_equals_ignore_case("PE", comandoSpliteado[0])) && comandoSpliteado[1] != NULL)
         {
             log_debug(logger, "Entraste a PROCESO_ESTADO."); // lista de procesos
             log_info(logger, "Listado de procesos por estado:");
         }
-        else if (string_equals_ignore_case("FINALIZAR_PROCESO", comandoSpliteado[0]) && comandoSpliteado[1] != NULL)
+        else if ((string_equals_ignore_case("FINALIZAR_PROCESO", comandoSpliteado[0]) || string_equals_ignore_case("FP", comandoSpliteado[0])) && comandoSpliteado[1] != NULL)
         {
             log_debug(logger, "Entraste a FINALIZAR_PROCESO para el proceso: %s.", comandoSpliteado[1]);
         }
-        else if (string_equals_ignore_case("INICIAR_PLAFICACION", comandoSpliteado[0]))
+        else if (string_equals_ignore_case("INICIAR_PLAFICACION", comandoSpliteado[0]) || string_equals_ignore_case("IPL", comandoSpliteado[0]))
         {
             log_debug(logger, "Entraste a INICIAR_PLAFICACION.");
         }
-        else if (string_equals_ignore_case("DETENER_PLANIFICACION", comandoSpliteado[0]))
+        else if (string_equals_ignore_case("DETENER_PLANIFICACION", comandoSpliteado[0]) || string_equals_ignore_case("DP", comandoSpliteado[0]))
         {
             log_debug(logger, "Entraste a DETENER_PLANIFICACION.");
         }
-        else if (string_equals_ignore_case("EJECUTAR_SCRIPT", comandoSpliteado[0]))
+        else if (string_equals_ignore_case("EJECUTAR_SCRIPT", comandoSpliteado[0]) || string_equals_ignore_case("ES", comandoSpliteado[0]))
         {
             log_debug(logger, "Entraste a EJECUTAR_SCRIPT, path: %s.", comandoSpliteado[1]);
         }
-        else if (string_equals_ignore_case("MULTIPROGRAMACION", comandoSpliteado[0]) && comandoSpliteado[1] != NULL)
+        else if ((string_equals_ignore_case("MULTIPROGRAMACION", comandoSpliteado[0]) || string_equals_ignore_case("MP", comandoSpliteado[0])) && comandoSpliteado[1] != NULL)
         {
             log_debug(logger, "Entraste a MULTIPROGRAMACION, nuevo grado: %s.", comandoSpliteado[1]);
             log_debug(logger, "Se va a modificar el grado de multiprogramacion de %d a %s.", grado_multiprogramacion, comandoSpliteado[1]);
             grado_multiprogramacion = atoi(comandoSpliteado[1]);
         }
-        else if (string_equals_ignore_case("SALIR", comandoSpliteado[0]))
+        else if (string_equals_ignore_case("SALIR", comandoSpliteado[0]) || string_equals_ignore_case("S", comandoSpliteado[0]))
         {
             log_debug(logger, "Entraste a SALIR, se va a terminar el modulo", comandoSpliteado[1]);
             seguir = 0;
@@ -179,11 +179,11 @@ void crear_proceso(char *path)
     3- mete el id a la cola de new (otro codigo es el q se encarga de moverlo a ready)
     */
     // enviar_mensaje(path, cliente_memoria, logger); // esto solo en si capaz no es suficiente, creo q ademas hay q decirle a memoria q quiero hacer
-
+    log_debug(logger, "1");
     t_PCB *nuevo_pcb = crear_pcb(contadorProcesos, quantum);
-
+    log_debug(logger, "2");
     list_add(lista_de_pcbs, nuevo_pcb);
-
+    log_debug(logger, "3");
     queue_push(cola_NEW, nuevo_pcb->processID); // ahora las colas solo van a tener los ids (para manejarlo mas simple)
 
     log_info(logger, "Se crea el proceso %d en NEW.", nuevo_pcb->processID); // log obligatorio

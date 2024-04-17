@@ -95,6 +95,17 @@ void actualizar_pcb(t_list *paquetes, t_PCB *pcb, t_log *logger)
     log_debug(logger, "\nContenido del pcb despues de actualizarlo:\n|Process id: %d|\n|Program counter: %d|\n|Quantum: %d|\n|Estado: %d|\n|AX: %d|\n|BX: %d|\n|CX: %d|\n|DX: %d|\n|EAX=%d|\n|EBX=%d|\n|ECX=%d|\n|EDX=%d|\n|SI=%d|\n|DI=%d", pcb->processID, pcb->programCounter, pcb->quantum, (int)pcb->estado, pcb->AX, pcb->BX, pcb->CX, pcb->DX, pcb->EAX, pcb->EBX, pcb->ECX, pcb->EDX, pcb->SI, pcb->DI);
 }
 
+t_PCB *devolver_pcb_desde_lista(t_list *lista, uint32_t id)
+{
+    for (int i = 0; i < list_size(lista); i++)
+    {
+        t_PCB *pcb_aux = (t_PCB *)list_get(lista, i);
+        if (pcb_aux->processID == id)
+            return pcb_aux;
+    }
+    return NULL;
+}
+
 void destruir_pcb(t_PCB *pcb)
 {
     // hacer desp je
