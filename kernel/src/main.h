@@ -29,7 +29,7 @@ void instanciar_colas();
 // planificacion de largo plazo
 void crear_proceso();
 void eliminar_proceso();
-
+void evaluar_NEW_a_READY();
 // planificacion de corto plazo
 
 #endif

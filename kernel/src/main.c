@@ -14,13 +14,15 @@ pthread_t hilo_servidor_io;
 // otro
 int contadorProcesos = 0;
 int quantum;
-int grado_multiprogramacion;
+int grado_multiprogramacion;        // este es el definido por parametro de config
+int grado_multiprogramacion_actual; // y este es un contador de procesos en el sistema, se modifica en el planificador de largo plazo
 e_algoritmo_planificacion algoritmo_planificacion;
 // lista de pcbs
 t_list *lista_de_pcbs;
 // Queues de estados
 t_queue *cola_NEW;
 t_queue *cola_READY;
+t_queue *cola_RUNNING; // si, es una cola para un unico proceso, algun problema?
 t_queue *cola_BLOCKED;
 t_queue *cola_EXIT; // esta es mas q nada para desp poder ver los procesos q ya terminaron
 // Queue de vrr
@@ -69,6 +71,7 @@ int main(int argc, char *argv[])
         {
             log_debug(logger, "Entraste a INICIAR_PROCESO, path: %s.", comandoSpliteado[1]);
             crear_proceso(comandoSpliteado[1]);
+            evaluar_NEW_a_READY();
         }
         else if (string_equals_ignore_case("PROCESO_ESTADO", comandoSpliteado[0]) || string_equals_ignore_case("PE", comandoSpliteado[0]))
         {
@@ -79,12 +82,15 @@ int main(int argc, char *argv[])
             {
                 t_PCB *p = list_get(lista_de_pcbs, i);
                 log_info(logger, "ID: %d Estado: %s", p->processID, estado_proceso_texto(p->estado));
+                log_debug(logger, "ID: %d PC: %d Q: %d Estado: %s AX: %d BX: %d CX: %d DX: %d EAX: %d EBX: %d ECX: %d EDX SI: %d DI: %d", p->processID, p->programCounter, p->quantum, estado_proceso_texto(p->estado), p->AX, p->BX, p->CX, p->DX, p->EAX, p->EBX, p->ECX, p->EDX, p->SI, p->DI);
             }
             log_info(logger, "Fin de la lista.");
         }
         else if ((string_equals_ignore_case("FINALIZAR_PROCESO", comandoSpliteado[0]) || string_equals_ignore_case("FP", comandoSpliteado[0])) && comandoSpliteado[1] != NULL)
         {
             log_debug(logger, "Entraste a FINALIZAR_PROCESO para el proceso: %s.", comandoSpliteado[1]);
+            eliminar_proceso();
+            evaluar_NEW_a_READY();
         }
         else if (string_equals_ignore_case("INICIAR_PLAFICACION", comandoSpliteado[0]) || string_equals_ignore_case("IPL", comandoSpliteado[0]))
         {
@@ -198,7 +204,36 @@ void crear_proceso(char *path)
 
 void eliminar_proceso()
 {
+    grado_multiprogramacion_actual--;
+
+    log_debug(logger, "Grado de multiprogramacion actual: %d", grado_multiprogramacion_actual);
 }
+
+void evaluar_NEW_a_READY()
+{ // evalua si puede uno, o varios, procesos en new parsar a ready si da el grado de multiprogramacion
+    log_trace(logger, "Voy a evaluar si puedo mover uno o mas procesos de la cola NEW a READY.");
+
+    while (!queue_is_empty(cola_NEW))
+    {
+        if (grado_multiprogramacion_actual < grado_multiprogramacion)
+        {
+            uint32_t id = queue_pop(cola_NEW);
+
+            queue_push(cola_READY, id);
+            log_trace(logger, "Fue posible mover el proceso %d de NEW a READY.", id);
+
+            grado_multiprogramacion_actual++;
+            log_debug(logger, "Grado de multiprogramacion actual: %d", grado_multiprogramacion_actual);
+        }
+        else
+        {
+            log_trace(logger, "No puedo porque el grado de multiprogramacion (%d) no admite mas programas en el sistema (actual: %d).", grado_multiprogramacion, grado_multiprogramacion_actual);
+            break;
+        }
+    }
+}
+
+// planificacion de corto plazo
 
 e_algoritmo_planificacion obtener_algoritmo_planificacion(char *algo)
 {
@@ -213,6 +248,7 @@ void instanciar_colas()
 {
     cola_NEW = queue_create();
     cola_READY = queue_create();
+    cola_RUNNING = queue_create();
     cola_EXIT = queue_create();
     cola_BLOCKED = queue_create();
 }
