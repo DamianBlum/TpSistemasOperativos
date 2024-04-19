@@ -72,6 +72,7 @@ int main(int argc, char *argv[])
             log_debug(logger, "Entraste a INICIAR_PROCESO, path: %s.", comandoSpliteado[1]);
             crear_proceso(comandoSpliteado[1]);
             evaluar_NEW_a_READY();
+            evaluar_READY_a_EXEC(); // esto capaz no deberia estar aca, pero lo pongo xq nose donde mas tendria q atender esto, mas q nada la primera vez q ingreso un proceso, para el resto con el RUNNING -> ALGO alcanza
         }
         else if (string_equals_ignore_case("PROCESO_ESTADO", comandoSpliteado[0]) || string_equals_ignore_case("PE", comandoSpliteado[0]))
         {
@@ -271,6 +272,7 @@ void evaluar_NEW_a_READY()
 
 void evaluar_READY_a_EXEC()
 {
+    log_trace(logger, "Entre a READY a EXEC para evaluar si se puede asignar un proceso al CPU.");
     if (queue_is_empty(cola_RUNNING) && !queue_is_empty(cola_READY)) // creo q solo tengo q validar q no este nadie corriendo
     {                                                                // tengo q hacer algo distinto segun cada algoritmo de planificacion
         uint32_t id;
@@ -283,23 +285,30 @@ void evaluar_READY_a_EXEC()
             break;
         case RR: // esto deberia ser lo mismo q fifo
             log_error(logger, "Todavia no desarrollado.");
+            id = __UINT32_MAX__; // esto es algo para poder identificar q no esta desarrollado en CPU
             break;
         case VRR:
             log_error(logger, "Todavia no desarrollado.");
+            id = __UINT32_MAX__;
             break;
         default:
             log_error(logger, "Esto nunca va a pasar.");
             break;
         }
+        log_trace(logger, "El proceso %d va a ser asignado al CPU.", id);
         queue_push(cola_RUNNING, id);
         // ya q estamos le mando a cpu el contexto de ejecucion del proceso elegido
         t_PCB *pcb_elegido = obtener_pcb_de_lista_por_id(id);
-        t_paquete paquete_con_pcb = crear_paquete();
+        t_paquete *paquete_con_pcb = crear_paquete();
         empaquetar_pcb(paquete_con_pcb, pcb_elegido);
         enviar_paquete(paquete_con_pcb, cliente_cpu_dispatch, logger);
 
         // aca voy a crear un hilo para q se quede esperando el contexto actualizado desde cpu
+        pthread_t hilo_esperar_finalizacion_proceso;
+        pthread_create(&hilo_esperar_finalizacion_proceso, NULL, atender_finalizacion_proceso, NULL);
     }
+    else
+        log_trace(logger, "No fue posible asignar un proceso al CPU.");
 }
 
 void evaluar_NEW_a_EXIT();
@@ -313,4 +322,11 @@ void evaluar_EXEC_a_EXIT();
 void mostrar_menu()
 {
     log_info(logger, "\n\n|##########################|\n|     MENU DE OPCIONES     |\n|##########################|\n|  INICIAR_PROCESO [PATH]  |\n|      PROCESO_ESTADO      |\n|  FINALIZAR_PROCESO [PI]  |\n|   INICIAR_PLAFICACION    |\n|  DETENER_PLANIFICACION   |\n|  EJECUTAR_SCRIPT [PATH]  |\n| MULTIPROGRAMACION [VALOR]|\n|          SALIR           |\n|##########################|\n");
+}
+
+void *atender_finalizacion_proceso(void *arg)
+{
+    log_debug(logger, "Entre a un hilo para atender la finalizacion del proceso %d", (int)queue_peek(cola_RUNNING));
+
+    // magia para atender la respuesta del CPU
 }
