@@ -1,4 +1,5 @@
 #include "main.h"
+#include "cicloDeInstruccion.h"
 
 // Servidor
 int socket_servidor_dispatch;
@@ -18,12 +19,21 @@ pthread_t tid[2];
 // registros 
 t_registros *registros;
 
-// cola para las interrupcines?
-queue *cola_interrupciones;
+// bit para la interrupion
+bool interrupcion;
+
+// Linea de instruccion que llega de memoria
+char* linea_de_instruccion;
+
+// instruccion
+e_instruccion* instruccion;
+
+// Linea de instruccion separada
+char ** linea_de_instruccion_separada;
 
 int main(int argc, char *argv[])
 {
-    cola_interrupciones=queue_create();
+    instruccion =string_new();
     registros =crear_registros();
     logger = iniciar_logger("cpu.log", "CPU", argc, argv);
     config = iniciar_config("cpu.config");
@@ -42,21 +52,27 @@ int main(int argc, char *argv[])
     // acto de ejectar una instruccion
     while (1) //no se si simpre es un while infinito por ahora lo dejo asi
     {
-        fetch(); //busca con registros->PC en la memoria 
-                 //y devuelve un string por ahora me imagine con una instruccion de esta forma " SUM AX BX" 
-        decode(); //consigue la primera palabra que seria el "SUM" y en base a eso en un switch o algo de ese estilo despues ve que seria "AX" y "BX"
-        execute(); //Ejecuta la instruccion y guarda la data en los registros que se actualizaro y aumenta el PC en uno si no fue un EXIT
+        fetch( instruccion, registros->PC, logger); 
+        //busca con registros->PC en la memoria 
+        //y devuelve un string por ahora me imagine con una instruccion de esta forma "SUM AX BX" 
+
+        decode(linea_de_instruccion, instruccion, linea_de_instruccion_separada, logger); 
+        //consigue la primera palabra que seria el "SUM" y en base a eso en un switch o algo de ese estilo despues ve que seria "AX" y "BX"
+
+        execute(linea_de_instruccion_separada,instruccion,registros,logger); 
+        //Ejecuta la instruccion y guarda la data en los registros que se actualizaro y aumenta el PC en uno si no fue un EXIT
         // a la vez si es exucute de un exit deberia finalizar la ejecucion de este proceso no se como
-        // no se bien que era el write back en el diagram que vimos
+        // write back es como usar el log, ahi se actualiza el PC en uno
 
-        // se fija si hay interrupciones habilitadas en el eflag, que no se donde estaria
+        check_interrupt();
         // se fija si hay interrupciones, deberian estar como en una cola me parece como variable global
-
+        
         // si se interrumpe no se donde exacto, si aca, abajo de este while o en el otro hilo, se intrduce el PSW y el PC en la pila del sistema
         // y el cpu carga el nuevo PC en funcion de la intterupcion creo ?
 
         //recordar que las unicas interrupciones son o por quantum o por entrada salida que pida la instruccion!
     }
+
 
 
 
