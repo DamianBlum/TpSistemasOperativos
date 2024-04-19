@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
     int seguir = 1;
     while (seguir)
     {
-        // mostrar_menu();
+        mostrar_menu();
         char *comandoLeido;
         comandoLeido = readline(">"); // Lee de consola lo ingresado
         char **comandoSpliteado = string_split(comandoLeido, " ");
@@ -209,6 +209,42 @@ void eliminar_proceso()
     log_debug(logger, "Grado de multiprogramacion actual: %d", grado_multiprogramacion_actual);
 }
 
+// planificacion de corto plazo
+
+e_algoritmo_planificacion obtener_algoritmo_planificacion(char *algo)
+{
+    if (string_equals_ignore_case("RR", algo))
+        return RR;
+    else if (string_equals_ignore_case("VRR", algo))
+        return VRR;
+    return FIFO;
+}
+
+void instanciar_colas()
+{
+    cola_NEW = queue_create();
+    cola_READY = queue_create();
+    cola_RUNNING = queue_create();
+    cola_EXIT = queue_create();
+    cola_BLOCKED = queue_create();
+}
+
+// funciones de manejo de lista_de_pcb
+
+t_PCB *obtener_pcb_de_lista_por_id(int id)
+{
+    for (int i = 0; i < list_size(lista_de_pcbs); i++)
+    {
+        t_PCB *pcbAux = list_get(lista_de_pcbs, i);
+
+        if (pcbAux->processID == id)
+            return pcbAux;
+    }
+    return NULL;
+}
+
+// cambios de estados
+
 void evaluar_NEW_a_READY()
 { // evalua si puede uno, o varios, procesos en new parsar a ready si da el grado de multiprogramacion
     log_trace(logger, "Voy a evaluar si puedo mover uno o mas procesos de la cola NEW a READY.");
@@ -233,24 +269,48 @@ void evaluar_NEW_a_READY()
     }
 }
 
-// planificacion de corto plazo
-
-e_algoritmo_planificacion obtener_algoritmo_planificacion(char *algo)
+void evaluar_READY_a_EXEC()
 {
-    if (string_equals_ignore_case("RR", algo))
-        return RR;
-    else if (string_equals_ignore_case("VRR", algo))
-        return VRR;
-    return FIFO;
+    if (queue_is_empty(cola_RUNNING) && !queue_is_empty(cola_READY)) // creo q solo tengo q validar q no este nadie corriendo
+    {                                                                // tengo q hacer algo distinto segun cada algoritmo de planificacion
+        uint32_t id;
+
+        switch (algoritmo_planificacion)
+        {
+        case FIFO: // saco el primero
+            log_trace(logger, "Entre a planificacion por FIFO.");
+            id = queue_pop(cola_READY);
+            break;
+        case RR: // esto deberia ser lo mismo q fifo
+            log_error(logger, "Todavia no desarrollado.");
+            break;
+        case VRR:
+            log_error(logger, "Todavia no desarrollado.");
+            break;
+        default:
+            log_error(logger, "Esto nunca va a pasar.");
+            break;
+        }
+        queue_push(cola_RUNNING, id);
+        // ya q estamos le mando a cpu el contexto de ejecucion del proceso elegido
+        t_PCB *pcb_elegido = obtener_pcb_de_lista_por_id(id);
+        t_paquete paquete_con_pcb = crear_paquete();
+        empaquetar_pcb(paquete_con_pcb, pcb_elegido);
+        enviar_paquete(paquete_con_pcb, cliente_cpu_dispatch, logger);
+
+        // aca voy a crear un hilo para q se quede esperando el contexto actualizado desde cpu
+    }
 }
 
-void instanciar_colas()
-{
-    cola_NEW = queue_create();
-    cola_READY = queue_create();
-    cola_RUNNING = queue_create();
-    cola_EXIT = queue_create();
-    cola_BLOCKED = queue_create();
-}
+void evaluar_NEW_a_EXIT();
+void evaluar_EXEC_a_READY();
+void evaluar_READY_a_EXIT();
+void evaluar_BLOCKED_a_EXIT();
+void evaluar_EXEC_a_BLOCKED();
+void evaluar_BLOCKED_a_READY();
+void evaluar_EXEC_a_EXIT();
 
-// funciones de manejo de lista_de_pcb
+void mostrar_menu()
+{
+    log_info(logger, "\n\n|##########################|\n|     MENU DE OPCIONES     |\n|##########################|\n|  INICIAR_PROCESO [PATH]  |\n|      PROCESO_ESTADO      |\n|  FINALIZAR_PROCESO [PI]  |\n|   INICIAR_PLAFICACION    |\n|  DETENER_PLANIFICACION   |\n|  EJECUTAR_SCRIPT [PATH]  |\n| MULTIPROGRAMACION [VALOR]|\n|          SALIR           |\n|##########################|\n");
+}
