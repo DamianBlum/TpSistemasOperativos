@@ -17,6 +17,7 @@ int quantum;
 int grado_multiprogramacion;        // este es el definido por parametro de config
 int grado_multiprogramacion_actual; // y este es un contador de procesos en el sistema, se modifica en el planificador de largo plazo
 e_algoritmo_planificacion algoritmo_planificacion;
+bool esta_planificacion_pausada = false;
 // lista de pcbs
 t_list *lista_de_pcbs;
 // Queues de estados
@@ -41,23 +42,14 @@ int main(int argc, char *argv[])
     instanciar_colas();
 
     // PARTE CLIENTE
-    /*
-        if (generar_clientes()) // error al crear los clientes de cpu
-            return EXIT_FAILURE;
-
-        t_PCB *pcb = crear_pcb(&contadorProcesos, 3);
-        t_paquete *p = crear_paquete();
-        pcb->AX = (uint8_t)15;
-        pcb->DI = (uint32_t)1231156;
-        empaquetar_pcb(p, pcb);
-        enviar_paquete(p, cliente_cpu_dispatch, logger);
+    if (generar_clientes()) // error al crear los clientes de cpu
+        return EXIT_FAILURE;
 
     // CREACION HILO SERVIDOR I/O
-
-    pthread_create(&hilo_servidor_io, NULL, atender_servidor_io, NULL);
-    pthread_join(hilo_servidor_io, NULL);
+    /*
+        pthread_create(&hilo_servidor_io, NULL, atender_servidor_io, NULL);
+        pthread_join(hilo_servidor_io, NULL);
     */
-
     // PARTE CONSOLA INTERACTIVA
     int seguir = 1;
     while (seguir)
@@ -72,7 +64,6 @@ int main(int argc, char *argv[])
             log_debug(logger, "Entraste a INICIAR_PROCESO, path: %s.", comandoSpliteado[1]);
             crear_proceso(comandoSpliteado[1]);
             evaluar_NEW_a_READY();
-            evaluar_READY_a_EXEC(); // esto capaz no deberia estar aca, pero lo pongo xq nose donde mas tendria q atender esto, mas q nada la primera vez q ingreso un proceso, para el resto con el RUNNING -> ALGO alcanza
         }
         else if (string_equals_ignore_case("PROCESO_ESTADO", comandoSpliteado[0]) || string_equals_ignore_case("PE", comandoSpliteado[0]))
         {
@@ -96,10 +87,13 @@ int main(int argc, char *argv[])
         else if (string_equals_ignore_case("INICIAR_PLAFICACION", comandoSpliteado[0]) || string_equals_ignore_case("IPL", comandoSpliteado[0]))
         {
             log_debug(logger, "Entraste a INICIAR_PLAFICACION.");
+            esta_planificacion_pausada = false;
+            evaluar_READY_a_EXEC(); // este esta para cuando recien se arranco el programa y cuando se despausa la planificacion
         }
         else if (string_equals_ignore_case("DETENER_PLANIFICACION", comandoSpliteado[0]) || string_equals_ignore_case("DP", comandoSpliteado[0]))
         {
             log_debug(logger, "Entraste a DETENER_PLANIFICACION.");
+            esta_planificacion_pausada = true;
         }
         else if (string_equals_ignore_case("EJECUTAR_SCRIPT", comandoSpliteado[0]) || string_equals_ignore_case("ES", comandoSpliteado[0]))
         {
@@ -257,6 +251,10 @@ void evaluar_NEW_a_READY()
             uint32_t id = queue_pop(cola_NEW);
 
             queue_push(cola_READY, id);
+
+            t_PCB *pcb_elegido = obtener_pcb_de_lista_por_id(id);
+            pcb_elegido->estado = E_READY;
+
             log_trace(logger, "Fue posible mover el proceso %d de NEW a READY.", id);
 
             grado_multiprogramacion_actual++;
@@ -273,8 +271,8 @@ void evaluar_NEW_a_READY()
 void evaluar_READY_a_EXEC()
 {
     log_trace(logger, "Entre a READY a EXEC para evaluar si se puede asignar un proceso al CPU.");
-    if (queue_is_empty(cola_RUNNING) && !queue_is_empty(cola_READY)) // creo q solo tengo q validar q no este nadie corriendo
-    {                                                                // tengo q hacer algo distinto segun cada algoritmo de planificacion
+    if (queue_is_empty(cola_RUNNING) && !queue_is_empty(cola_READY) && !esta_planificacion_pausada) // valido q no este nadie corriendo, ready no este vacio y la planificacion no este pausada
+    {                                                                                               // tengo q hacer algo distinto segun cada algoritmo de planificacion
         uint32_t id;
 
         switch (algoritmo_planificacion)
@@ -297,8 +295,9 @@ void evaluar_READY_a_EXEC()
         }
         log_trace(logger, "El proceso %d va a ser asignado al CPU.", id);
         queue_push(cola_RUNNING, id);
-        // ya q estamos le mando a cpu el contexto de ejecucion del proceso elegido
         t_PCB *pcb_elegido = obtener_pcb_de_lista_por_id(id);
+        // ya q estamos le mando a cpu el contexto de ejecucion del proceso elegido
+        pcb_elegido->estado = E_EXECUTE;
         t_paquete *paquete_con_pcb = crear_paquete();
         empaquetar_pcb(paquete_con_pcb, pcb_elegido);
         enviar_paquete(paquete_con_pcb, cliente_cpu_dispatch, logger);
@@ -326,7 +325,19 @@ void mostrar_menu()
 
 void *atender_finalizacion_proceso(void *arg)
 {
-    log_debug(logger, "Entre a un hilo para atender la finalizacion del proceso %d", (int)queue_peek(cola_RUNNING));
+    log_trace(logger, "Entre a un hilo para atender la finalizacion del proceso %d.", (int)queue_peek(cola_RUNNING));
 
     // magia para atender la respuesta del CPU
+    int op = recibir_operacion(cliente_cpu_dispatch, logger); // si, uso el cliente como socket servidor
+
+    if (op == PAQUETE)
+    {
+        t_list *lista = list_create();
+        lista = recibir_paquete(cliente_cpu_dispatch, logger);
+        log_trace(logger, "CPU me devolvio el contexto de ejecucion.");
+        t_PCB *pcb_en_running = devolver_pcb_desde_lista(lista_de_pcbs, (uint32_t)queue_pop(cola_RUNNING));
+        actualizar_pcb(lista, pcb_en_running, logger);
+    }
+    else
+        log_error(logger, "Me mandaron cualquier cosa, voy a romper todo.");
 }
