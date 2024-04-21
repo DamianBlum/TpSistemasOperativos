@@ -23,13 +23,13 @@ t_registros *registros;
 bool interrupcion;
 
 // Linea de instruccion que llega de memoria
-char* linea_de_instruccion;
+char *linea_de_instruccion;
 
 // instruccion
 e_instruccion instruccion;
 
 // Linea de instruccion separada
-char ** linea_de_instruccion_separada;
+char **linea_de_instruccion_separada;
 
 
 
@@ -39,6 +39,8 @@ int main(int argc, char *argv[])
     logger = iniciar_logger("cpu.log", "CPU", argc, argv);
     config = iniciar_config("cpu.config");
 
+    linea_de_instruccion = string_new();   
+    linea_de_instruccion_separada = string_array_new();
     // Parte cliente, por ahora esta harcodeado, despues agregar
     /* 
     cliente_memoria = crear_conexion(config, "IP_MEMORIA", "PUERTO_MEMORIA", logger);
@@ -52,9 +54,15 @@ int main(int argc, char *argv[])
 
     // acto de ejectar una instruccion
 
-    fetch(instruccion, registros->PC, logger);
-    decode(linea_de_instruccion,instruccion, linea_de_instruccion_separada, logger);
-    execute(linea_de_instruccion_separada,instruccion,registros,logger);
+    fetch(linea_de_instruccion, registros->PC, logger);
+    log_debug(logger, "LOG DESPUES DEL FETCH: %s", linea_de_instruccion);
+
+    decode(linea_de_instruccion, &instruccion, linea_de_instruccion_separada, logger);
+    log_debug(logger, "LOG DESPUES DEL execute: %s", linea_de_instruccion_separada[0]);
+    log_debug(logger, "LOG DESPUES DEL execute: %s", linea_de_instruccion_separada[1]);
+    log_debug(logger, "LOG DESPUES DEL execute: %s", linea_de_instruccion_separada[2]);
+
+    execute(linea_de_instruccion_separada, instruccion, registros, logger);
 
     /*
     while (1) 

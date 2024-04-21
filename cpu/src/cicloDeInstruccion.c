@@ -69,16 +69,27 @@ void fetch(char* instruccion, uint32_t pc, t_log *logger)
     //Buscamos la siguiente instruccion con el pc en memoria y la asignamos a la variable instruccion
     // char instr_recibida = recibir_mensaje(socket, logger); para conseguir la instruccion
     // por ahora lo hacemos default
-    *instruccion = "SET AX 1";
+    instruccion = string_duplicate("SET AX 10");
+    log_debug(logger, "LA instruccion leida es %s", instruccion);
     return EXIT_SUCCESS;
 }
 
 void decode(char* linea_de_instruccion, e_instruccion instruccion ,char** linea_de_instruccion_separada, t_log *logger){
 
-    char **instr_spliteado = string_array_new();
-    linea_de_instruccion_separada = string_split(linea_de_instruccion, " ");
+    log_debug(logger, linea_de_instruccion);
+    linea_de_instruccion_separada = string_split(linea_de_instruccion, " " );
+
+    log_debug(logger, linea_de_instruccion_separada[0]);
+    log_debug(logger, linea_de_instruccion_separada[1]);
+    log_debug(logger, linea_de_instruccion_separada[2]);
+
     instruccion = parsear_instruccion(linea_de_instruccion_separada[0]);
+    log_debug(logger, "Instruccion: %s", linea_de_instruccion_separada[0]);
+    log_debug(logger, "Registro: %s", linea_de_instruccion_separada[1]);
+    log_debug(logger, "Valor: %s", linea_de_instruccion_separada[2]);
+
     return EXIT_SUCCESS;
+    // ["SET","BX","10"]
     //chararg1 = instr_spliteado[1]; para acceder a algun elemento
 }
 
@@ -86,7 +97,7 @@ void execute(char** linea_de_instruccion_separada, e_instruccion instruccion, t_
     switch (instruccion)
     {
     case SET:
-        instruction_set(linea_de_instruccion_separada, registros);
+        instruction_set(linea_de_instruccion_separada, registros, logger);
         break;
     case MOV_IN:
         break;
@@ -130,42 +141,50 @@ void execute(char** linea_de_instruccion_separada, e_instruccion instruccion, t_
     }
 }
 
-void instruction_set(char** linea_de_instruccion_separada, t_registros* registros){
+void instruction_set(char** linea_de_instruccion_separada, t_registros* registros, t_log* logger){
 
-    char* registroDestino = linea_de_instruccion_separada[1];
+    char* registroDestino = string_new();
+    char* valorEnString = string_new();
+    registroDestino = linea_de_instruccion_separada[1];
+    log_debug("Registro Destino: %s", registroDestino);
 
-    char* valorEnString = linea_de_instruccion_separada[2];
+    valorEnString = linea_de_instruccion_separada[2];
+    log_debug("Valor en string: %s", valorEnString);
 
     int valorEnInt = atoi(valorEnString);
+    log_debug("Valor en string: %d", valorEnInt);
 
     // Establecer el valor en el registro correspondiente
-    asignarValoresIntEnRegistros(registros, valorEnInt, "SET");
+    asignarValoresIntEnRegistros(registros, registroDestino,valorEnInt, "SET", logger);
+
+    free(registroDestino);
+    free(valorEnString);
 }
 
-void asignarValoresIntEnRegistros(t_registros* registros, int valor, char* instruccion) {
+void asignarValoresIntEnRegistros(t_registros* registros, char* registroDestino,int valor, char* instruccion, t_log* logger) {
 
-    if (strcmp(registros, "AX") == 0) {
+    if (strcmp(registroDestino, "AX") == 0) {
         registros->AX = (uint8_t)valor;
-    } else if (strcmp(registros, "BX") == 0) {
+    } else if (strcmp(registroDestino, "BX") == 0) {
         registros->BX = (uint8_t)valor;
-    } else if (strcmp(registros, "CX") == 0) {
+    } else if (strcmp(registroDestino, "CX") == 0) {
         registros->CX = (uint8_t)valor;
-    } else if (strcmp(registros, "DX") == 0) {
+    } else if (strcmp(registroDestino, "DX") == 0) {
         registros->DX = (uint8_t)valor;
-    } else if (strcmp(registros, "EAX") == 0) {
+    } else if (strcmp(registroDestino, "EAX") == 0) {
         registros->EAX = (uint32_t)valor;
-    } else if (strcmp(registros, "EBX") == 0) {
+    } else if (strcmp(registroDestino, "EBX") == 0) {
         registros->EBX = (uint32_t)valor;
-    } else if (strcmp(registros, "ECX") == 0) {
+    } else if (strcmp(registroDestino, "ECX") == 0) {
         registros->ECX = (uint32_t)valor;
-    } else if (strcmp(registros, "EDX") == 0) {
+    } else if (strcmp(registroDestino, "EDX") == 0) {
         registros->EDX = (uint32_t)valor;
-    } else if (strcmp(registros, "SI") == 0) {
+    } else if (strcmp(registroDestino, "SI") == 0) {
         registros->SI = (uint32_t)valor;
-    } else if (strcmp(registros, "DI") == 0) {
+    } else if (strcmp(registroDestino, "DI") == 0) {
         registros->DI = (uint32_t)valor;
     } else {
-        printf("Hubo un error al ejecutar la instruccion %s", instruccion);
+        log_error(logger, "Hubo un error al ejecutar la instruccion %s", instruccion);
         exit(EXIT_FAILURE);
     }
 }
