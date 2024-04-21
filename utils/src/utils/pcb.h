@@ -40,6 +40,10 @@ void desempaquetar_pcb_a_registros(t_list *paquetes, t_registros *regs, t_log *l
 
 void actualizar_pcb(t_list *paquetes, t_PCB *pcb, t_log *logger); // lo mismo q el de arriba pero en vez de darte un pcb, te actualiza el enviado x param
 
+t_PCB *devolver_pcb_desde_lista(t_list *lista, uint32_t id);
+
 void destruir_pcb(t_PCB *pcb);
+
+char *estado_proceso_texto(e_estado_proceso estado);
 
 #endif
