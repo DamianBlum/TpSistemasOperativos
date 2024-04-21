@@ -50,8 +50,13 @@ int main(int argc, char *argv[])
     pthread_create(&tid[INTERRUPT], NULL, servidor_interrupt, NULL);
 
     // acto de ejectar una instruccion
-    while (1) //no se si simpre es un while infinito por ahora lo dejo asi
+    while (1) 
     {
+        //como sabemos si los registros tienen algo al principio?
+        //como sabemos cuanto esperar despues de ejecutar una instruccion para seguir esto?
+
+
+
         fetch( instruccion, registros->PC, logger); 
         //busca con registros->PC en la memoria 
         //y devuelve un string por ahora me imagine con una instruccion de esta forma "SUM AX BX" 

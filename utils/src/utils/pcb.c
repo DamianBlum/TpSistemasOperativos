@@ -1,6 +1,6 @@
 #include "pcb.h"
 
-bool MOCKUP_RESPUESTA_CPU = false;
+bool MOCKUP_RESPUESTA_CPU = true;
 
 t_PCB *crear_pcb(int *contadorProcesos, int quantum)
 {
@@ -47,7 +47,9 @@ void desempaquetar_pcb_a_registros(t_list *paquetes, t_registros *regs, t_log *l
     log_debug(logger, "Valores de los registros antes de ser modificados: PC=%d | AX=%d | BX=%d | CX=%d | DX=%d | EAX=%d | EBX=%d | ECX=%d | EDX=%d | SI=%d | DI=%d", regs->PC, regs->AX, regs->BX, regs->CX, regs->DX, regs->EAX, regs->EBX, regs->ECX, regs->EDX, regs->SI, regs->DI);
     if (MOCKUP_RESPUESTA_CPU) // esto desp vuela
     {                         // es para q puedan avanzar en cpu antes de q tengamos lo de kernel
+        regs->PID = (uint32_t)10;
         regs->PC = (uint32_t)0;
+        regs->quantum = (uint32_t)0;
         regs->AX = (uint8_t)1;
         regs->BX = (uint8_t)2;
         regs->CX = (uint8_t)3;
@@ -61,7 +63,9 @@ void desempaquetar_pcb_a_registros(t_list *paquetes, t_registros *regs, t_log *l
     }
     else
     {
+        regs->PID = (uint32_t)list_get(paquetes, 0);
         regs->PC = (uint32_t)list_get(paquetes, 1);
+        regs->quantum = (uint32_t)list_get(paquetes, 2);
         regs->AX = (uint8_t)list_get(paquetes, 4);
         regs->BX = (uint8_t)list_get(paquetes, 5);
         regs->CX = (uint8_t)list_get(paquetes, 6);
