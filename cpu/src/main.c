@@ -63,27 +63,29 @@ int main(int argc, char *argv[])
         //Ejecuta la instruccion y guarda la data en los registros que se actualizaro y aumenta el PC en uno si no fue un EXIT
         // a la vez si es exucute de un exit deberia finalizar la ejecucion de este proceso no se como
         // write back es como usar el log, ahi se actualiza el PC en uno
-
-        check_interrupt();
-        // se fija si hay interrupciones, deberian estar como en una cola me parece como variable global
         
-        // si se interrumpe no se donde exacto, si aca, abajo de este while o en el otro hilo, se intrduce el PSW y el PC en la pila del sistema
-        // y el cpu carga el nuevo PC en funcion de la intterupcion creo ?
+        check_interrupt();
+        // se fija si esta la interrupcion de eliminar_proceso
+        // y el cpu carga despues nuevo_registros
 
         //recordar que las unicas interrupciones son o por quantum o por entrada salida que pida la instruccion!
+        // la unica interrupcion exterena es de cuando se quiere eliminar un proceso
+        registros->PC++;
     }
-
-
-
-
-
-
 
     pthread_join(tid[DISPATCH], NULL);
     pthread_join(tid[INTERRUPT], NULL);
+
+
+
     // liberar_conexion(cliente_memoria, logger); cuando pruebe lo de ser cliente de memoria descomentar esto
+
+    // libero todas las variables que uso
+    free(linea_de_instruccion);
+    destruir_registros(registros);
     destruir_config(config);
     destruir_logger(logger);
+    string_array_destroy(linea_de_instruccion_separada);
 
     return 0;
 }
@@ -112,7 +114,7 @@ void *servidor_dispatch(void *arg)
             t_list *lista = list_create();
             lista = recibir_paquete(socket_cliente_dispatch, logger);
             log_info(logger, "Recibi un paquete.");
-            // deberia recibir por aca un PCB para ponerme a ejercutar las instrucciones en el hilo principal
+            // deberia recibir por aca un PCB para ponerme a ejercutar las instrucciones en el hilo principal  
             desempaquetar_pcb_a_registros(lista,registros,logger); //aca pasa de los paquete a los registros, por ahora ignora el quantum, despues hablarlo con pepo si lo puedo hacer 
 
             break;
@@ -127,7 +129,7 @@ void *servidor_dispatch(void *arg)
     }
 }
 
-void *servidor_interrupt(void *arg)
+void *servidor_interrupt(void *arg) // por aca va a recibir un bit cuando quiere eliminar un proceso de una
 {
     socket_servidor_interrupt = iniciar_servidor(config, "PUERTO_ESCUCHA_INTERRUPT");
 
