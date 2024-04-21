@@ -1,6 +1,6 @@
 #include "cicloDeInstruccion.h"
 
-e_instrucccion parsear_instruccion(char* instruccion){
+e_instruccion parsear_instruccion(char* instruccion){
     e_instruccion enum_instruccion;
 
     if (string_equals_ignore_case(instruccion,"SET")) {
@@ -58,10 +58,9 @@ e_instrucccion parsear_instruccion(char* instruccion){
         enum_instruccion = IO_FS_READ;
     }
     else if (string_equals_ignore_case(instruccion,"EXIT")) {
-        enum_instruccion = EXIT;
+        enum_instruccion = INSTRUCTION_EXIT;    
     }
     return enum_instruccion;
-    
 }
 
 
@@ -74,7 +73,7 @@ void fetch(char* instruccion, uint32_t pc, t_log *logger)
     return EXIT_SUCCESS;
 }
 
-void decode(char* linea_de_instruccion, e_instruccion* instruccion ,char** linea_de_instruccion_separada, t_log *logger){
+void decode(char* linea_de_instruccion, e_instruccion instruccion ,char** linea_de_instruccion_separada, t_log *logger){
 
     char **instr_spliteado = string_array_new();
     linea_de_instruccion_separada = string_split(linea_de_instruccion, " ");
@@ -83,7 +82,7 @@ void decode(char* linea_de_instruccion, e_instruccion* instruccion ,char** linea
     //chararg1 = instr_spliteado[1]; para acceder a algun elemento
 }
 
-void execute(char** linea_de_instruccion_separada, e_instruccion* instruccion, t_registros *registros, t_log *logger) {
+void execute(char** linea_de_instruccion_separada, e_instruccion instruccion, t_registros *registros, t_log *logger) {
     switch (instruccion)
     {
     case SET:
@@ -123,6 +122,8 @@ void execute(char** linea_de_instruccion_separada, e_instruccion* instruccion, t
         break;
     case IO_FS_READ:
         break;
+    case INSTRUCTION_EXIT:
+        break;
     default:
         log_error(logger, "instruccion incorreta");
         break;
@@ -130,11 +131,41 @@ void execute(char** linea_de_instruccion_separada, e_instruccion* instruccion, t
 }
 
 void instruction_set(char** linea_de_instruccion_separada, t_registros* registros){
+
     char* registroDestino = linea_de_instruccion_separada[1];
+
     char* valorEnString = linea_de_instruccion_separada[2];
+
     int valorEnInt = atoi(valorEnString);
-    if(string_length(registroDestino) == 2)
-        uint8_t valor = (uint8_t) valorEnInt;
-    else 
-        uint32_t valor = (uint32_t) valorEnInt;
+
+    // Establecer el valor en el registro correspondiente
+    asignarValoresIntEnRegistros(registros, valorEnInt, "SET");
+}
+
+void asignarValoresIntEnRegistros(t_registros* registros, int valor, char* instruccion) {
+
+    if (strcmp(registros, "AX") == 0) {
+        registros->AX = (uint8_t)valor;
+    } else if (strcmp(registros, "BX") == 0) {
+        registros->BX = (uint8_t)valor;
+    } else if (strcmp(registros, "CX") == 0) {
+        registros->CX = (uint8_t)valor;
+    } else if (strcmp(registros, "DX") == 0) {
+        registros->DX = (uint8_t)valor;
+    } else if (strcmp(registros, "EAX") == 0) {
+        registros->EAX = (uint32_t)valor;
+    } else if (strcmp(registros, "EBX") == 0) {
+        registros->EBX = (uint32_t)valor;
+    } else if (strcmp(registros, "ECX") == 0) {
+        registros->ECX = (uint32_t)valor;
+    } else if (strcmp(registros, "EDX") == 0) {
+        registros->EDX = (uint32_t)valor;
+    } else if (strcmp(registros, "SI") == 0) {
+        registros->SI = (uint32_t)valor;
+    } else if (strcmp(registros, "DI") == 0) {
+        registros->DI = (uint32_t)valor;
+    } else {
+        printf("Hubo un error al ejecutar la instruccion %s", instruccion);
+        exit(EXIT_FAILURE);
+    }
 }

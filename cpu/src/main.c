@@ -26,15 +26,16 @@ bool interrupcion;
 char* linea_de_instruccion;
 
 // instruccion
-e_instruccion* instruccion;
+e_instruccion instruccion;
 
 // Linea de instruccion separada
 char ** linea_de_instruccion_separada;
 
+
+
 int main(int argc, char *argv[])
 {
-    instruccion =string_new();
-    registros =crear_registros();
+    registros = crear_registros();
     logger = iniciar_logger("cpu.log", "CPU", argc, argv);
     config = iniciar_config("cpu.config");
 
@@ -50,6 +51,12 @@ int main(int argc, char *argv[])
     pthread_create(&tid[INTERRUPT], NULL, servidor_interrupt, NULL);
 
     // acto de ejectar una instruccion
+
+    fetch(instruccion, registros->PC, logger);
+    decode(linea_de_instruccion,instruccion, linea_de_instruccion_separada, logger);
+    execute(linea_de_instruccion_separada,instruccion,registros,logger);
+
+    /*
     while (1) 
     {
         //como sabemos si los registros tienen algo al principio?
@@ -77,7 +84,7 @@ int main(int argc, char *argv[])
         // la unica interrupcion exterena es de cuando se quiere eliminar un proceso
         registros->PC++;
     }
-
+    */
     pthread_join(tid[DISPATCH], NULL);
     pthread_join(tid[INTERRUPT], NULL);
 

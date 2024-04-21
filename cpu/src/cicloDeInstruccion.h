@@ -22,7 +22,7 @@ typedef enum {
     IO_FS_TRUNCATE,
     IO_FS_WRITE,
     IO_FS_READ,
-    EXIT
+    INSTRUCTION_EXIT
 } e_instruccion;
 
 void fetch(char* linea_de_instruccion, uint32_t PC, t_log *logger;);
