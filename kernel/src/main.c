@@ -12,7 +12,7 @@ int cliente_memoria;
 // hilo servidor I/O
 pthread_t hilo_servidor_io;
 // otro
-int contadorProcesos = 0;
+int contadorParaGenerarIdProcesos = 0;
 int quantum;
 int grado_multiprogramacion;        // este es el definido por parametro de config
 int grado_multiprogramacion_actual; // y este es un contador de procesos en el sistema, se modifica en el planificador de largo plazo
@@ -188,7 +188,7 @@ void crear_proceso(char *path)
     */
     // enviar_mensaje(path, cliente_memoria, logger); // esto solo en si capaz no es suficiente, creo q ademas hay q decirle a memoria q quiero hacer
 
-    t_PCB *nuevo_pcb = crear_pcb(&contadorProcesos, quantum);
+    t_PCB *nuevo_pcb = crear_pcb(&contadorParaGenerarIdProcesos, quantum);
 
     list_add(lista_de_pcbs, nuevo_pcb);
 
@@ -311,12 +311,24 @@ void evaluar_READY_a_EXEC()
 }
 
 void evaluar_NEW_a_EXIT();
-void evaluar_EXEC_a_READY();
+void evaluar_EXEC_a_READY() { evaluar_READY_a_EXEC(); }
 void evaluar_READY_a_EXIT();
 void evaluar_BLOCKED_a_EXIT();
-void evaluar_EXEC_a_BLOCKED();
+void evaluar_EXEC_a_BLOCKED() { evaluar_READY_a_EXEC(); }
 void evaluar_BLOCKED_a_READY();
-void evaluar_EXEC_a_EXIT();
+void evaluar_EXEC_a_EXIT()
+{
+    // medio falso el nombre este xq no evaluo nada, simplemente hago todo lo necesario para terminar el proceso
+    uint32_t id = (uint32_t)queue_pop(cola_RUNNING);
+    t_PCB *pcb_en_running = devolver_pcb_desde_lista(lista_de_pcbs, id);
+    pcb_en_running->estado = E_EXIT;
+    queue_push(cola_EXIT, id);
+    grado_multiprogramacion_actual--;
+    log_trace(logger, "Se movio un proceso a EXIT. Grado de multiprogramacion actual: %d.", grado_multiprogramacion_actual);
+    // los pongo en este orden segun el tipo de planificadores q son
+    evaluar_READY_a_EXEC();
+    evaluar_NEW_a_READY();
+}
 
 void mostrar_menu()
 {
@@ -335,9 +347,11 @@ void *atender_finalizacion_proceso(void *arg)
         t_list *lista = list_create();
         lista = recibir_paquete(cliente_cpu_dispatch, logger);
         log_trace(logger, "CPU me devolvio el contexto de ejecucion.");
-        t_PCB *pcb_en_running = devolver_pcb_desde_lista(lista_de_pcbs, (uint32_t)queue_pop(cola_RUNNING));
+        t_PCB *pcb_en_running = devolver_pcb_desde_lista(lista_de_pcbs, (uint32_t)queue_peek(cola_RUNNING));
         actualizar_pcb(lista, pcb_en_running, logger);
     }
     else
         log_error(logger, "Me mandaron cualquier cosa, voy a romper todo.");
+    // esto hay q agregar el resto de cosas q pueden hacerse cuando me devuelven el proceso
+    evaluar_EXEC_a_EXIT();
 }
