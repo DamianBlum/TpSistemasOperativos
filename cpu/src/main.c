@@ -288,14 +288,13 @@ void execute() {
     case MOV_OUT:
         break;
     case SUM:
-        log_debug(logger, "ESTOY EN EL CASO SUM");
         instruccion_sum();
         break;
     case SUB:
-        log_debug(logger, "ESTOY EN EL CASO SUB");
         instruccion_sub();
         break;
     case JNZ:
+        instruccion_jnz();
         break;
     case RESIZE:
         break;
@@ -330,7 +329,7 @@ void execute() {
 }
 
 void instruction_set(){
-    log_debug(logger, "EJECUTANDO LA INSTRUCCION SET");
+    log_trace(logger, "EJECUTANDO LA INSTRUCCION SET");
     char* registroDestino = string_new();
     char* valorEnString = string_new();
 
@@ -352,7 +351,7 @@ void instruction_set(){
 }
 
 void instruccion_sum(){
-    log_debug(logger, "EJECUTANDO LA INSTRUCCION SUM");
+    log_trace(logger, "EJECUTANDO LA INSTRUCCION SUM");
 
     char* registroDestino = string_new();
     registroDestino = linea_de_instruccion_separada[1];
@@ -366,10 +365,34 @@ void instruccion_sum(){
     int valorFinal = valorOrigen + valorDestino;
 
     asignarValoresIntEnRegistros(registroDestino,valorFinal,"SUM");
+    free(registroDestino);
+    free(registroOrigen);
+}
+
+void instruccion_jnz(){
+    log_trace(logger, "EJECUTANDO LA INSTRUCCION JNZ");
+
+    char* registroDestino = string_new();
+    registroDestino = linea_de_instruccion_separada[0];
+
+    char* parametro = string_new();
+    parametro = linea_de_instruccion[1];
+
+    int nuevoPC = atoi(parametro);
+
+    int valorDelRegistro = obtenerValorRegistros(registroDestino);  
+    if(valorDelRegistro != 0) {
+        registros->PC = (uint32_t) nuevoPC;
+        log_debug(logger, "Se actualizo el PC a la instruccion nro: %d", nuevoPC);
+        return;
+    }
+
+    free(registroDestino);
+    free(parametro);
 }
 
 void instruccion_sub(){
-    log_debug(logger, "EJECUTANDO LA INSTRUCCION SUB");
+    log_trace(logger, "EJECUTANDO LA INSTRUCCION SUB");
 
     char* registroDestino = string_new();
     registroDestino = linea_de_instruccion_separada[1];
@@ -383,6 +406,8 @@ void instruccion_sub(){
     int valorFinal = valorDestino - valorOrigen;
 
     asignarValoresIntEnRegistros(registroDestino,valorFinal,"SUB");
+    free(registroDestino);
+    free(registroOrigen);
 }
 
 void asignarValoresIntEnRegistros(char* registroDestino, int valor, char* instruccion) {
