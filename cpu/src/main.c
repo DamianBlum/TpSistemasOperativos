@@ -54,13 +54,16 @@ int main(int argc, char *argv[])
     */
     // acto de ejectar una instruccion
 
+    registros->AX = 2;
+    registros->BX = 3;
+
     fetch();
     log_debug(logger, "LOG DESPUES DEL FETCH: %s", linea_de_instruccion);
 
     decode();
-    log_debug(logger, "LOG DESPUES DEL execute: %s", linea_de_instruccion_separada[0]);
-    log_debug(logger, "LOG DESPUES DEL execute: %s", linea_de_instruccion_separada[1]);
-    log_debug(logger, "LOG DESPUES DEL execute: %s", linea_de_instruccion_separada[2]);
+    log_debug(logger, "LOG DESPUES DEL DECODE %s", linea_de_instruccion_separada[0]);
+    log_debug(logger, "LOG DESPUES DEL DECODE: %s", linea_de_instruccion_separada[1]);
+    log_debug(logger, "LOG DESPUES DEL DECODO: %s", linea_de_instruccion_separada[2]);
 
     execute();
     log_debug(logger, "VALOR DEL REGISTRO AX: %d ", registros->AX );
@@ -258,24 +261,15 @@ void fetch()
     //Buscamos la siguiente instruccion con el pc en memoria y la asignamos a la variable instruccion
     // char instr_recibida = recibir_mensaje(socket, logger); para conseguir la instruccion
     // por ahora lo hacemos default
-    linea_de_instruccion= string_duplicate("SET AX 10");
-    log_debug(logger, "LA instruccion leida es %s", linea_de_instruccion);
+    linea_de_instruccion = string_duplicate("SUM AX BX");
+    log_debug(logger, "La instruccion leida es %s", linea_de_instruccion);
     return EXIT_SUCCESS;
 }
 
 void decode(){
-
-    log_debug(logger, linea_de_instruccion);
-    linea_de_instruccion_separada = string_split(linea_de_instruccion, " " );
-
-    log_debug(logger, linea_de_instruccion_separada[0]);
-    log_debug(logger, linea_de_instruccion_separada[1]);
-    log_debug(logger, linea_de_instruccion_separada[2]);
+    linea_de_instruccion_separada = string_split(linea_de_instruccion, " ");
 
     instruccion = parsear_instruccion(linea_de_instruccion_separada[0]);
-    log_debug(logger, "Instruccion: %s", linea_de_instruccion_separada[0]);
-    log_debug(logger, "Registro: %s", linea_de_instruccion_separada[1]);
-    log_debug(logger, "Valor: %s", linea_de_instruccion_separada[2]);
 
     return EXIT_SUCCESS;
     // ["SET","BX","10"]
@@ -295,6 +289,8 @@ void execute() {
     case MOV_OUT:
         break;
     case SUM:
+        log_debug(logger, "ESTOY EN EL CASO SUM");
+        instruccion_sum();
         break;
     case SUB:
         break;
@@ -333,7 +329,7 @@ void execute() {
 }
 
 void instruction_set(){
-    log_debug(logger, "ESTOY EN INSTRUCTION SET");
+    log_debug(logger, "EJECUTANDO LA INSTRUCCION SET");
     char* registroDestino = string_new();
     char* valorEnString = string_new();
 
@@ -352,6 +348,23 @@ void instruction_set(){
     free(registroDestino);
     free(valorEnString);
     return EXIT_SUCCESS;
+}
+
+void instruccion_sum(){
+    log_debug(logger, "EJECUTANDO LA INSTRUCCION SUM");
+
+    char* registroDestino = string_new();
+    registroDestino = linea_de_instruccion_separada[1];
+    
+    char* registroOrigen = string_new();
+    registroOrigen = linea_de_instruccion_separada[2];
+
+    // Obtengo el valor almacenado en el registro uint8_t
+    int valorOrigen = obtenerValorRegistrosInt8(registroOrigen);  
+    int valorDestino = obtenerValorRegistrosInt8(registroDestino);
+    int valorFinal = valorOrigen + valorDestino;
+
+    asignarValoresIntEnRegistros(registroDestino,valorFinal,"SUM");
 }
 
 void asignarValoresIntEnRegistros(char* registroDestino, int valor, char* instruccion) {
@@ -378,6 +391,22 @@ void asignarValoresIntEnRegistros(char* registroDestino, int valor, char* instru
         registros->DI = (uint32_t)valor;
     } else {
         log_error(logger, "Hubo un error al ejecutar la instruccion %s", instruccion);
+        exit(EXIT_FAILURE);
+    }
+    return EXIT_SUCCESS;
+}
+
+int obtenerValorRegistrosInt8(char* registroCPU){
+    if (strcmp(registroCPU, "AX") == 0) {
+        return (int) registros->AX;
+    } else if (strcmp(registroCPU, "BX") == 0) {
+        return (int) registros->BX;
+    } else if (strcmp(registroCPU, "CX") == 0) {
+        return (int) registros->CX;
+    } else if (strcmp(registroCPU, "DX") == 0) {
+        return (int) registros->DX;
+    } else {
+        log_error(logger, "NO SE PUDO OBTENER EL VALOR DEL REGISTRO: %s", registroCPU);
         exit(EXIT_FAILURE);
     }
     return EXIT_SUCCESS;

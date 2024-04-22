@@ -34,7 +34,7 @@ t_registros *crear_registros()
     r->EDX = 0;
     r->SI = 0;
     r->DI = 0;
-    r->motivo_interrupcion=0;
+    r->motivo_interrupcion = 0;
     return r;
 }
 
