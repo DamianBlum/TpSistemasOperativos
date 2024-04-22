@@ -49,6 +49,6 @@ void *servidor_interrupt(void *arg);
 void fetch(char* linea_de_instruccion, uint32_t PC, t_log *logger;);
 void decode(char* linea_de_instruccion,e_instruccion* instruccion ,char** linea_de_instruccion_separada, t_log *logger;);
 void execute(char** linea_de_instruccion_separada, e_instruccion* instruccion, t_registros *registros, t_log *logger;);
-void checkInterrupt(); 
+void check_interrupt(); 
 
 #endif

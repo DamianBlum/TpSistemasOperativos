@@ -47,11 +47,12 @@ int main(int argc, char *argv[])
     */
     // PARTE SERVIDOR
 
-    /*
+    
     pthread_create(&tid[DISPATCH], NULL, servidor_dispatch, NULL);
 
     pthread_create(&tid[INTERRUPT], NULL, servidor_interrupt, NULL);
-    */
+    
+
     // acto de ejectar una instruccion
 
     registros->AX = 2;
@@ -68,41 +69,10 @@ int main(int argc, char *argv[])
     execute();
     log_debug(logger, "VALOR DEL REGISTRO AX: %d ", registros->AX );
 
-    /*
-    while (1) 
-    {
-        //como sabemos si los registros tienen algo al principio?
-        //como sabemos cuanto esperar despues de ejecutar una instruccion para seguir esto?
-
-
-
-        fetch( instruccion, registros->PC, logger); 
-        //busca con registros->PC en la memoria 
-        //y devuelve un string por ahora me imagine con una instruccion de esta forma "SUM AX BX" 
-
-        decode(linea_de_instruccion, instruccion, linea_de_instruccion_separada, logger); 
-        //consigue la primera palabra que seria el "SUM" y en base a eso en un switch o algo de ese estilo despues ve que seria "AX" y "BX"
-
-        execute(linea_de_instruccion_separada,instruccion,registros,logger); 
-        //Ejecuta la instruccion y guarda la data en los registros que se actualizaro y aumenta el PC en uno si no fue un EXIT
-        // a la vez si es exucute de un exit deberia finalizar la ejecucion de este proceso no se como
-        // write back es como usar el log, ahi se actualiza el PC en uno
-        
-        check_interrupt();
-        // se fija si esta la interrupcion de eliminar_proceso
-        // y el cpu carga despues nuevo_registros
-
-        //recordar que las unicas interrupciones son o por quantum o por entrada salida que pida la instruccion!
-        // la unica interrupcion exterena es de cuando se quiere eliminar un proceso
-        registros->PC++;
-    }
-    */
-
-    /*
+    
     pthread_join(tid[DISPATCH], NULL);
     pthread_join(tid[INTERRUPT], NULL);
-    */
-
+    
 
     // liberar_conexion(cliente_memoria, logger); cuando pruebe lo de ser cliente de memoria descomentar esto
 
@@ -123,34 +93,66 @@ void *servidor_dispatch(void *arg)
 
     socket_cliente_dispatch = esperar_cliente(socket_servidor_dispatch, logger); 
 
-    int sigo_funcionando = 1;
-    while (sigo_funcionando)
+    int conexion_activa = true;
+    while (conexion_activa)
     {
         int operacion = recibir_operacion(socket_cliente_dispatch, logger);
-
         switch (operacion) // MENSAJE y PAQUETE son del enum op_code de sockets.h
         {
-        case MENSAJE:
-            char *mensaje = recibir_mensaje(socket_cliente_dispatch, logger);
-            log_info(logger, "Recibi el mensaje: %s.", mensaje);
-            // se supone que no se usa mucho por el dispatch un mensaje tipo string la verdad
-            break;
-        case PAQUETE:
-            t_list *lista = list_create();
-            lista = recibir_paquete(socket_cliente_dispatch, logger);
-            log_info(logger, "Recibi un paquete.");
-            // deberia recibir por aca un PCB para ponerme a ejercutar las instrucciones en el hilo principal  
-            desempaquetar_pcb_a_registros(lista,registros,logger); //aca pasa de los paquete a los registros, por ahora ignora el quantum, despues hablarlo con pepo si lo puedo hacer 
-
-            break;
-        case EXIT: // indica desconeccion
-            log_error(logger, "Se desconecto el cliente %d.", socket_cliente_dispatch);
-            sigo_funcionando = 0;
-            break;
-        default: // recibi algo q no es eso, vamos a suponer q es para terminar
-            log_error(logger, "Recibi una operacion rara (%d), termino el servidor.", operacion);
-            return EXIT_FAILURE;
+            case MENSAJE:
+                char *mensaje = recibir_mensaje(socket_cliente_dispatch, logger);
+                log_info(logger, "Recibi el mensaje: %s.", mensaje);
+                free(mensaje);
+                break;
+            case PAQUETE:
+                t_list *lista = list_create();
+                lista = recibir_paquete(socket_cliente_dispatch, logger);
+                log_trace(logger, "CPU recibe un PCB desde Kernel");
+                // deberia recibir por aca un PCB para ponerme a ejercutar las instrucciones en el hilo principal  
+                desempaquetar_pcb_a_registros(lista,registros,logger); //aca pasa de los paquete a los registros
+                //list_destroy_and_destroy_elements(lista); 
+                break;
+            case EXIT: // indica desconeccion
+                log_error(logger, "Se desconecto el cliente %d.", socket_cliente_dispatch);
+                conexion_activa = 0;
+                break;
+            default: // recibi algo q no es eso, vamos a suponer q es para terminar
+                log_error(logger, "Recibi una operacion rara (%d), termino el servidor.", operacion);
+                return EXIT_FAILURE;
         }
+        
+        int proceso_actual_ejecutando= true;
+        while (proceso_actual_ejecutando) 
+        {
+        fetch(); 
+        log_debug(logger, "LOG DESPUES DEL FETCH: %s", linea_de_instruccion);
+        //busca con registros->PC en la memoria 
+        //y devuelve un string por ahora me imagine con una instruccion de esta forma "SUM AX BX" 
+        decode(); 
+        log_debug(logger, "LOG ANTES DEL execute: %s", linea_de_instruccion_separada[0]);
+        log_debug(logger, "LOG ANTES DEL execute: %s", linea_de_instruccion_separada[1]);
+        log_debug(logger, "LOG ANTES DEL execute: %s", linea_de_instruccion_separada[2]);
+        //consigue la primera palabra que seria el "SUM" y en base a eso en un switch o algo de ese estilo despues ve que seria "AX" y "BX"
+        execute(); 
+        log_debug(logger, "VALOR DEL REGISTRO AX: %d ", registros->AX );
+        //Ejecuta la instruccion y guarda la data en los registros que se actualizaro y aumenta el PC en uno si no fue un EXIT
+        // a la vez si es exucute de un exit deberia finalizar la ejecucion de este proceso no se como
+        // write back es como usar el log, ahi se actualiza el PC en uno
+        check_interrupt();
+        // se fija si esta la interrupcion de eliminar_proceso
+        // y el cpu carga despues nuevo_registros
+        //recordar que las unicas interrupciones son o por quantum o por entrada salida que pida la instruccion!
+        // la unica interrupcion exterena es de cuando se quiere eliminar un proceso
+        registros->PC++;
+        proceso_actual_ejecutando= false; // por ahora para probar una sola instruccion;
+        }
+        
+        // proceso de enviar el PCB a kernel
+        log_trace(logger, "CPU va a enviar un PCB a Kernel");
+        t_paquete *paquete_de_pcb =crear_paquete();
+        empaquetar_registros(paquete_de_pcb,registros);
+        enviar_paquete(paquete_de_pcb,socket_cliente_dispatch,logger);
+
     }
 }
 
@@ -162,11 +164,10 @@ void *servidor_interrupt(void *arg) // por aca va a recibir un bit cuando quiere
 
     socket_cliente_interrupt = esperar_cliente(socket_servidor_interrupt, logger);
 
-    int sigo_funcionando = 1;
-    while (sigo_funcionando)
+    int conexion_activa = true;
+    while (conexion_activa)
     {
         int operacion = recibir_operacion(socket_cliente_interrupt, logger);
-
         switch (operacion) // MENSAJE y PAQUETE son del enum op_code de sockets.h
         {
         case MENSAJE:
@@ -178,11 +179,10 @@ void *servidor_interrupt(void *arg) // por aca va a recibir un bit cuando quiere
             t_list *lista = list_create();
             lista = recibir_paquete(socket_cliente_interrupt, logger);
             log_info(logger, "Recibi un paquete.");
-            // hago algo con el paquete
             break;
         case EXIT: // indica desconeccion
             log_error(logger, "Se desconecto el cliente %d.", socket_cliente_interrupt);
-            sigo_funcionando = 0;
+            conexion_activa = 0;
             break;
         default: // recibi algo q no es eso, vamos a suponer q es para terminar
             log_error(logger, "Recibi una operacion rara (%d), termino el servidor.", operacion);
@@ -262,7 +262,8 @@ void fetch()
     // char instr_recibida = recibir_mensaje(socket, logger); para conseguir la instruccion
     // por ahora lo hacemos default
     linea_de_instruccion = string_duplicate("SUM AX BX");
-    log_debug(logger, "La instruccion leida es %s", linea_de_instruccion);
+    log_trace(logger, "Estoy en elfetch con el PC %d", registros->PC);
+    log_debug(logger, "LA instruccion leida es %s", linea_de_instruccion);
     return EXIT_SUCCESS;
 }
 
@@ -272,16 +273,14 @@ void decode(){
     instruccion = parsear_instruccion(linea_de_instruccion_separada[0]);
 
     return EXIT_SUCCESS;
-    // ["SET","BX","10"]
-    //chararg1 = instr_spliteado[1]; para acceder a algun elemento
+
 }
 
 void execute() {
-    log_debug(logger, "ENTRE AL EXECUTE");
+    log_trace(logger, "Estoy en el execute");
     switch (instruccion)
     {
     case SET:
-        log_debug(logger, "ESTOY EN EL CASO SET");
         instruction_set();
         break;
     case MOV_IN:
@@ -411,3 +410,4 @@ int obtenerValorRegistrosInt8(char* registroCPU){
     }
     return EXIT_SUCCESS;
 }
+void check_interrupt(){} 
