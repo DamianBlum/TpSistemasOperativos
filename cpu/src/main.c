@@ -49,7 +49,6 @@ int main(int argc, char *argv[])
 
     
     pthread_create(&tid[DISPATCH], NULL, servidor_dispatch, NULL);
-
     pthread_create(&tid[INTERRUPT], NULL, servidor_interrupt, NULL);
     
 
@@ -345,8 +344,8 @@ void instruccion_sum(){
     registroOrigen = linea_de_instruccion_separada[2];
 
     // Obtengo el valor almacenado en el registro uint8_t
-    int valorOrigen = obtenerValorRegistrosInt8(registroOrigen);  
-    int valorDestino = obtenerValorRegistrosInt8(registroDestino);
+    int valorOrigen = obtenerValorRegistros(registroOrigen);  
+    int valorDestino = obtenerValorRegistros(registroDestino);
     int valorFinal = valorOrigen + valorDestino;
 
     asignarValoresIntEnRegistros(registroDestino,valorFinal,"SUM");
@@ -381,7 +380,7 @@ void asignarValoresIntEnRegistros(char* registroDestino, int valor, char* instru
     return EXIT_SUCCESS;
 }
 
-int obtenerValorRegistrosInt8(char* registroCPU){
+int obtenerValorRegistros(char* registroCPU){
     if (strcmp(registroCPU, "AX") == 0) {
         return (int) registros->AX;
     } else if (strcmp(registroCPU, "BX") == 0) {
@@ -390,10 +389,23 @@ int obtenerValorRegistrosInt8(char* registroCPU){
         return (int) registros->CX;
     } else if (strcmp(registroCPU, "DX") == 0) {
         return (int) registros->DX;
+    } else if (strcmp(registroDestino, "EAX") == 0) {
+        return (int) registros->EAX;
+    } else if (strcmp(registroDestino, "EBX") == 0) {
+        return (int) registros->EBX;
+    } else if (strcmp(registroDestino, "ECX") == 0) {
+        return (int) registros->ECX;
+    } else if (strcmp(registroDestino, "EDX") == 0) {
+        return (int) registros->EDX;
+    } else if (strcmp(registroDestino, "SI") == 0) {
+        return (int) registros->SI;
+    } else if (strcmp(registroDestino, "DI") == 0) {
+        return (int) registros->DI;
     } else {
         log_error(logger, "NO SE PUDO OBTENER EL VALOR DEL REGISTRO: %s", registroCPU);
         exit(EXIT_FAILURE);
     }
     return EXIT_SUCCESS;
 }
+
 void check_interrupt(){} 
