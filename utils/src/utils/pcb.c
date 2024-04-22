@@ -1,6 +1,6 @@
 #include "pcb.h"
 
-bool MOCKUP_RESPUESTA_CPU = true;
+bool MOCKUP_RESPUESTA_CPU = false;
 
 t_PCB *crear_pcb(int *contadorProcesos, int quantum)
 {
@@ -28,7 +28,7 @@ void empaquetar_pcb(t_paquete *p, t_PCB *pcb)
     agregar_a_paquete(p, pcb->processID, sizeof(uint32_t));
     agregar_a_paquete(p, pcb->programCounter, sizeof(uint32_t));
     agregar_a_paquete(p, pcb->quantum, sizeof(uint32_t));
-    agregar_a_paquete(p, (uint32_t)pcb->estado, sizeof(uint32_t));
+    agregar_a_paquete(p, (uint8_t)pcb->estado, sizeof(uint8_t));
     agregar_a_paquete(p, pcb->AX, sizeof(uint8_t));
     agregar_a_paquete(p, pcb->BX, sizeof(uint8_t));
     agregar_a_paquete(p, pcb->CX, sizeof(uint8_t));
