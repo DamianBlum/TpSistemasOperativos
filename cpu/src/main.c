@@ -53,22 +53,6 @@ int main(int argc, char *argv[])
     pthread_create(&tid[INTERRUPT], NULL, servidor_interrupt, NULL);
     
 
-    // acto de ejectar una instruccion
-
-    registros->AX = 2;
-    registros->BX = 3;
-
-    fetch();
-    log_debug(logger, "LOG DESPUES DEL FETCH: %s", linea_de_instruccion);
-
-    decode();
-    log_debug(logger, "LOG DESPUES DEL DECODE %s", linea_de_instruccion_separada[0]);
-    log_debug(logger, "LOG DESPUES DEL DECODE: %s", linea_de_instruccion_separada[1]);
-    log_debug(logger, "LOG DESPUES DEL DECODO: %s", linea_de_instruccion_separada[2]);
-
-    execute();
-    log_debug(logger, "VALOR DEL REGISTRO AX: %d ", registros->AX );
-
     
     pthread_join(tid[DISPATCH], NULL);
     pthread_join(tid[INTERRUPT], NULL);
@@ -121,30 +105,32 @@ void *servidor_dispatch(void *arg)
                 return EXIT_FAILURE;
         }
         
-        int proceso_actual_ejecutando= true;
-        while (proceso_actual_ejecutando) 
-        {
-        fetch(); 
-        log_debug(logger, "LOG DESPUES DEL FETCH: %s", linea_de_instruccion);
-        //busca con registros->PC en la memoria 
-        //y devuelve un string por ahora me imagine con una instruccion de esta forma "SUM AX BX" 
-        decode(); 
-        log_debug(logger, "LOG ANTES DEL execute: %s", linea_de_instruccion_separada[0]);
-        log_debug(logger, "LOG ANTES DEL execute: %s", linea_de_instruccion_separada[1]);
-        log_debug(logger, "LOG ANTES DEL execute: %s", linea_de_instruccion_separada[2]);
-        //consigue la primera palabra que seria el "SUM" y en base a eso en un switch o algo de ese estilo despues ve que seria "AX" y "BX"
-        execute(); 
-        log_debug(logger, "VALOR DEL REGISTRO AX: %d ", registros->AX );
-        //Ejecuta la instruccion y guarda la data en los registros que se actualizaro y aumenta el PC en uno si no fue un EXIT
-        // a la vez si es exucute de un exit deberia finalizar la ejecucion de este proceso no se como
-        // write back es como usar el log, ahi se actualiza el PC en uno
-        check_interrupt();
-        // se fija si esta la interrupcion de eliminar_proceso
-        // y el cpu carga despues nuevo_registros
-        //recordar que las unicas interrupciones son o por quantum o por entrada salida que pida la instruccion!
-        // la unica interrupcion exterena es de cuando se quiere eliminar un proceso
-        registros->PC++;
-        proceso_actual_ejecutando= false; // por ahora para probar una sola instruccion;
+        int proceso_actual_ejecutando = true;
+        while (proceso_actual_ejecutando) {
+            registros->AX = 2;
+            registros->BX = 3;
+
+            fetch(); 
+            log_debug(logger, "LOG DESPUES DEL FETCH: %s", linea_de_instruccion);
+            //busca con registros->PC en la memoria 
+            //y devuelve un string por ahora me imagine con una instruccion de esta forma "SUM AX BX" 
+            decode(); 
+            log_debug(logger, "LOG ANTES DEL execute: %s", linea_de_instruccion_separada[0]);
+            log_debug(logger, "LOG ANTES DEL execute: %s", linea_de_instruccion_separada[1]);
+            log_debug(logger, "LOG ANTES DEL execute: %s", linea_de_instruccion_separada[2]);
+            //consigue la primera palabra que seria el "SUM" y en base a eso en un switch o algo de ese estilo despues ve que seria "AX" y "BX"
+            execute(); 
+            log_debug(logger, "VALOR DEL REGISTRO AX: %d ", registros->AX );
+            //Ejecuta la instruccion y guarda la data en los registros que se actualizaro y aumenta el PC en uno si no fue un EXIT
+            // a la vez si es exucute de un exit deberia finalizar la ejecucion de este proceso no se como
+            // write back es como usar el log, ahi se actualiza el PC en uno
+            check_interrupt();
+            // se fija si esta la interrupcion de eliminar_proceso
+            // y el cpu carga despues nuevo_registros
+            //recordar que las unicas interrupciones son o por quantum o por entrada salida que pida la instruccion!
+            // la unica interrupcion exterena es de cuando se quiere eliminar un proceso
+            registros->PC++;
+            proceso_actual_ejecutando= false; // por ahora para probar una sola instruccion;
         }
         
         // proceso de enviar el PCB a kernel
