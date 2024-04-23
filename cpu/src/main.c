@@ -40,6 +40,7 @@ int main(int argc, char *argv[])
 
     linea_de_instruccion = string_new();   
     linea_de_instruccion_separada = string_array_new();
+    
     // Parte cliente, por ahora esta harcodeado, despues agregar
     /* 
     cliente_memoria = crear_conexion(config, "IP_MEMORIA", "PUERTO_MEMORIA", logger);
@@ -47,30 +48,14 @@ int main(int argc, char *argv[])
     */
     // PARTE SERVIDOR
 
-    /*
+    
     pthread_create(&tid[DISPATCH], NULL, servidor_dispatch, NULL);
     pthread_create(&tid[INTERRUPT], NULL, servidor_interrupt, NULL);
     
     
-    
     pthread_join(tid[DISPATCH], NULL);
     pthread_join(tid[INTERRUPT], NULL);
-    */
 
-    // PRUEBAS DE INSTRUCCIONES
-    registros->AX = 5;
-    registros->BX = 3;
-
-    fetch();
-    log_debug(logger, "LOG DESPUES DEL FETCH: %s", linea_de_instruccion);
-
-    decode();
-    log_debug(logger, "LOG ANTES DEL execute: %s", linea_de_instruccion_separada[0]);
-    log_debug(logger, "LOG ANTES DEL execute: %s", linea_de_instruccion_separada[1]);
-    log_debug(logger, "LOG ANTES DEL execute: %s", linea_de_instruccion_separada[2]);
-
-    execute();
-    log_debug(logger, "VALOR DEL REGISTRO AX: %d ", registros->AX );
 
     // liberar_conexion(cliente_memoria, logger); cuando pruebe lo de ser cliente de memoria descomentar esto
 
