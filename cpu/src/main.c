@@ -40,6 +40,7 @@ int main(int argc, char *argv[])
 
     linea_de_instruccion = string_new();   
     linea_de_instruccion_separada = string_array_new();
+    
     // Parte cliente, por ahora esta harcodeado, despues agregar
     /* 
     cliente_memoria = crear_conexion(config, "IP_MEMORIA", "PUERTO_MEMORIA", logger);
@@ -51,11 +52,10 @@ int main(int argc, char *argv[])
     pthread_create(&tid[DISPATCH], NULL, servidor_dispatch, NULL);
     pthread_create(&tid[INTERRUPT], NULL, servidor_interrupt, NULL);
     
-
     
     pthread_join(tid[DISPATCH], NULL);
     pthread_join(tid[INTERRUPT], NULL);
-    
+
 
     // liberar_conexion(cliente_memoria, logger); cuando pruebe lo de ser cliente de memoria descomentar esto
 
@@ -243,11 +243,11 @@ e_instruccion parsear_instruccion(char* instruccionString){
 
 void fetch() 
 {
+    log_trace(logger, "Estoy en elfetch con el PC %d", registros->PC);
     //Buscamos la siguiente instruccion con el pc en memoria y la asignamos a la variable instruccion
     // char instr_recibida = recibir_mensaje(socket, logger); para conseguir la instruccion
     // por ahora lo hacemos default
-    linea_de_instruccion = string_duplicate("SUM AX BX");
-    log_trace(logger, "Estoy en elfetch con el PC %d", registros->PC);
+    linea_de_instruccion = string_duplicate("SUB AX BX");
     log_debug(logger, "LA instruccion leida es %s", linea_de_instruccion);
     return EXIT_SUCCESS;
 }
@@ -273,12 +273,13 @@ void execute() {
     case MOV_OUT:
         break;
     case SUM:
-        log_debug(logger, "ESTOY EN EL CASO SUM");
         instruccion_sum();
         break;
     case SUB:
+        instruccion_sub();
         break;
     case JNZ:
+        instruccion_jnz();
         break;
     case RESIZE:
         break;
@@ -313,7 +314,7 @@ void execute() {
 }
 
 void instruction_set(){
-    log_debug(logger, "EJECUTANDO LA INSTRUCCION SET");
+    log_trace(logger, "EJECUTANDO LA INSTRUCCION SET");
     char* registroDestino = string_new();
     char* valorEnString = string_new();
 
@@ -335,7 +336,7 @@ void instruction_set(){
 }
 
 void instruccion_sum(){
-    log_debug(logger, "EJECUTANDO LA INSTRUCCION SUM");
+    log_trace(logger, "EJECUTANDO LA INSTRUCCION SUM");
 
     char* registroDestino = string_new();
     registroDestino = linea_de_instruccion_separada[1];
@@ -349,6 +350,49 @@ void instruccion_sum(){
     int valorFinal = valorOrigen + valorDestino;
 
     asignarValoresIntEnRegistros(registroDestino,valorFinal,"SUM");
+    free(registroDestino);
+    free(registroOrigen);
+}
+
+void instruccion_jnz(){
+    log_trace(logger, "EJECUTANDO LA INSTRUCCION JNZ");
+
+    char* registroDestino = string_new();
+    registroDestino = linea_de_instruccion_separada[0];
+
+    char* parametro = string_new();
+    parametro = linea_de_instruccion[1];
+
+    int nuevoPC = atoi(parametro);
+
+    int valorDelRegistro = obtenerValorRegistros(registroDestino);  
+    if(valorDelRegistro != 0) {
+        registros->PC = (uint32_t) nuevoPC;
+        log_debug(logger, "Se actualizo el PC a la instruccion nro: %d", nuevoPC);
+        return;
+    }
+
+    free(registroDestino);
+    free(parametro);
+}
+
+void instruccion_sub(){
+    log_trace(logger, "EJECUTANDO LA INSTRUCCION SUB");
+
+    char* registroDestino = string_new();
+    registroDestino = linea_de_instruccion_separada[1];
+    
+    char* registroOrigen = string_new();
+    registroOrigen = linea_de_instruccion_separada[2];
+
+    // Obtengo el valor almacenado en el registro uint8_t
+    int valorOrigen = obtenerValorRegistros(registroOrigen);  
+    int valorDestino = obtenerValorRegistros(registroDestino);
+    int valorFinal = valorDestino - valorOrigen;
+
+    asignarValoresIntEnRegistros(registroDestino,valorFinal,"SUB");
+    free(registroDestino);
+    free(registroOrigen);
 }
 
 void asignarValoresIntEnRegistros(char* registroDestino, int valor, char* instruccion) {
@@ -389,17 +433,17 @@ int obtenerValorRegistros(char* registroCPU){
         return (int) registros->CX;
     } else if (strcmp(registroCPU, "DX") == 0) {
         return (int) registros->DX;
-    } else if (strcmp(registroDestino, "EAX") == 0) {
+    } else if (strcmp(registroCPU, "EAX") == 0) {
         return (int) registros->EAX;
-    } else if (strcmp(registroDestino, "EBX") == 0) {
+    } else if (strcmp(registroCPU, "EBX") == 0) {
         return (int) registros->EBX;
-    } else if (strcmp(registroDestino, "ECX") == 0) {
+    } else if (strcmp(registroCPU, "ECX") == 0) {
         return (int) registros->ECX;
-    } else if (strcmp(registroDestino, "EDX") == 0) {
+    } else if (strcmp(registroCPU, "EDX") == 0) {
         return (int) registros->EDX;
-    } else if (strcmp(registroDestino, "SI") == 0) {
+    } else if (strcmp(registroCPU, "SI") == 0) {
         return (int) registros->SI;
-    } else if (strcmp(registroDestino, "DI") == 0) {
+    } else if (strcmp(registroCPU, "DI") == 0) {
         return (int) registros->DI;
     } else {
         log_error(logger, "NO SE PUDO OBTENER EL VALOR DEL REGISTRO: %s", registroCPU);
