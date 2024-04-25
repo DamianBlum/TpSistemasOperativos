@@ -20,6 +20,8 @@ e_algoritmo_planificacion algoritmo_planificacion;
 bool esta_planificacion_pausada = false;
 // lista de pcbs
 t_list *lista_de_pcbs;
+// diccionario de recursos
+t_dictionary *diccionario_recursos;
 // Queues de estados
 t_queue *cola_NEW;
 t_queue *cola_READY;
@@ -40,6 +42,7 @@ int main(int argc, char *argv[])
     algoritmo_planificacion = obtener_algoritmo_planificacion(config_get_string_value(config, "ALGORITMO_PLANIFICACION"));
     lista_de_pcbs = list_create();
     instanciar_colas();
+    obtener_valores_de_recursos();
 
     // PARTE CLIENTE
     if (generar_clientes()) // error al crear los clientes de cpu
@@ -332,15 +335,19 @@ void evaluar_EXEC_a_EXIT()
 
 void mostrar_menu()
 {
-    log_info(logger, "\n\n|##########################|\n|     MENU DE OPCIONES     |\n|##########################|\n|  INICIAR_PROCESO [PATH]  |\n|      PROCESO_ESTADO      |\n|  FINALIZAR_PROCESO [PI]  |\n|   INICIAR_PLAFICACION    |\n|  DETENER_PLANIFICACION   |\n|  EJECUTAR_SCRIPT [PATH]  |\n| MULTIPROGRAMACION [VALOR]|\n|          SALIR           |\n|##########################|\n");
+    if (logger->is_active_console)
+        log_info(logger, "\n\n|##########################|\n|     MENU DE OPCIONES     |\n|##########################|\n|  INICIAR_PROCESO [PATH]  |\n|      PROCESO_ESTADO      |\n|  FINALIZAR_PROCESO [PI]  |\n|   INICIAR_PLAFICACION    |\n|  DETENER_PLANIFICACION   |\n|  EJECUTAR_SCRIPT [PATH]  |\n| MULTIPROGRAMACION [VALOR]|\n|          SALIR           |\n|##########################|\n");
+    else
+        printf("\n\n|##########################|\n|     MENU DE OPCIONES     |\n|##########################|\n|  INICIAR_PROCESO [PATH]  |\n|      PROCESO_ESTADO      |\n|  FINALIZAR_PROCESO [PI]  |\n|   INICIAR_PLAFICACION    |\n|  DETENER_PLANIFICACION   |\n|  EJECUTAR_SCRIPT [PATH]  |\n| MULTIPROGRAMACION [VALOR]|\n|          SALIR           |\n|##########################|\n");
 }
 
 void *atender_respuesta_proceso(void *arg)
 {
-    log_trace(logger, "Entre a un hilo para atender la finalizacion del proceso %d.", (int)queue_peek(cola_RUNNING));
+    uint32_t idProcesoActual = (int)queue_peek(cola_RUNNING); // esto es para el log del final
+    log_trace(logger, "Entre a un hilo para atender la finalizacion del proceso %d.", idProcesoActual);
 
-    // magia para atender la respuesta del CPU
     int op = recibir_operacion(cliente_cpu_dispatch, logger); // si, uso el cliente como socket servidor
+    // aca tengo q pausar la planificacion si me metieron un DETENER_PLANIFICACION
 
     if (op == PAQUETE)
     {
@@ -359,10 +366,27 @@ void *atender_respuesta_proceso(void *arg)
         case MOTIVO_DESALOJO_WAIT:
             char *argumento = recibir_mensaje(cliente_cpu_dispatch, logger);
             log_debug(logger, "Argumento del wait: %s", argumento);
-            // magia de llamar a IO para q me de el recurso
-            // le respondo de una a CPU, solamente lo voy a bloquear no hay instancias del recurso disponible
-            t_paquete respuesta_para_cpu = crear_paquete();
-            agregar_a_paquete(respuesta_para_cpu, 0, sizeof(uint8_t)); // 0: te di la instancia, 1: no te la di (te bloqueo)
+            t_paquete *respuesta_para_cpu = crear_paquete();
+            // hago la magia de darle los recursos
+            uint8_t resultado_asignar_recurso = asignar_recurso(argumento);
+            if (resultado_asignar_recurso == 0)
+            { // 0: te di la instancia
+                log_trace(logger, "Voy a enviarle al CPU que tiene la instancia.");
+                agregar_a_paquete(respuesta_para_cpu, 0, sizeof(uint8_t));
+                // creeeeo q tengo q volver a llamar a este hilo como uno nuevo para volver a esta parte
+            }
+            else if (resultado_asignar_recurso == 1)
+            { // 1: no te la di (te bloqueo)
+                log_trace(logger, "Voy a enviarle al CPU que no tiene la instancia, asi q sera bloqueado.");
+                agregar_a_paquete(respuesta_para_cpu, 1, sizeof(uint8_t));
+                evaluar_EXEC_a_BLOCKED();
+            }
+            else if (resultado_asignar_recurso == 2)
+            { // 2: mato al proceso xq pidio algo nada q ver
+                log_error(logger, "El cpu me pidio un recurso que no existe. Lo tenemos que matar!");
+                agregar_a_paquete(respuesta_para_cpu, 1, sizeof(uint8_t)); // le mando un 1 xq para cpu es lo mismo matar el proceso que bloquearlo
+                evaluar_EXEC_a_EXIT();
+            }
             enviar_paquete(respuesta_para_cpu, cliente_cpu_dispatch, logger);
             break;
         case MOTIVO_DESALOJO_INTERRUPCION:
@@ -392,5 +416,42 @@ void *atender_respuesta_proceso(void *arg)
     }
     else
         log_error(logger, "Me mandaron cualquier cosa, voy a romper todo.");
-    // esto hay q agregar el resto de cosas q pueden hacerse cuando me devuelven el proceso
+    log_trace(logger, "Termino el hilo para el proceso %d.", idProcesoActual);
+}
+
+void obtener_valores_de_recursos()
+{
+    diccionario_recursos = dictionary_create();
+    char **lista1 = config_get_array_value(config, "RECURSOS");
+    char **lista2 = config_get_array_value(config, "INSTANCIAS_RECURSOS");
+
+    int i = 0;
+    while (true)
+    {
+        if ((lista1)[i] == NULL)
+            break;
+        dictionary_put(diccionario_recursos, (lista1)[i], atoi(lista2[i]));
+        i++;
+    }
+}
+
+uint8_t asignar_recurso(char *recurso) // valor sumar es 1 si hago signal y -1 si hago wait
+{
+    int valor = dictionary_get(diccionario_recursos, recurso);
+    uint8_t r;
+    if (valor != NULL)
+    { // existe, esta todo piola
+        log_debug(logger, "Valor del recurso %s antes de modificarlo: %d", valor);
+        valor -= 1;
+        log_debug(logger, "Valor del recurso %s desp de modificarlo: %d", valor);
+        if (valor < 0)
+            r = 1; // hay q bloquear el proceso
+        else
+            r = 0; // lo devuelvo sin bloquear
+    }
+    else
+    { // cagaste
+        r = 2;
+    }
+    return r;
 }

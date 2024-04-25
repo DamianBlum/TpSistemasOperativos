@@ -26,6 +26,8 @@ void *atender_respuesta_proceso(void *arg);
 void mostrar_menu();
 e_algoritmo_planificacion obtener_algoritmo_planificacion(char *algo);
 void instanciar_colas();
+void obtener_valores_de_recursos();
+uint8_t asignar_recurso(char *recurso);
 
 // planificacion de largo plazo
 void crear_proceso();
