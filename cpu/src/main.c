@@ -286,6 +286,7 @@ void execute() {
     case COPY_STRING:
         break;
     case WAIT:
+        instruccion_wait();
         break;
     case SIGNAL:
         break;
@@ -393,6 +394,21 @@ void instruccion_sub(){
     asignarValoresIntEnRegistros(registroDestino,valorFinal,"SUB");
     free(registroDestino);
     free(registroOrigen);
+}
+
+void instruccion_wait(){
+        // envio el pcb a kernel y luego un mensaje con el nombre del recurso que quiero
+        log_trace(logger, "EJECUTANDO LA INSTRUCCION WAIT");
+        log_trace(logger, "CPU va a enviar un PCB a Kernel");
+        t_paquete *paquete_de_pcb =crear_paquete();
+        registros->motivo_interrupcion= MOTIVO_DESALOJO_WAIT;
+        empaquetar_registros(paquete_de_pcb,registros);
+        enviar_paquete(paquete_de_pcb,socket_cliente_dispatch,logger);
+        enviar_mensaje(linea_de_instruccion_separada[0],socket_cliente_dispatch,logger)
+
+
+        
+
 }
 
 void asignarValoresIntEnRegistros(char* registroDestino, int valor, char* instruccion) {
