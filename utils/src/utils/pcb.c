@@ -84,17 +84,18 @@ void actualizar_pcb(t_list *paquetes, t_PCB *pcb, t_log *logger)
 {
     log_debug(logger, "\nContenido del pcb antes de actualizarlo:\n|Process id: %d|\n|Program counter: %d|\n|Quantum: %d|\n|Estado: %d|\n|AX: %d|\n|BX: %d|\n|CX: %d|\n|DX: %d|\n|EAX=%d|\n|EBX=%d|\n|ECX=%d|\n|EDX=%d|\n|SI=%d|\n|DI=%d", pcb->processID, pcb->programCounter, pcb->quantum, (int)pcb->estado, pcb->AX, pcb->BX, pcb->CX, pcb->DX, pcb->EAX, pcb->EBX, pcb->ECX, pcb->EDX, pcb->SI, pcb->DI);
 
-    pcb->programCounter = (uint32_t)list_get(paquetes, 0);
-    pcb->AX = (uint8_t)list_get(paquetes, 1);
-    pcb->BX = (uint8_t)list_get(paquetes, 2);
-    pcb->CX = (uint8_t)list_get(paquetes, 3);
-    pcb->DX = (uint8_t)list_get(paquetes, 4);
-    pcb->EAX = (uint32_t)list_get(paquetes, 5);
-    pcb->EBX = (uint32_t)list_get(paquetes, 6);
-    pcb->ECX = (uint32_t)list_get(paquetes, 7);
-    pcb->EDX = (uint32_t)list_get(paquetes, 8);
-    pcb->SI = (uint32_t)list_get(paquetes, 9);
-    pcb->DI = (uint32_t)list_get(paquetes, 10);
+    pcb->programCounter = (uint32_t)list_get(paquetes, 1);
+    pcb->quantum = (uint32_t)list_get(paquetes, 2);
+    pcb->AX = (uint8_t)list_get(paquetes, 3);
+    pcb->BX = (uint8_t)list_get(paquetes, 4);
+    pcb->CX = (uint8_t)list_get(paquetes, 5);
+    pcb->DX = (uint8_t)list_get(paquetes, 6);
+    pcb->EAX = (uint32_t)list_get(paquetes, 7);
+    pcb->EBX = (uint32_t)list_get(paquetes, 8);
+    pcb->ECX = (uint32_t)list_get(paquetes, 9);
+    pcb->EDX = (uint32_t)list_get(paquetes, 10);
+    pcb->SI = (uint32_t)list_get(paquetes, 11);
+    pcb->DI = (uint32_t)list_get(paquetes, 12);
 
     log_debug(logger, "\nContenido del pcb despues de actualizarlo:\n|Process id: %d|\n|Program counter: %d|\n|Quantum: %d|\n|Estado: %d|\n|AX: %d|\n|BX: %d|\n|CX: %d|\n|DX: %d|\n|EAX=%d|\n|EBX=%d|\n|ECX=%d|\n|EDX=%d|\n|SI=%d|\n|DI=%d", pcb->processID, pcb->programCounter, pcb->quantum, (int)pcb->estado, pcb->AX, pcb->BX, pcb->CX, pcb->DX, pcb->EAX, pcb->EBX, pcb->ECX, pcb->EDX, pcb->SI, pcb->DI);
 }

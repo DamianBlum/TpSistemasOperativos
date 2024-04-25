@@ -45,5 +45,5 @@ t_registros *destruir_registros(t_registros *t)
 
 e_motivo_desalojo conseguir_motivo_desalojo_de_registros_empaquetados(t_list *lista)
 {
-    return (e_motivo_desalojo)list_get(lista, 14);
+    return (e_motivo_desalojo)list_get(lista, 13);
 }
