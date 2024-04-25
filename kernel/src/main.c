@@ -304,7 +304,7 @@ void evaluar_READY_a_EXEC()
 
         // aca voy a crear un hilo para q se quede esperando el contexto actualizado desde cpu
         pthread_t hilo_esperar_finalizacion_proceso;
-        pthread_create(&hilo_esperar_finalizacion_proceso, NULL, atender_finalizacion_proceso, NULL);
+        pthread_create(&hilo_esperar_finalizacion_proceso, NULL, atender_respuesta_proceso, NULL);
     }
     else
         log_trace(logger, "No fue posible asignar un proceso al CPU.");
@@ -335,7 +335,7 @@ void mostrar_menu()
     log_info(logger, "\n\n|##########################|\n|     MENU DE OPCIONES     |\n|##########################|\n|  INICIAR_PROCESO [PATH]  |\n|      PROCESO_ESTADO      |\n|  FINALIZAR_PROCESO [PI]  |\n|   INICIAR_PLAFICACION    |\n|  DETENER_PLANIFICACION   |\n|  EJECUTAR_SCRIPT [PATH]  |\n| MULTIPROGRAMACION [VALOR]|\n|          SALIR           |\n|##########################|\n");
 }
 
-void *atender_finalizacion_proceso(void *arg)
+void *atender_respuesta_proceso(void *arg)
 {
     log_trace(logger, "Entre a un hilo para atender la finalizacion del proceso %d.", (int)queue_peek(cola_RUNNING));
 
@@ -349,9 +349,48 @@ void *atender_finalizacion_proceso(void *arg)
         log_trace(logger, "CPU me devolvio el contexto de ejecucion.");
         t_PCB *pcb_en_running = devolver_pcb_desde_lista(lista_de_pcbs, (uint32_t)queue_peek(cola_RUNNING));
         actualizar_pcb(lista, pcb_en_running, logger);
+        // ---------------------------------------------- //
+        e_motivo_desalojo motivo_desalojo = conseguir_motivo_desalojo_de_registros_empaquetados(lista_de_pcbs);
+        switch (motivo_desalojo)
+        {
+        case MOTIVO_DESALOJO_EXIT:
+            evaluar_EXEC_a_EXIT();
+            break;
+        case MOTIVO_DESALOJO_WAIT:
+            char *argumento = recibir_mensaje(cliente_cpu_dispatch, logger);
+            log_debug(logger, "Argumento del wait: %s", argumento);
+            // magia de llamar a IO para q me de el recurso
+            // le respondo de una a CPU, solamente lo voy a bloquear no hay instancias del recurso disponible
+            t_paquete respuesta_para_cpu = crear_paquete();
+            agregar_a_paquete(respuesta_para_cpu, 0, sizeof(uint8_t)); // 0: te di la instancia, 1: no te la di (te bloqueo)
+            enviar_paquete(respuesta_para_cpu, cliente_cpu_dispatch, logger);
+            break;
+        case MOTIVO_DESALOJO_INTERRUPCION:
+            break;
+        case MOTIVO_DESALOJO_SIGNAL:
+            break;
+        case MOTIVO_DESALOJO_IO_GEN_SLEEP:
+            break;
+        case MOTIVO_DESALOJO_IO_STDIN_READ:
+            break;
+        case MOTIVO_DESALOJO_IO_STDOUT_WRITE:
+            break;
+        case MOTIVO_DESALOJO_IO_FS_CREATE:
+            break;
+        case MOTIVO_DESALOJO_IO_FS_DELETE:
+            break;
+        case MOTIVO_DESALOJO_IO_FS_TRUNCATE:
+            break;
+        case MOTIVO_DESALOJO_IO_FS_WRITE:
+            break;
+        case MOTIVO_DESALOJO_IO_FS_READ:
+            break;
+        default:
+            log_error(logger, "Recibi cualquier cosa como motivo de desalojo");
+            break;
+        }
     }
     else
         log_error(logger, "Me mandaron cualquier cosa, voy a romper todo.");
     // esto hay q agregar el resto de cosas q pueden hacerse cuando me devuelven el proceso
-    evaluar_EXEC_a_EXIT();
 }
