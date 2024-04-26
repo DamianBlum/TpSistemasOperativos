@@ -14,8 +14,8 @@ pthread_t hilo_servidor_io;
 // otro
 int contadorParaGenerarIdProcesos = 0;
 int quantum;
-int grado_multiprogramacion;        // este es el definido por parametro de config
-int grado_multiprogramacion_actual; // y este es un contador de procesos en el sistema, se modifica en el planificador de largo plazo
+int grado_multiprogramacion;  // este es el definido por parametro de config
+int cant_procesos_ejecutando; // y este es un contador de procesos en el sistema, se modifica en el planificador de largo plazo
 e_algoritmo_planificacion algoritmo_planificacion;
 bool esta_planificacion_pausada = false;
 // lista de pcbs
@@ -84,7 +84,8 @@ int main(int argc, char *argv[])
         else if ((string_equals_ignore_case("FINALIZAR_PROCESO", comandoSpliteado[0]) || string_equals_ignore_case("FP", comandoSpliteado[0])) && comandoSpliteado[1] != NULL)
         {
             log_debug(logger, "Entraste a FINALIZAR_PROCESO para el proceso: %s.", comandoSpliteado[1]);
-            eliminar_proceso();
+            eliminar_proceso(atoi(comandoSpliteado[1]));
+            evaluar_READY_a_EXEC();
             evaluar_NEW_a_READY();
         }
         else if (string_equals_ignore_case("INICIAR_PLAFICACION", comandoSpliteado[0]) || string_equals_ignore_case("IPL", comandoSpliteado[0]))
@@ -200,11 +201,65 @@ void crear_proceso(char *path)
     log_info(logger, "Se crea el proceso %d en NEW.", nuevo_pcb->processID); // log obligatorio
 }
 
-void eliminar_proceso()
+void eliminar_proceso(uint32_t id)
 {
-    grado_multiprogramacion_actual--;
+    // tengo q decirle a memoria q libere lo de este proceso
 
-    log_debug(logger, "Grado de multiprogramacion actual: %d", grado_multiprogramacion_actual);
+    t_PCB *pcb_a_finalizar = devolver_pcb_desde_lista(lista_de_pcbs, id);
+    if (pcb_a_finalizar == NULL)
+    {
+        log_error(logger, "El proceso %d no existe.");
+        return;
+    }
+    e_estado_proceso estado = pcb_a_finalizar->estado;
+
+    // le cambio el estado en la lista
+    pcb_a_finalizar->estado = E_EXIT;
+
+    // lo saco de queue
+    switch (estado)
+    {
+    case E_NEW:
+        eliminar_id_de_la_cola(cola_NEW, pcb_a_finalizar->processID);
+        break;
+    case E_READY:
+        eliminar_id_de_la_cola(cola_READY, pcb_a_finalizar->processID);
+        break;
+    case E_RUNNING: // esta es medio turbia
+        eliminar_id_de_la_cola(cola_RUNNING, pcb_a_finalizar->processID);
+        break;
+    case E_BLOCKED: // este tambien hay q cambiarlo
+        for (uint8_t i = 0; i < dictionary_size(diccionario_recursos); i++)
+        {
+            t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos, list_get(dictionary_keys(diccionario_recursos), i));
+        }
+        eliminar_id_de_la_cola(tmb->cola_bloqueados, pcb_a_finalizar->processID);
+        break;
+    default:
+        break;
+    }
+
+    queue_push(cola_EXIT, pcb_a_finalizar->processID);
+
+    cant_procesos_ejecutando--;
+
+    log_debug(logger, "Grado de multiprogramacion actual: %d", cant_procesos_ejecutando);
+}
+
+void eliminar_id_de_la_cola(t_queue *cola, uint32_t id)
+{
+    uint32_t primerId = queue_pop(cola);
+    if (primerId != id)
+    {
+        queue_push(cola, primerId);
+        while (queue_peek(cola) != primerId) // ya di toda la vuelta
+        {
+            uint32_t idActual = queue_pop(cola);
+            if (idActual == id)
+                break; // es el id q tengo q sacar
+            queue_push(cola, idActual);
+        }
+    }
 }
 
 // planificacion de corto plazo
@@ -224,7 +279,7 @@ void instanciar_colas()
     cola_READY = queue_create();
     cola_RUNNING = queue_create();
     cola_EXIT = queue_create();
-    cola_BLOCKED = queue_create();
+    // cola_BLOCKED = queue_create(); estas colas ahora se instancias en el t_manejo_bloqueados *crear_manejo_bloqueados();
 }
 
 // funciones de manejo de lista_de_pcb
@@ -249,7 +304,7 @@ void evaluar_NEW_a_READY()
 
     while (!queue_is_empty(cola_NEW))
     {
-        if (grado_multiprogramacion_actual < grado_multiprogramacion)
+        if (cant_procesos_ejecutando < grado_multiprogramacion)
         {
             uint32_t id = queue_pop(cola_NEW);
 
@@ -260,12 +315,12 @@ void evaluar_NEW_a_READY()
 
             log_trace(logger, "Fue posible mover el proceso %d de NEW a READY.", id);
 
-            grado_multiprogramacion_actual++;
-            log_debug(logger, "Grado de multiprogramacion actual: %d", grado_multiprogramacion_actual);
+            cant_procesos_ejecutando++;
+            log_debug(logger, "Grado de multiprogramacion actual: %d", cant_procesos_ejecutando);
         }
         else
         {
-            log_trace(logger, "No puedo porque el grado de multiprogramacion (%d) no admite mas programas en el sistema (actual: %d).", grado_multiprogramacion, grado_multiprogramacion_actual);
+            log_trace(logger, "No puedo porque el grado de multiprogramacion (%d) no admite mas programas en el sistema (actual: %d).", grado_multiprogramacion, cant_procesos_ejecutando);
             break;
         }
     }
@@ -299,8 +354,9 @@ void evaluar_READY_a_EXEC()
         log_trace(logger, "El proceso %d va a ser asignado al CPU.", id);
         queue_push(cola_RUNNING, id);
         t_PCB *pcb_elegido = obtener_pcb_de_lista_por_id(id);
+        pcb_elegido->estado = E_RUNNING;
+
         // ya q estamos le mando a cpu el contexto de ejecucion del proceso elegido
-        pcb_elegido->estado = E_EXECUTE;
         t_paquete *paquete_con_pcb = crear_paquete();
         empaquetar_pcb(paquete_con_pcb, pcb_elegido);
         enviar_paquete(paquete_con_pcb, cliente_cpu_dispatch, logger);
@@ -326,8 +382,8 @@ void evaluar_EXEC_a_EXIT()
     t_PCB *pcb_en_running = devolver_pcb_desde_lista(lista_de_pcbs, id);
     pcb_en_running->estado = E_EXIT;
     queue_push(cola_EXIT, id);
-    grado_multiprogramacion_actual--;
-    log_trace(logger, "Se movio un proceso a EXIT. Grado de multiprogramacion actual: %d.", grado_multiprogramacion_actual);
+    cant_procesos_ejecutando--;
+    log_trace(logger, "Se movio el proceso %d a EXIT. Grado de multiprogramacion actual: %d.", id, cant_procesos_ejecutando);
     // los pongo en este orden segun el tipo de planificadores q son
     evaluar_READY_a_EXEC();
     evaluar_NEW_a_READY();
@@ -343,11 +399,13 @@ void mostrar_menu()
 
 void *atender_respuesta_proceso(void *arg)
 {
+
     uint32_t idProcesoActual = (int)queue_peek(cola_RUNNING); // esto es para el log del final
     log_trace(logger, "Entre a un hilo para atender la finalizacion del proceso %d.", idProcesoActual);
 
     int op = recibir_operacion(cliente_cpu_dispatch, logger); // si, uso el cliente como socket servidor
     // aca tengo q pausar la planificacion si me metieron un DETENER_PLANIFICACION
+    // await(esta_planificacion_pausada)
 
     if (op == PAQUETE)
     {
@@ -430,21 +488,23 @@ void obtener_valores_de_recursos()
     {
         if ((lista1)[i] == NULL)
             break;
-        dictionary_put(diccionario_recursos, (lista1)[i], atoi(lista2[i]));
+        t_manejo_bloqueados *tmb = crear_manejo_bloqueados();
+        tmb->instancias_recursos = atoi(lista2[i]);
+        dictionary_put(diccionario_recursos, (lista1)[i], tmb);
         i++;
     }
 }
 
 uint8_t asignar_recurso(char *recurso) // valor sumar es 1 si hago signal y -1 si hago wait
 {
-    int valor = dictionary_get(diccionario_recursos, recurso);
+    t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos, recurso);
     uint8_t r;
-    if (valor != NULL)
+    if (tmb != NULL)
     { // existe, esta todo piola
-        log_debug(logger, "Valor del recurso %s antes de modificarlo: %d", valor);
-        valor -= 1;
-        log_debug(logger, "Valor del recurso %s desp de modificarlo: %d", valor);
-        if (valor < 0)
+        log_debug(logger, "Valor del recurso %s antes de modificarlo: %d", tmb->instancias_recursos);
+        tmb->instancias_recursos -= 1;
+        log_debug(logger, "Valor del recurso %s desp de modificarlo: %d", tmb->instancias_recursos);
+        if (tmb->instancias_recursos < 0)
             r = 1; // hay q bloquear el proceso
         else
             r = 0; // lo devuelvo sin bloquear
@@ -454,4 +514,18 @@ uint8_t asignar_recurso(char *recurso) // valor sumar es 1 si hago signal y -1 s
         r = 2;
     }
     return r;
+}
+
+t_manejo_bloqueados *crear_manejo_bloqueados()
+{
+    t_manejo_bloqueados *tmb = malloc(sizeof(t_manejo_bloqueados));
+    tmb->cola_bloqueados = queue_create();
+    tmb->instancias_recursos = 0;
+    return tmb;
+}
+
+void destruir_manejor_bloqueados(t_manejo_bloqueados *tmb)
+{
+    queue_destroy(tmb->cola_bloqueados);
+    free(tmb);
 }

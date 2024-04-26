@@ -12,6 +12,12 @@
 #include <pthread.h>
 #include <readline/readline.h>
 
+typedef struct
+{
+    t_queue cola_bloqueados;
+    int instancias_recursos;
+} t_manejo_bloqueados;
+
 typedef enum
 {
     FIFO = 0,
@@ -28,6 +34,9 @@ e_algoritmo_planificacion obtener_algoritmo_planificacion(char *algo);
 void instanciar_colas();
 void obtener_valores_de_recursos();
 uint8_t asignar_recurso(char *recurso);
+void eliminar_id_de_la_cola(t_queue *cola, uint32_t id);
+t_manejo_bloqueados *crear_manejo_bloqueados();
+void destruir_manejor_bloqueados(t_manejo_bloqueados *tmb);
 
 // planificacion de largo plazo
 void crear_proceso();
