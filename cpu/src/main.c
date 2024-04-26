@@ -30,7 +30,11 @@ e_instruccion instruccion;
 // Linea de instruccion separada
 char **linea_de_instruccion_separada;
 
+// para saber si sigo ejecutando el proceso actual
+bool proceso_actual_ejecutando
 
+// para saber si despues de ejecutar el proceso tengo que mandar el pcb o ya se hizo antes
+bool mandar_pcb;
 
 int main(int argc, char *argv[])
 {
@@ -103,8 +107,8 @@ void *servidor_dispatch(void *arg)
                 log_error(logger, "Recibi una operacion rara (%d), termino el servidor.", operacion);
                 return EXIT_FAILURE;
         }
-        
-        int proceso_actual_ejecutando = true;
+        mandar_pcb= true;
+        proceso_actual_ejecutando = true;
         while (proceso_actual_ejecutando) {
             registros->AX = 2;
             registros->BX = 3;
@@ -131,13 +135,9 @@ void *servidor_dispatch(void *arg)
             registros->PC++;
             proceso_actual_ejecutando= false; // por ahora para probar una sola instruccion;
         }
-        
-        // proceso de enviar el PCB a kernel
-        log_trace(logger, "CPU va a enviar un PCB a Kernel");
-        t_paquete *paquete_de_pcb =crear_paquete();
-        empaquetar_registros(paquete_de_pcb,registros);
-        enviar_paquete(paquete_de_pcb,socket_cliente_dispatch,logger);
-
+        // 
+        if (mandar_pcb)
+            enviar_pcb(MOTIVO_DESALOJO_EXIT); //todavia no se si es exit o no, o si importa ponerlo en la funcion
     }
 }
 
@@ -289,6 +289,7 @@ void execute() {
         instruccion_wait();
         break;
     case SIGNAL:
+        instruccion_signal();
         break;
     case IO_GEN_SLEEP:
         break;
@@ -397,18 +398,40 @@ void instruccion_sub(){
 }
 
 void instruccion_wait(){
-        // envio el pcb a kernel y luego un mensaje con el nombre del recurso que quiero
-        log_trace(logger, "EJECUTANDO LA INSTRUCCION WAIT");
-        log_trace(logger, "CPU va a enviar un PCB a Kernel");
-        t_paquete *paquete_de_pcb =crear_paquete();
-        registros->motivo_interrupcion= MOTIVO_DESALOJO_WAIT;
-        empaquetar_registros(paquete_de_pcb,registros);
-        enviar_paquete(paquete_de_pcb,socket_cliente_dispatch,logger);
-        enviar_mensaje(linea_de_instruccion_separada[0],socket_cliente_dispatch,logger)
+    // envio el pcb a kernel y luego un mensaje con el nombre del recurso que quiero
+    // Esta instrucción solicita al Kernel que se asigne una instancia del recurso indicado por parámetro.
+    log_trace(logger, "EJECUTANDO LA INSTRUCCION WAIT");
+    enviar_pcb(MOTIVO_DESALOJO_WAIT);
+    char* nombre_recurso= linea_de_instruccion_separada[1];
+    log_debug(logger,"Recurso que voy a ir a buscar %s",nombre_recurso;
+    enviar_mensaje(nombre_recurso,socket_cliente_dispatch,logger);
+    char* resultado=recibir_mensaje(socket_cliente_dispatch,logger);
+    // Convierte resultado a int
+    int resultado_numero=atoi(resultado);
+    // En nuestro conversacion con kernel si es 0 consigio el recurso y 1 significa que, o no existe, o no me lo puede dar
+    if (resultado_numero == 1){
+        log_debug(logger,"No se pudo obtener el recurso %s",nombre_recurso);
+        proceso_actual_ejecutando=false;
+        mandar_pcb=false;
+    }
+}
 
-
-        
-
+void instruccion_signal(){
+    // Esta instrucción solicita al Kernel que se libere una instancia del recurso indicado por parámetro.
+    log_trace(logger, "EJECUTANDO LA INSTRUCCION SIGNAL");
+    enviar_pcb(MOTIVO_DESALOJO_SIGNAL);
+    char* nombre_recurso= linea_de_instruccion_separada[1];
+    log_debug(logger,"Recurso que voy a ir a devolver %s",nombre_recurso;
+    enviar_mensaje(nombre_recurso,socket_cliente_dispatch,logger);
+    char* resultado=recibir_mensaje(socket_cliente_dispatch,logger);
+    // Convierte resultado a int
+    int resultado_numero=atoi(resultado);
+    // todavia no se nuestra conversacion con kernel de esto
+    if(resultado_numero == 1){
+        log_debug(logger,"No existia ese recurso %s",nombre_recurso);
+        proceso_actual_ejecutando=false;
+        mandar_pcb=false;
+    }
 }
 
 void asignarValoresIntEnRegistros(char* registroDestino, int valor, char* instruccion) {
@@ -469,3 +492,11 @@ int obtenerValorRegistros(char* registroCPU){
 }
 
 void check_interrupt(){} 
+
+void enviar_pcb(e_motivo_desalojo motivo_desalojo){
+    log_trace(logger, "CPU va a enviar un PCB a Kernel");
+    registros->motivo_desalojo= motivo_desalojo;
+    t_paquete *paquete_de_pcb =crear_paquete();
+    empaquetar_registros(paquete_de_pcb,registros);
+    enviar_paquete(paquete_de_pcb,socket_cliente_dispatch,logger);
+}
