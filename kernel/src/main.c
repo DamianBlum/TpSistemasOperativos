@@ -357,7 +357,7 @@ void *atender_respuesta_proceso(void *arg)
         t_PCB *pcb_en_running = devolver_pcb_desde_lista(lista_de_pcbs, (uint32_t)queue_peek(cola_RUNNING));
         actualizar_pcb(lista, pcb_en_running, logger);
         // ---------------------------------------------- //
-        e_motivo_desalojo motivo_desalojo = conseguir_motivo_desalojo_de_registros_empaquetados(lista_de_pcbs);
+        e_motivo_desalojo motivo_desalojo = conseguir_motivo_desalojo_de_registros_empaquetados(lista);
         switch (motivo_desalojo)
         {
         case MOTIVO_DESALOJO_EXIT:
