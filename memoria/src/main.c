@@ -14,6 +14,9 @@ int cliente_entradasalida;
 // hilos
 pthread_t tid[3];
 
+FILE * archivo_text_proceso;
+
+
 int main(int argc, char *argv[])
 {
     logger = iniciar_logger("memoria.log", "MEMORIA", argc, argv);
@@ -85,7 +88,8 @@ void *servidor_kernel(void *arg)
 void *servidor_cpu(void *arg)
 {
     log_info(logger, "El socket cliente %d entro al servidor de CPU", cliente_cpu);
-
+    // abro el archivo txt "prueba.txt"para leerlo como pruebo de la comunicacion
+    archivo_text_proceso = fopen("prueba.txt", "r");
     int sigo_funcionando = 1;
     while (sigo_funcionando)
     {
@@ -102,7 +106,11 @@ void *servidor_cpu(void *arg)
             t_list *lista = list_create();
             lista = recibir_paquete(cliente_cpu, logger);
             log_info(logger, "Desde cliente: %d Recibi un paquete.", cliente_cpu);
-            // hago algo con el mensaje
+            char* program_counter = list_get(lista, 0);
+            // paso el program counter a int
+            int pc = atoi(program_counter);
+            // leo el archivo de texto en la linea pc con fgets
+            
             break;
         case EXIT: // indica desconeccion
             log_error(logger, "Se desconecto el cliente %d.", cliente_cpu);
