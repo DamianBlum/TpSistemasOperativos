@@ -297,7 +297,7 @@ void evaluar_READY_a_EXEC()
         queue_push(cola_RUNNING, id);
         t_PCB *pcb_elegido = obtener_pcb_de_lista_por_id(id);
         // ya q estamos le mando a cpu el contexto de ejecucion del proceso elegido
-        pcb_elegido->estado = E_EXECUTE;
+        pcb_elegido->estado = E_RUNNING;
         t_paquete *paquete_con_pcb = crear_paquete();
         empaquetar_pcb(paquete_con_pcb, pcb_elegido);
         enviar_paquete(paquete_con_pcb, cliente_cpu_dispatch, logger);

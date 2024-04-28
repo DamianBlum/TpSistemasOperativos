@@ -105,10 +105,12 @@ t_paquete *crear_paquete(void)
 void agregar_a_paquete(t_paquete *paquete, void *valor, int tamanio)
 {
 	paquete->buffer->stream = realloc(paquete->buffer->stream, paquete->buffer->size + tamanio + sizeof(int));
-
+	printf("Stream: %s\n", (char *)paquete->buffer->stream);
 	memcpy(paquete->buffer->stream + paquete->buffer->size, &tamanio, sizeof(int));
-	memcpy(paquete->buffer->stream + paquete->buffer->size + sizeof(int), &valor, tamanio);
-
+	if (tamanio != sizeof(uint32_t) && tamanio != sizeof(uint8_t))
+		memcpy(paquete->buffer->stream + paquete->buffer->size + sizeof(int), valor, tamanio);
+	else // si es un numero tengo meter el &
+		memcpy(paquete->buffer->stream + paquete->buffer->size + sizeof(int), &valor, tamanio);
 	paquete->buffer->size += tamanio + sizeof(int);
 }
 
@@ -272,11 +274,19 @@ t_list *recibir_paquete(int socket_cliente, t_log *logger)
 			desplazamiento += tamanio;
 			list_add(valores, valor);
 		}
-		else
+		else if (tamanio == sizeof(uint8_t))
 		{
 			uint8_t valor;
 			memcpy(&valor, buffer + desplazamiento, tamanio);
 			log_debug(logger, "Valor uint8 obtenido: %d.", (int)valor);
+			desplazamiento += tamanio;
+			list_add(valores, valor);
+		}
+		else
+		{
+			char *valor = malloc(tamanio);
+			memcpy(valor, buffer + desplazamiento, tamanio);
+			log_debug(logger, "Valor string obtenido: %s.", valor);
 			desplazamiento += tamanio;
 			list_add(valores, valor);
 		}
