@@ -14,7 +14,7 @@
 
 typedef struct
 {
-    t_queue cola_bloqueados;
+    t_queue *cola_bloqueados;
     int instancias_recursos;
 } t_manejo_bloqueados;
 
@@ -49,13 +49,16 @@ t_PCB *obtener_pcb_de_lista_por_id(int id);
 
 // cambios de estados
 void evaluar_NEW_a_READY();
-void evaluar_NEW_a_EXIT();
+void evaluar_NEW_a_EXIT(uint32_t id);
 void evaluar_READY_a_EXEC();
 void evaluar_EXEC_a_READY();
-void evaluar_READY_a_EXIT();
-void evaluar_BLOCKED_a_EXIT();
+void evaluar_READY_a_EXIT(uint32_t id);
+void evaluar_BLOCKED_a_EXIT(uint32_t id);
 void evaluar_EXEC_a_BLOCKED();
 void evaluar_BLOCKED_a_READY();
 void evaluar_EXEC_a_EXIT();
 
+// memoria
+void liberar_memoria(uint32_t id);
+bool crear_proceso_en_memoria(uint32_t id, char *path);
 #endif

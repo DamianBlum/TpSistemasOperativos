@@ -99,7 +99,7 @@ int main(int argc, char *argv[])
             log_debug(logger, "Entraste a DETENER_PLANIFICACION.");
             esta_planificacion_pausada = true;
         }
-        else if (string_equals_ignore_case("EJECUTAR_SCRIPT", comandoSpliteado[0]) || string_equals_ignore_case("ES", comandoSpliteado[0]))
+        else if (string_equals_ignore_case("EJECUTAR_SCRIPT", comandoSpliteado[0]) || string_equals_ignore_case("ES", comandoSpliteado[0]) && comandoSpliteado[1] != NULL)
         {
             log_debug(logger, "Entraste a EJECUTAR_SCRIPT, path: %s.", comandoSpliteado[1]);
         }
@@ -225,15 +225,15 @@ void eliminar_proceso(uint32_t id)
     case E_READY:
         eliminar_id_de_la_cola(cola_READY, pcb_a_finalizar->processID);
         break;
-    case E_RUNNING: // esta es medio turbia
+    case E_RUNNING: // tengo q interrumpir al cpu
         eliminar_id_de_la_cola(cola_RUNNING, pcb_a_finalizar->processID);
         break;
     case E_BLOCKED: // este tambien hay q cambiarlo
         for (uint8_t i = 0; i < dictionary_size(diccionario_recursos); i++)
         {
             t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos, list_get(dictionary_keys(diccionario_recursos), i));
+            eliminar_id_de_la_cola(tmb->cola_bloqueados, pcb_a_finalizar->processID);
         }
-        eliminar_id_de_la_cola(tmb->cola_bloqueados, pcb_a_finalizar->processID);
         break;
     default:
         break;
@@ -326,7 +326,7 @@ void evaluar_NEW_a_READY()
     }
 }
 
-void evaluar_READY_a_EXEC()
+void evaluar_READY_a_EXEC() // hilar
 {
     log_trace(logger, "Entre a READY a EXEC para evaluar si se puede asignar un proceso al CPU.");
     if (queue_is_empty(cola_RUNNING) && !queue_is_empty(cola_READY) && !esta_planificacion_pausada) // valido q no este nadie corriendo, ready no este vacio y la planificacion no este pausada
@@ -366,19 +366,25 @@ void evaluar_READY_a_EXEC()
         pthread_create(&hilo_esperar_finalizacion_proceso, NULL, atender_respuesta_proceso, NULL);
     }
     else
+    {
         log_trace(logger, "No fue posible asignar un proceso al CPU.");
+        log_debug(logger, "Cant. procesos en READY: %d | Cant. procesos en RUNNING: %d", queue_size(cola_READY), queue_size(cola_RUNNING));
+    }
 }
 
-void evaluar_NEW_a_EXIT();
+void evaluar_NEW_a_EXIT(uint32_t id);
 void evaluar_EXEC_a_READY() { evaluar_READY_a_EXEC(); }
-void evaluar_READY_a_EXIT();
-void evaluar_BLOCKED_a_EXIT();
+void evaluar_READY_a_EXIT(uint32_t id);
+void evaluar_BLOCKED_a_EXIT(uint32_t id);
 void evaluar_EXEC_a_BLOCKED() { evaluar_READY_a_EXEC(); }
 void evaluar_BLOCKED_a_READY();
 void evaluar_EXEC_a_EXIT()
 {
     // medio falso el nombre este xq no evaluo nada, simplemente hago todo lo necesario para terminar el proceso
     uint32_t id = (uint32_t)queue_pop(cola_RUNNING);
+
+    liberar_memoria(id);
+
     t_PCB *pcb_en_running = devolver_pcb_desde_lista(lista_de_pcbs, id);
     pcb_en_running->estado = E_EXIT;
     queue_push(cola_EXIT, id);
@@ -400,7 +406,7 @@ void mostrar_menu()
 void *atender_respuesta_proceso(void *arg)
 {
 
-    uint32_t idProcesoActual = (int)queue_peek(cola_RUNNING); // esto es para el log del final
+    uint32_t idProcesoActual = queue_peek(cola_RUNNING); // esto es para el log del final
     log_trace(logger, "Entre a un hilo para atender la finalizacion del proceso %d.", idProcesoActual);
 
     int op = recibir_operacion(cliente_cpu_dispatch, logger); // si, uso el cliente como socket servidor
@@ -409,13 +415,13 @@ void *atender_respuesta_proceso(void *arg)
 
     if (op == PAQUETE)
     {
-        t_list *lista = list_create();
-        lista = recibir_paquete(cliente_cpu_dispatch, logger);
+        t_list *lista_respuesta_cpu = list_create();
+        lista_respuesta_cpu = recibir_paquete(cliente_cpu_dispatch, logger);
         log_trace(logger, "CPU me devolvio el contexto de ejecucion.");
-        t_PCB *pcb_en_running = devolver_pcb_desde_lista(lista_de_pcbs, (uint32_t)queue_peek(cola_RUNNING));
-        actualizar_pcb(lista, pcb_en_running, logger);
+        t_PCB *pcb_en_running = devolver_pcb_desde_lista(lista_de_pcbs, idProcesoActual);
+        actualizar_pcb(lista_respuesta_cpu, pcb_en_running, logger);
         // ---------------------------------------------- //
-        e_motivo_desalojo motivo_desalojo = conseguir_motivo_desalojo_de_registros_empaquetados(lista);
+        e_motivo_desalojo motivo_desalojo = conseguir_motivo_desalojo_de_registros_empaquetados(lista_respuesta_cpu);
         switch (motivo_desalojo)
         {
         case MOTIVO_DESALOJO_EXIT:
@@ -431,7 +437,7 @@ void *atender_respuesta_proceso(void *arg)
             { // 0: te di la instancia
                 log_trace(logger, "Voy a enviarle al CPU que tiene la instancia.");
                 agregar_a_paquete(respuesta_para_cpu, 0, sizeof(uint8_t));
-                // creeeeo q tengo q volver a llamar a este hilo como uno nuevo para volver a esta parte
+                // hacer un while de todo y matarlo cuando se tenga q matar el hilo :D
             }
             else if (resultado_asignar_recurso == 1)
             { // 1: no te la di (te bloqueo)
@@ -503,7 +509,7 @@ uint8_t asignar_recurso(char *recurso) // valor sumar es 1 si hago signal y -1 s
     { // existe, esta todo piola
         log_debug(logger, "Valor del recurso %s antes de modificarlo: %d", tmb->instancias_recursos);
         tmb->instancias_recursos -= 1;
-        log_debug(logger, "Valor del recurso %s desp de modificarlo: %d", tmb->instancias_recursos);
+        log_debug(logger, "Valor del recurso %s desp de modifiarlo: %d", tmb->instancias_recursos);
         if (tmb->instancias_recursos < 0)
             r = 1; // hay q bloquear el proceso
         else
@@ -528,4 +534,27 @@ void destruir_manejor_bloqueados(t_manejo_bloqueados *tmb)
 {
     queue_destroy(tmb->cola_bloqueados);
     free(tmb);
+}
+
+// manejo de memoria
+
+void liberar_memoria(uint32_t id)
+{
+    log_trace(logger, "Voy a decirle a memoria q libere lo del proceso %d", id);
+
+    t_paquete *p = crear_paquete();
+    // agregar_a_paquete(p, E_LIBERAR_MEMORIA, sizeof(e_acciones_memoria));
+    agregar_a_paquete(p, id, sizeof(id));
+    enviar_paquete(p, cliente_memoria, logger);
+}
+
+bool crear_proceso_en_memoria(uint32_t id, char *path)
+{
+    t_paquete *p = crear_paquete();
+    // agregar_a_paquete(p, E_CREAR_PROCESO_MEMORIA, sizeof(e_acciones_memoria));
+    agregar_a_paquete(p, id, sizeof(id));
+    enviar_paquete(p, cliente_memoria, logger);
+    // ahora le tengo q mandar el path en un mensaje
+    enviar_mensaje(path, cliente_memoria, logger);
+    // tengo q esperar q me responda memoria si salio todo bien
 }
