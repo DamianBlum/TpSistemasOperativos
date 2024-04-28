@@ -9,7 +9,7 @@ typedef enum
 {
     E_NEW = 0,
     E_READY,
-    E_EXECUTE,
+    E_RUNNING,
     E_BLOCKED,
     E_EXIT,
 } e_estado_proceso;
