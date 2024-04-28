@@ -127,7 +127,7 @@ char *estado_proceso_texto(e_estado_proceso estado)
     case E_READY:
         estado_texto = string_duplicate("READY");
         break;
-    case E_EXECUTE:
+    case E_RUNNING:
         estado_texto = string_duplicate("EXECUTE");
         break;
     case E_BLOCKED:
