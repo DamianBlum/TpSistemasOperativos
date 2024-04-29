@@ -16,11 +16,29 @@ pthread_t tid[3];
 
 FILE * archivo_text_proceso;
 
+// diccionario de procesos
+t_dictionary *procesos;
+
+// path de los archivos
+char *path;
 
 int main(int argc, char *argv[])
 {
+
+    procesos = dictionary_create();
     logger = iniciar_logger("memoria.log", "MEMORIA", argc, argv);
     config = iniciar_config("memoria.config");
+    path = config_get_string_value(config, "PATH_INSTRUCCIONES");
+
+    /* Para mostrar Funcionamiento de crear_proceso
+    crear_proceso("prueba.txt", 1);
+    crear_proceso("prueba2.txt", 2);
+    // consigo el proceso 1
+    t_memoria_proceso *proceso = dictionary_get(procesos, "1");
+    printf("El proceso 1 tiene el archivo %s\n", proceso->nombre_archivo);
+   */
+
+    
 
     socket_servidor = iniciar_servidor(config, "PUERTO_ESCUCHA");
 
@@ -44,7 +62,7 @@ int main(int argc, char *argv[])
     pthread_join(tid[SOY_CPU], NULL);
     pthread_join(tid[SOY_KERNEL], NULL);
     pthread_join(tid[SOY_IO], NULL);
-
+    
     destruir_logger(logger);
     destruir_config(config);
 
@@ -74,7 +92,7 @@ void *servidor_kernel(void *arg)
             // hago algo con el mensaje
             break;
         case EXIT: // indica desconeccion
-            log_error(logger, "Se desconecto el cliente %d.", cliente_cpu, cliente_kernel);
+            log_error(logger, "Se desconecto el cliente %d.", cliente_cpu);
             sigo_funcionando = 0;
             break;
         default: // recibi algo q no es eso, vamos a suponer q es para terminar
@@ -156,4 +174,102 @@ void *servidor_entradasalida(void *arg)
         }
     }
     return EXIT_SUCCESS;
+}
+
+
+int crear_proceso(char* nombre_archivo, uint32_t process_id){
+
+    char *linea = NULL;
+    size_t longitud = 100;
+    long *posiciones;
+    int contadorLineas = 0;
+
+    
+    log_debug(logger, "Voy a crear el proceso %d con el archivo %s", process_id, nombre_archivo);
+
+    char * path_completo = string_from_format("%s%s", path,nombre_archivo);
+
+    log_debug(logger, "El path del archivo es: %s", path_completo);
+
+    // abro el archivo que queda en la carpeta de la memoria que saco del config en PATH_INSTRUCCIONES con nombre de archivo nombre_archivo
+    archivo_text_proceso = fopen(path_completo, "r");
+    
+    // leo cada linea y la imprimo por pantalla
+    if (archivo_text_proceso == NULL) {
+        log_error(logger,"Error al abrir el archivo");
+        return 1;
+    }
+
+    // Almacena la posición de inicio del archivo
+    long inicioArchivo = ftell(archivo_text_proceso);
+
+
+    // Encuentra el número total de líneas en el archivo
+    while (getline(&linea, &longitud, archivo_text_proceso) != -1) {
+        contadorLineas++;
+    }
+
+    log_debug(logger,"El archivo tiene %d lineas\n", contadorLineas);
+
+    // Resetea el puntero de archivo al inicio del archivo
+    fseek(archivo_text_proceso, inicioArchivo, SEEK_SET);
+
+    // Reserva memoria para almacenar las posiciones de las líneas
+    posiciones = (long *)malloc(contadorLineas * sizeof(long));
+
+    // Almacena la posición de inicio de cada línea
+    for (int i = 0; i < contadorLineas; i++) {
+        posiciones[i] = ftell(archivo_text_proceso);
+
+        if (getline(&linea, &longitud, archivo_text_proceso) == -1) {
+            break;
+        }
+    }
+
+    fclose(archivo_text_proceso);
+
+    t_memoria_proceso* proceso=crear_estructura_proceso(nombre_archivo, posiciones);
+
+    //lo guardo en mi diccionario de procesos
+    // paso de uint32_t a string
+    char* string_pid = string_itoa((int)process_id);
+
+    dictionary_put(procesos, string_pid, proceso);
+
+    log_debug(logger," Syze del diccionario: %d\n", dictionary_size(procesos));
+
+    
+    // libero variables
+    free(path_completo);
+    free(linea);
+    free(string_pid);
+    return 0;
+}
+
+t_memoria_proceso* crear_estructura_proceso(char* nombre_archivo, long* posiciones_lineas){
+    // Creo un proceso con el nombre del archivo y el vector posiciones
+    t_memoria_proceso *proceso = malloc(sizeof(t_memoria_proceso));
+    proceso->nombre_archivo = string_duplicate(nombre_archivo);
+    proceso->posiciones_lineas = posiciones_lineas;
+    return proceso;
+}
+
+t_memoria_proceso* encontrar_proceso(uint32_t pid){
+    // busco el proceso en el diccionario de procesos
+    char* string_pid = string_itoa((int)pid);
+    t_memoria_proceso *proceso = dictionary_get(procesos, string_pid);
+    free(string_pid);
+    return proceso;
+}
+
+void destruir_proceso(uint32_t pid){
+    // busco el proceso en el diccionario de procesos
+    char* string_pid = string_itoa((int)pid);
+    t_memoria_proceso *proceso = dictionary_remove(procesos, string_pid);
+    // libero la memoria del proceso
+    free(proceso->nombre_archivo);
+    free(proceso->posiciones_lineas);
+    free(proceso);
+    free(string_pid);
+
 }
