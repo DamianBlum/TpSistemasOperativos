@@ -213,37 +213,30 @@ void eliminar_proceso(uint32_t id)
     }
     e_estado_proceso estado = pcb_a_finalizar->estado;
 
-    // le cambio el estado en la lista
-    pcb_a_finalizar->estado = E_EXIT;
-
     // lo saco de queue
     switch (estado)
     {
     case E_NEW:
-        eliminar_id_de_la_cola(cola_NEW, pcb_a_finalizar->processID);
+        evaluar_NEW_a_EXIT(pcb_a_finalizar);
         break;
     case E_READY:
-        eliminar_id_de_la_cola(cola_READY, pcb_a_finalizar->processID);
+        evaluar_READY_a_EXIT(pcb_a_finalizar);
         break;
-    case E_RUNNING: // tengo q interrumpir al cpu
-        eliminar_id_de_la_cola(cola_RUNNING, pcb_a_finalizar->processID);
+    case E_RUNNING:
+        // primero mando interrupcion a cpu
+        t_paquete *paquete_interrupt = crear_paquete();
+        // creo q no importa mucho q es lo q mande, sino simplemente mandar algo
+        agregar_a_paquete(paquete_interrupt, (uint32_t)1, sizeof(uint32_t));
+        enviar_paquete(paquete_interrupt, cliente_cpu_interrupt, logger);
+        // planifico
+        evaluar_EXEC_a_EXIT();
         break;
-    case E_BLOCKED: // este tambien hay q cambiarlo
-        for (uint8_t i = 0; i < dictionary_size(diccionario_recursos); i++)
-        {
-            t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos, list_get(dictionary_keys(diccionario_recursos), i));
-            eliminar_id_de_la_cola(tmb->cola_bloqueados, pcb_a_finalizar->processID);
-        }
+    case E_BLOCKED:
+        evaluar_BLOCKED_a_EXIT();
         break;
     default:
         break;
     }
-
-    queue_push(cola_EXIT, pcb_a_finalizar->processID);
-
-    cant_procesos_ejecutando--;
-
-    log_debug(logger, "Grado de multiprogramacion actual: %d", cant_procesos_ejecutando);
 }
 
 void eliminar_id_de_la_cola(t_queue *cola, uint32_t id)
@@ -372,12 +365,68 @@ void evaluar_READY_a_EXEC() // hilar
     }
 }
 
-void evaluar_NEW_a_EXIT(uint32_t id);
-void evaluar_EXEC_a_READY() { evaluar_READY_a_EXEC(); }
-void evaluar_READY_a_EXIT(uint32_t id);
-void evaluar_BLOCKED_a_EXIT(uint32_t id);
-void evaluar_EXEC_a_BLOCKED() { evaluar_READY_a_EXEC(); }
-void evaluar_BLOCKED_a_READY();
+void evaluar_NEW_a_EXIT(t_PCB *pcb)
+{
+    // libero la memoria
+    liberar_memoria(pcb->processID);
+    // le cambio el estado
+    pcb->estado = E_EXIT;
+    // lo popeo de su cola actual
+    eliminar_id_de_la_cola(cola_NEW, pcb->processID);
+    // lo pusheo en exit
+    queue_push(cola_EXIT, pcb_a_finalizar->processID);
+    // desminuyo el contador de procesos
+    cant_procesos_ejecutando--;
+    log_debug(logger, "Grado de multiprogramacion actual: %d", cant_procesos_ejecutando);
+}
+void evaluar_EXEC_a_READY()
+{
+    evaluar_READY_a_EXEC();
+}
+void evaluar_READY_a_EXIT(t_PCB *pcb)
+{
+    // libero la memoria
+    liberar_memoria(pcb->processID);
+    // le cambio el estado
+    pcb->estado = E_EXIT;
+    // lo popeo de su cola actual
+    eliminar_id_de_la_cola(cola_READY, pcb->processID);
+    // lo pusheo en exit
+    queue_push(cola_EXIT, pcb_a_finalizar->processID);
+    // desminuyo el contador de procesos
+    cant_procesos_ejecutando--;
+    log_debug(logger, "Grado de multiprogramacion actual: %d", cant_procesos_ejecutando);
+}
+void evaluar_BLOCKED_a_EXIT(t_PCB *pcb)
+{
+    // libero la memoria
+    liberar_memoria(pcb->processID);
+    // le cambio el estado
+    pcb->estado = E_EXIT;
+    // lo popeo de su cola actual
+    for (uint8_t i = 0; i < dictionary_size(diccionario_recursos); i++) // podria ser un poquito mas lindo esto pero bueno, andar anda
+    {
+        t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos, list_get(dictionary_keys(diccionario_recursos), i));
+        eliminar_id_de_la_cola(tmb->cola_bloqueados, pcb_a_finalizar->processID);
+    }
+    // lo pusheo en exit
+    queue_push(cola_EXIT, pcb_a_finalizar->processID);
+    // desminuyo el contador de procesos
+    cant_procesos_ejecutando--;
+    log_debug(logger, "Grado de multiprogramacion actual: %d", cant_procesos_ejecutando);
+}
+void evaluar_EXEC_a_BLOCKED()
+{
+    evaluar_READY_a_EXEC();
+}
+void evaluar_BLOCKED_a_READY(t_queue colaRecurso)
+{ // desbloqueo por fifo
+    uint32_t id = queue_pop(colaRecurso);
+    queue_push(cola_READY, id);
+
+    t_PCB *pcb = devolver_pcb_desde_lista(lista_de_pcbs, id);
+    pcb->estado = E_READY;
+}
 void evaluar_EXEC_a_EXIT()
 {
     // medio falso el nombre este xq no evaluo nada, simplemente hago todo lo necesario para terminar el proceso
@@ -428,11 +477,11 @@ void *atender_respuesta_proceso(void *arg)
             evaluar_EXEC_a_EXIT();
             break;
         case MOTIVO_DESALOJO_WAIT:
-            char *argumento = recibir_mensaje(cliente_cpu_dispatch, logger);
-            log_debug(logger, "Argumento del wait: %s", argumento);
+            char *argWait = list_get(lista_respuesta_cpu, 14); // hacer desp esto en una funcion
+            log_debug(logger, "Argumento del wait: %s", argWait);
             t_paquete *respuesta_para_cpu = crear_paquete();
             // hago la magia de darle los recursos
-            uint8_t resultado_asignar_recurso = asignar_recurso(argumento);
+            uint8_t resultado_asignar_recurso = asignar_recurso(argWait);
             if (resultado_asignar_recurso == 0)
             { // 0: te di la instancia
                 log_trace(logger, "Voy a enviarle al CPU que tiene la instancia.");
@@ -453,9 +502,31 @@ void *atender_respuesta_proceso(void *arg)
             }
             enviar_paquete(respuesta_para_cpu, cliente_cpu_dispatch, logger);
             break;
-        case MOTIVO_DESALOJO_INTERRUPCION:
-            break;
         case MOTIVO_DESALOJO_SIGNAL:
+            char *argSignal = list_get(lista_respuesta_cpu, 14); // hacer desp esto en una funcion
+            log_debug(logger, "Argumento del signal: %s", argWait);
+            t_paquete *respuesta_para_cpu_signal = crear_paquete();
+            // desasigno
+            uint8_t resultado_asignar_recurso_signal = desasignar_recurso(argSignal);
+            if (resultado_asignar_recurso_signal == 0)
+            { // hay instancias disponibles, voy a desbloquear a alguien y le respondo a cpu
+                evaluar_BLOCKED_a_READY(((t_manejo_bloqueados *)dictionary_get(diccionario_recursos, argSignal))->cola_bloqueados);
+                log_trace(logger, "Voy a enviarle al CPU que salio todo bien.");
+                agregar_a_paquete(respuesta_para_cpu_signal, 0, sizeof(uint8_t));
+            }
+            else if (resultado_asignar_recurso_signal == 1)
+            { // solamente le digo a cpu q esta todo bien
+                log_trace(logger, "Voy a enviarle al CPU que salio todo bien. Pero no se desbloquea ningun proceso.");
+                agregar_a_paquete(respuesta_para_cpu_signal, 0, sizeof(uint8_t));
+            }
+            else if (respuesta_para_cpu_signal == 2)
+            { // le digo a cpu q desaloje el proceso y lo mando a exit
+                log_error(logger, "El cpu me pidio un recurso que no existe. Lo tenemos que matar!");
+                agregar_a_paquete(respuesta_para_cpu_signal, 1, sizeof(uint8_t)); // le mando un 1 xq para cpu es lo mismo matar el proceso que bloquearlo
+                evaluar_EXEC_a_EXIT();
+            }
+            break;
+        case MOTIVO_DESALOJO_INTERRUPCION:
             break;
         case MOTIVO_DESALOJO_IO_GEN_SLEEP:
             break;
@@ -501,7 +572,7 @@ void obtener_valores_de_recursos()
     }
 }
 
-uint8_t asignar_recurso(char *recurso) // valor sumar es 1 si hago signal y -1 si hago wait
+uint8_t asignar_recurso(char *recurso)
 {
     t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos, recurso);
     uint8_t r;
@@ -514,6 +585,27 @@ uint8_t asignar_recurso(char *recurso) // valor sumar es 1 si hago signal y -1 s
             r = 1; // hay q bloquear el proceso
         else
             r = 0; // lo devuelvo sin bloquear
+    }
+    else
+    { // cagaste
+        r = 2;
+    }
+    return r;
+}
+
+uint8_t desasignar_recurso(char *recurso)
+{
+    t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos, recurso);
+    uint8_t r;
+    if (tmb != NULL)
+    { // existe, esta todo piola
+        log_debug(logger, "Valor del recurso %s antes de modificarlo: %d", tmb->instancias_recursos);
+        tmb->instancias_recursos += 1;
+        log_debug(logger, "Valor del recurso %s desp de modifiarlo: %d", tmb->instancias_recursos);
+        if (tmb->instancias_recursos >= 0)
+            r = 0; // hay q desbloquear a alguien
+        else
+            r = 1; // creo q no hago nada?
     }
     else
     { // cagaste
@@ -548,13 +640,12 @@ void liberar_memoria(uint32_t id)
     enviar_paquete(p, cliente_memoria, logger);
 }
 
-bool crear_proceso_en_memoria(uint32_t id, char *path)
+void crear_proceso_en_memoria(uint32_t id, char *path)
 {
     t_paquete *p = crear_paquete();
     // agregar_a_paquete(p, E_CREAR_PROCESO_MEMORIA, sizeof(e_acciones_memoria));
     agregar_a_paquete(p, id, sizeof(id));
+    agregar_a_paquete(p, path, strlen(path);
     enviar_paquete(p, cliente_memoria, logger);
-    // ahora le tengo q mandar el path en un mensaje
-    enviar_mensaje(path, cliente_memoria, logger);
-    // tengo q esperar q me responda memoria si salio todo bien
+    // entiendo q no es necesario devolver si esto salio bien o no
 }
