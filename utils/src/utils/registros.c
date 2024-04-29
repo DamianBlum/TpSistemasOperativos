@@ -4,7 +4,6 @@ void empaquetar_registros(t_paquete *p, t_registros *t)
 {
     agregar_a_paquete(p, t->PID, sizeof(uint32_t));
     agregar_a_paquete(p, t->PC, sizeof(uint32_t));
-    agregar_a_paquete(p, t->quantum, sizeof(uint32_t));
     agregar_a_paquete(p, t->AX, sizeof(uint8_t));
     agregar_a_paquete(p, t->BX, sizeof(uint8_t));
     agregar_a_paquete(p, t->CX, sizeof(uint8_t));
@@ -23,7 +22,6 @@ t_registros *crear_registros()
     t_registros *r = malloc(sizeof(t_registros));
     r->PID = 0;
     r->PC = 0;
-    r->quantum = 0;
     r->AX = 0;
     r->BX = 0;
     r->CX = 0;
@@ -45,5 +43,5 @@ t_registros *destruir_registros(t_registros *t)
 
 e_motivo_desalojo conseguir_motivo_desalojo_de_registros_empaquetados(t_list *lista)
 {
-    return (e_motivo_desalojo)list_get(lista, 13);
+    return (e_motivo_desalojo)list_get(lista, 12);
 }
