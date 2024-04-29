@@ -478,6 +478,8 @@ void *atender_respuesta_proceso(void *arg)
             {
             case MOTIVO_DESALOJO_EXIT:
                 evaluar_EXEC_a_EXIT();
+                // termino el ciclo
+                sigo_esperando_cosas_de_cpu = false;
                 break;
             case MOTIVO_DESALOJO_WAIT:
                 char *argWait = list_get(lista_respuesta_cpu, 14); // hacer desp esto en una funcion
@@ -489,19 +491,22 @@ void *atender_respuesta_proceso(void *arg)
                 { // 0: te di la instancia
                     log_trace(logger, "Voy a enviarle al CPU que tiene la instancia.");
                     agregar_a_paquete(respuesta_para_cpu, 0, sizeof(uint8_t));
-                    // hacer un while de todo y matarlo cuando se tenga q matar el hilo :D
                 }
                 else if (resultado_asignar_recurso == 1)
                 { // 1: no te la di (te bloqueo)
                     log_trace(logger, "Voy a enviarle al CPU que no tiene la instancia, asi q sera bloqueado.");
                     agregar_a_paquete(respuesta_para_cpu, 1, sizeof(uint8_t));
                     evaluar_EXEC_a_BLOCKED();
+                    // termino el ciclo
+                    sigo_esperando_cosas_de_cpu = false;
                 }
                 else if (resultado_asignar_recurso == 2)
                 { // 2: mato al proceso xq pidio algo nada q ver
                     log_error(logger, "El cpu me pidio un recurso que no existe. Lo tenemos que matar!");
                     agregar_a_paquete(respuesta_para_cpu, 1, sizeof(uint8_t)); // le mando un 1 xq para cpu es lo mismo matar el proceso que bloquearlo
                     evaluar_EXEC_a_EXIT();
+                    // termino el ciclo
+                    sigo_esperando_cosas_de_cpu = false;
                 }
                 enviar_paquete(respuesta_para_cpu, cliente_cpu_dispatch, logger);
                 break;
@@ -527,9 +532,13 @@ void *atender_respuesta_proceso(void *arg)
                     log_error(logger, "El cpu me pidio un recurso que no existe. Lo tenemos que matar!");
                     agregar_a_paquete(respuesta_para_cpu_signal, 1, sizeof(uint8_t)); // le mando un 1 xq para cpu es lo mismo matar el proceso que bloquearlo
                     evaluar_EXEC_a_EXIT();
+                    // termino el ciclo
+                    sigo_esperando_cosas_de_cpu = false;
                 }
                 break;
             case MOTIVO_DESALOJO_INTERRUPCION:
+                // termino el ciclo
+                sigo_esperando_cosas_de_cpu = false;
                 break;
             case MOTIVO_DESALOJO_IO_GEN_SLEEP:
                 break;
@@ -555,6 +564,7 @@ void *atender_respuesta_proceso(void *arg)
         else
         {
             log_error(logger, "Me mandaron cualquier cosa, voy a romper todo.");
+            // termino el ciclo
             sigo_esperando_cosas_de_cpu = false;
         }
     }
