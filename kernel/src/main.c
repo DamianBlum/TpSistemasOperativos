@@ -26,7 +26,7 @@ t_dictionary *diccionario_recursos;
 t_queue *cola_NEW;
 t_queue *cola_READY;
 t_queue *cola_RUNNING; // si, es una cola para un unico proceso, algun problema?
-t_queue *cola_BLOCKED;
+// t_queue *cola_BLOCKED; no se usa mas esto, ahora las colas de bloqueados estan dentro de diccionario_recursos
 t_queue *cola_EXIT; // esta es mas q nada para desp poder ver los procesos q ya terminaron
 // Queue de vrr
 // esto se hara en su respectivo momento
@@ -381,7 +381,19 @@ void evaluar_NEW_a_EXIT(t_PCB *pcb)
 }
 void evaluar_EXEC_a_READY()
 {
-    evaluar_READY_a_EXEC();
+    // estas validaciones las hago por las dudas nada mas, creo q en ningun caso se puede dar esto
+    if (!queue_is_empty(cola_RUNNING))
+    {
+        t_PCB *pcb = devolver_pcb_desde_lista(lista_de_pcbs, (uint32_t)queue_pop(cola_RUNNING));
+        pcb->estado = E_READY;
+        queue_push(cola_READY, pcb->processID);
+        log_trace(logger, "Se movio el proceso %d de EXEC a READY.");
+    }
+    else
+    {
+        log_trace(logger, "No fue posible mover un proceso de EXEC a READY, por que no habia.")
+    }
+    evaluar_READY_a_EXEC(); // planifico xq se libero la cpu
 }
 void evaluar_READY_a_EXIT(t_PCB *pcb)
 {
