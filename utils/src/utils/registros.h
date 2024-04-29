@@ -26,7 +26,6 @@ typedef struct
 {
     uint32_t PID;
     uint32_t PC;      // program counter
-    uint32_t quantum; // para el VRR
     uint8_t AX;       // los 8 de proposito general
     uint8_t BX;
     uint8_t CX;
