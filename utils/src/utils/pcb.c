@@ -65,7 +65,6 @@ void desempaquetar_pcb_a_registros(t_list *paquetes, t_registros *regs, t_log *l
     {
         regs->PID = (uint32_t)list_get(paquetes, 0);
         regs->PC = (uint32_t)list_get(paquetes, 1);
-        regs->quantum = (uint32_t)list_get(paquetes, 2);
         regs->AX = (uint8_t)list_get(paquetes, 4);
         regs->BX = (uint8_t)list_get(paquetes, 5);
         regs->CX = (uint8_t)list_get(paquetes, 6);
@@ -85,7 +84,6 @@ void actualizar_pcb(t_list *paquetes, t_PCB *pcb, t_log *logger)
     log_debug(logger, "\nContenido del pcb antes de actualizarlo:\n|Process id: %d|\n|Program counter: %d|\n|Quantum: %d|\n|Estado: %d|\n|AX: %d|\n|BX: %d|\n|CX: %d|\n|DX: %d|\n|EAX=%d|\n|EBX=%d|\n|ECX=%d|\n|EDX=%d|\n|SI=%d|\n|DI=%d", pcb->processID, pcb->programCounter, pcb->quantum, (int)pcb->estado, pcb->AX, pcb->BX, pcb->CX, pcb->DX, pcb->EAX, pcb->EBX, pcb->ECX, pcb->EDX, pcb->SI, pcb->DI);
 
     pcb->programCounter = (uint32_t)list_get(paquetes, 1);
-    pcb->quantum = (uint32_t)list_get(paquetes, 2);
     pcb->AX = (uint8_t)list_get(paquetes, 3);
     pcb->BX = (uint8_t)list_get(paquetes, 4);
     pcb->CX = (uint8_t)list_get(paquetes, 5);
