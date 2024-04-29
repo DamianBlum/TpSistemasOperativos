@@ -15,7 +15,6 @@ int cliente_entradasalida;
 pthread_t tid[3];
 
 FILE * archivo_text_proceso;
-
 // diccionario de procesos
 t_dictionary *procesos;
 
@@ -89,8 +88,35 @@ void *servidor_kernel(void *arg)
             t_list *lista = list_create();
             lista = recibir_paquete(cliente_kernel, logger);
             log_info(logger, "Desde cliente %d: Recibi un paquete.", cliente_cpu);
-            // hago algo con el mensaje
-            break;
+            e_operacion operacion_kernel= (e_operacion)list_get(lista, 0);
+            switch (operacion_kernel)
+            {
+                case INICIAR_PROCESO:
+                    char* nombre_archivo = list_get(lista, 1);
+                    uint32_t process_id = (uint32_t))list_get(lista, 2);
+                    int resultado=crear_proceso(nombre_archivo, process_id);
+
+                    if(resultado==0){
+                        log_info(logger, "Se creo el proceso %d con el archivo %s.", process_id, nombre_archivo);
+                    else{
+                        log_error(logger, "No se pudo crear el proceso %d con el archivo %s.", process_id, nombre_archivo);
+                    }
+
+                    t_paquete* paquete_a_enviar=crear_paquete();
+                    agregar_a_paquete(paquete_a_enviar, resultado, sizeof(bool);
+                    enviar_paquete(paquete_a_enviar,cliente_kernel, logger);
+                    eliminar_paquete(paquete_a_enviar);
+
+                    break;
+                case BORRAR_PROCESO:
+                    uint32_t process_id = (uint32_t))list_get(lista, 1);
+                    destruir_proceso(process_id);
+                    break;
+                default:
+                    break;
+            }
+                
+
         case EXIT: // indica desconeccion
             log_error(logger, "Se desconecto el cliente %d.", cliente_cpu);
             sigo_funcionando = 0;
@@ -124,11 +150,18 @@ void *servidor_cpu(void *arg)
             t_list *lista = list_create();
             lista = recibir_paquete(cliente_cpu, logger);
             log_info(logger, "Desde cliente: %d Recibi un paquete.", cliente_cpu);
-            char* program_counter = list_get(lista, 0);
-            // paso el program counter a int
-            int pc = atoi(program_counter);
-            // leo el archivo de texto en la linea pc con fgets
             
+            uint32_t pid = (uint32_t)list_get(lista, 0);
+            uint32_t pc = (uint32_t)list_get(lista, 1);
+            t_memoria_proceso* proceso_actual=encontrar_proceso(pid);
+
+            FILE * codigo_proceso_actual = fopen("prueba.txt", "r");
+
+            char* linea_de_instruccion=devolver_linea(proceso_actual,pc,codigo_proceso_actual);
+
+            fclose(codigo_proceso_actual);
+
+            enviar_mensaje(cliente_cpu, linea_de_instruccion, logger);
             break;
         case EXIT: // indica desconeccion
             log_error(logger, "Se desconecto el cliente %d.", cliente_cpu);
@@ -272,4 +305,16 @@ void destruir_proceso(uint32_t pid){
     free(proceso);
     free(string_pid);
 
+}
+
+char* devolver_linea(t_memoria_proceso* proceso, uint32_t pc, FILE* codigo_proceso_actual){
+    // variables para conseguir la linea
+    char *linea = NULL;
+    size_t longitud = 100;
+
+    //voy a linea que quiero leer
+    fseek(codigo_proceso_actual, proceso->posiciones_lineas[pc], SEEK_SET);
+    getline(&linea, &longitud, codigo_proceso_actual);
+    log_debug(logger, "La linea %d es: %s", pc, linea);
+    return linea;
 }

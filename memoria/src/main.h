@@ -17,6 +17,11 @@ typedef enum
     SOY_IO
 } e_quien_soy;
 
+typedef enum {
+    INICIAR_PROCESO = 0,
+    BORRAR_PROCESO
+} e_operacion;
+
 typedef struct t_memoria_proceso
 {
     long *posiciones_lineas;
