@@ -462,95 +462,102 @@ void *atender_respuesta_proceso(void *arg)
     // aca tengo q pausar la planificacion si me metieron un DETENER_PLANIFICACION
     // await(esta_planificacion_pausada)
 
-    if (op == PAQUETE)
+    bool sigo_esperando_cosas_de_cpu = true;
+    while (sigo_esperando_cosas_de_cpu)
     {
-        t_list *lista_respuesta_cpu = list_create();
-        lista_respuesta_cpu = recibir_paquete(cliente_cpu_dispatch, logger);
-        log_trace(logger, "CPU me devolvio el contexto de ejecucion.");
-        t_PCB *pcb_en_running = devolver_pcb_desde_lista(lista_de_pcbs, idProcesoActual);
-        actualizar_pcb(lista_respuesta_cpu, pcb_en_running, logger);
-        // ---------------------------------------------- //
-        e_motivo_desalojo motivo_desalojo = conseguir_motivo_desalojo_de_registros_empaquetados(lista_respuesta_cpu);
-        switch (motivo_desalojo)
+        if (op == PAQUETE)
         {
-        case MOTIVO_DESALOJO_EXIT:
-            evaluar_EXEC_a_EXIT();
-            break;
-        case MOTIVO_DESALOJO_WAIT:
-            char *argWait = list_get(lista_respuesta_cpu, 14); // hacer desp esto en una funcion
-            log_debug(logger, "Argumento del wait: %s", argWait);
-            t_paquete *respuesta_para_cpu = crear_paquete();
-            // hago la magia de darle los recursos
-            uint8_t resultado_asignar_recurso = asignar_recurso(argWait);
-            if (resultado_asignar_recurso == 0)
-            { // 0: te di la instancia
-                log_trace(logger, "Voy a enviarle al CPU que tiene la instancia.");
-                agregar_a_paquete(respuesta_para_cpu, 0, sizeof(uint8_t));
-                // hacer un while de todo y matarlo cuando se tenga q matar el hilo :D
-            }
-            else if (resultado_asignar_recurso == 1)
-            { // 1: no te la di (te bloqueo)
-                log_trace(logger, "Voy a enviarle al CPU que no tiene la instancia, asi q sera bloqueado.");
-                agregar_a_paquete(respuesta_para_cpu, 1, sizeof(uint8_t));
-                evaluar_EXEC_a_BLOCKED();
-            }
-            else if (resultado_asignar_recurso == 2)
-            { // 2: mato al proceso xq pidio algo nada q ver
-                log_error(logger, "El cpu me pidio un recurso que no existe. Lo tenemos que matar!");
-                agregar_a_paquete(respuesta_para_cpu, 1, sizeof(uint8_t)); // le mando un 1 xq para cpu es lo mismo matar el proceso que bloquearlo
+            t_list *lista_respuesta_cpu = list_create();
+            lista_respuesta_cpu = recibir_paquete(cliente_cpu_dispatch, logger);
+            log_trace(logger, "CPU me devolvio el contexto de ejecucion.");
+            t_PCB *pcb_en_running = devolver_pcb_desde_lista(lista_de_pcbs, idProcesoActual);
+            actualizar_pcb(lista_respuesta_cpu, pcb_en_running, logger);
+            // ---------------------------------------------- //
+            e_motivo_desalojo motivo_desalojo = conseguir_motivo_desalojo_de_registros_empaquetados(lista_respuesta_cpu);
+            switch (motivo_desalojo)
+            {
+            case MOTIVO_DESALOJO_EXIT:
                 evaluar_EXEC_a_EXIT();
+                break;
+            case MOTIVO_DESALOJO_WAIT:
+                char *argWait = list_get(lista_respuesta_cpu, 14); // hacer desp esto en una funcion
+                log_debug(logger, "Argumento del wait: %s", argWait);
+                t_paquete *respuesta_para_cpu = crear_paquete();
+                // hago la magia de darle los recursos
+                uint8_t resultado_asignar_recurso = asignar_recurso(argWait);
+                if (resultado_asignar_recurso == 0)
+                { // 0: te di la instancia
+                    log_trace(logger, "Voy a enviarle al CPU que tiene la instancia.");
+                    agregar_a_paquete(respuesta_para_cpu, 0, sizeof(uint8_t));
+                    // hacer un while de todo y matarlo cuando se tenga q matar el hilo :D
+                }
+                else if (resultado_asignar_recurso == 1)
+                { // 1: no te la di (te bloqueo)
+                    log_trace(logger, "Voy a enviarle al CPU que no tiene la instancia, asi q sera bloqueado.");
+                    agregar_a_paquete(respuesta_para_cpu, 1, sizeof(uint8_t));
+                    evaluar_EXEC_a_BLOCKED();
+                }
+                else if (resultado_asignar_recurso == 2)
+                { // 2: mato al proceso xq pidio algo nada q ver
+                    log_error(logger, "El cpu me pidio un recurso que no existe. Lo tenemos que matar!");
+                    agregar_a_paquete(respuesta_para_cpu, 1, sizeof(uint8_t)); // le mando un 1 xq para cpu es lo mismo matar el proceso que bloquearlo
+                    evaluar_EXEC_a_EXIT();
+                }
+                enviar_paquete(respuesta_para_cpu, cliente_cpu_dispatch, logger);
+                break;
+            case MOTIVO_DESALOJO_SIGNAL:
+                char *argSignal = list_get(lista_respuesta_cpu, 14); // hacer desp esto en una funcion
+                log_debug(logger, "Argumento del signal: %s", argWait);
+                t_paquete *respuesta_para_cpu_signal = crear_paquete();
+                // desasigno
+                uint8_t resultado_asignar_recurso_signal = desasignar_recurso(argSignal);
+                if (resultado_asignar_recurso_signal == 0)
+                { // hay instancias disponibles, voy a desbloquear a alguien y le respondo a cpu
+                    evaluar_BLOCKED_a_READY(((t_manejo_bloqueados *)dictionary_get(diccionario_recursos, argSignal))->cola_bloqueados);
+                    log_trace(logger, "Voy a enviarle al CPU que salio todo bien.");
+                    agregar_a_paquete(respuesta_para_cpu_signal, 0, sizeof(uint8_t));
+                }
+                else if (resultado_asignar_recurso_signal == 1)
+                { // solamente le digo a cpu q esta todo bien
+                    log_trace(logger, "Voy a enviarle al CPU que salio todo bien. Pero no se desbloquea ningun proceso.");
+                    agregar_a_paquete(respuesta_para_cpu_signal, 0, sizeof(uint8_t));
+                }
+                else if (respuesta_para_cpu_signal == 2)
+                { // le digo a cpu q desaloje el proceso y lo mando a exit
+                    log_error(logger, "El cpu me pidio un recurso que no existe. Lo tenemos que matar!");
+                    agregar_a_paquete(respuesta_para_cpu_signal, 1, sizeof(uint8_t)); // le mando un 1 xq para cpu es lo mismo matar el proceso que bloquearlo
+                    evaluar_EXEC_a_EXIT();
+                }
+                break;
+            case MOTIVO_DESALOJO_INTERRUPCION:
+                break;
+            case MOTIVO_DESALOJO_IO_GEN_SLEEP:
+                break;
+            case MOTIVO_DESALOJO_IO_STDIN_READ:
+                break;
+            case MOTIVO_DESALOJO_IO_STDOUT_WRITE:
+                break;
+            case MOTIVO_DESALOJO_IO_FS_CREATE:
+                break;
+            case MOTIVO_DESALOJO_IO_FS_DELETE:
+                break;
+            case MOTIVO_DESALOJO_IO_FS_TRUNCATE:
+                break;
+            case MOTIVO_DESALOJO_IO_FS_WRITE:
+                break;
+            case MOTIVO_DESALOJO_IO_FS_READ:
+                break;
+            default:
+                log_error(logger, "Recibi cualquier cosa como motivo de desalojo");
+                break;
             }
-            enviar_paquete(respuesta_para_cpu, cliente_cpu_dispatch, logger);
-            break;
-        case MOTIVO_DESALOJO_SIGNAL:
-            char *argSignal = list_get(lista_respuesta_cpu, 14); // hacer desp esto en una funcion
-            log_debug(logger, "Argumento del signal: %s", argWait);
-            t_paquete *respuesta_para_cpu_signal = crear_paquete();
-            // desasigno
-            uint8_t resultado_asignar_recurso_signal = desasignar_recurso(argSignal);
-            if (resultado_asignar_recurso_signal == 0)
-            { // hay instancias disponibles, voy a desbloquear a alguien y le respondo a cpu
-                evaluar_BLOCKED_a_READY(((t_manejo_bloqueados *)dictionary_get(diccionario_recursos, argSignal))->cola_bloqueados);
-                log_trace(logger, "Voy a enviarle al CPU que salio todo bien.");
-                agregar_a_paquete(respuesta_para_cpu_signal, 0, sizeof(uint8_t));
-            }
-            else if (resultado_asignar_recurso_signal == 1)
-            { // solamente le digo a cpu q esta todo bien
-                log_trace(logger, "Voy a enviarle al CPU que salio todo bien. Pero no se desbloquea ningun proceso.");
-                agregar_a_paquete(respuesta_para_cpu_signal, 0, sizeof(uint8_t));
-            }
-            else if (respuesta_para_cpu_signal == 2)
-            { // le digo a cpu q desaloje el proceso y lo mando a exit
-                log_error(logger, "El cpu me pidio un recurso que no existe. Lo tenemos que matar!");
-                agregar_a_paquete(respuesta_para_cpu_signal, 1, sizeof(uint8_t)); // le mando un 1 xq para cpu es lo mismo matar el proceso que bloquearlo
-                evaluar_EXEC_a_EXIT();
-            }
-            break;
-        case MOTIVO_DESALOJO_INTERRUPCION:
-            break;
-        case MOTIVO_DESALOJO_IO_GEN_SLEEP:
-            break;
-        case MOTIVO_DESALOJO_IO_STDIN_READ:
-            break;
-        case MOTIVO_DESALOJO_IO_STDOUT_WRITE:
-            break;
-        case MOTIVO_DESALOJO_IO_FS_CREATE:
-            break;
-        case MOTIVO_DESALOJO_IO_FS_DELETE:
-            break;
-        case MOTIVO_DESALOJO_IO_FS_TRUNCATE:
-            break;
-        case MOTIVO_DESALOJO_IO_FS_WRITE:
-            break;
-        case MOTIVO_DESALOJO_IO_FS_READ:
-            break;
-        default:
-            log_error(logger, "Recibi cualquier cosa como motivo de desalojo");
-            break;
+        }
+        else
+        {
+            log_error(logger, "Me mandaron cualquier cosa, voy a romper todo.");
+            sigo_esperando_cosas_de_cpu = false;
         }
     }
-    else
-        log_error(logger, "Me mandaron cualquier cosa, voy a romper todo.");
     log_trace(logger, "Termino el hilo para el proceso %d.", idProcesoActual);
 }
 
