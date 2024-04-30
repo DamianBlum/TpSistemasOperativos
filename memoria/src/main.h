@@ -24,7 +24,7 @@ typedef enum {
 
 typedef struct t_memoria_proceso
 {
-    long *posiciones_lineas;
+    char** lineas_de_codigo;
     char *nombre_archivo;
 } t_memoria_proceso;
 
@@ -34,7 +34,7 @@ void *servidor_kernel(void *arg);
 void *servidor_cpu(void *arg);
 void *servidor_entradasalida(void *arg);
 int crear_proceso(char* nombre_archivo, uint32_t pid);
-t_memoria_proceso* crear_estructura_proceso(char* nombre_archivo, long* posiciones_lineas);
+t_memoria_proceso* crear_estructura_proceso(char* nombre_archivo, char** lineas_de_codigo);
 t_memoria_proceso* encontrar_proceso(uint32_t pid);
 void destruir_proceso(uint32_t pid);
 #endif
