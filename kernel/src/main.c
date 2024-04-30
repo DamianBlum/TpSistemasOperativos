@@ -387,7 +387,7 @@ void evaluar_EXEC_a_READY()
         t_PCB *pcb = devolver_pcb_desde_lista(lista_de_pcbs, (uint32_t)queue_pop(cola_RUNNING));
         pcb->estado = E_READY;
         queue_push(cola_READY, pcb->processID);
-        log_trace(logger, "Se movio el proceso %d de EXEC a READY.");
+        log_trace(logger, "Se movio el proceso %d de EXEC a READY.", pcb->processID);
     }
     else
     {
@@ -427,9 +427,24 @@ void evaluar_BLOCKED_a_EXIT(t_PCB *pcb)
     cant_procesos_ejecutando--;
     log_debug(logger, "Grado de multiprogramacion actual: %d", cant_procesos_ejecutando);
 }
-void evaluar_EXEC_a_BLOCKED()
+void evaluar_EXEC_a_BLOCKED(char *recurso)
 {
-    evaluar_READY_a_EXEC();
+    if (!queue_is_empty(cola_RUNNING))
+    {
+        t_PCB *pcb = devolver_pcb_desde_lista(lista_de_pcbs, (uint32_t)queue_pop(cola_RUNNING));
+        pcb->estado = E_BLOCKED;
+
+        // usando el recurso, consigo el t_manejo_bloqueados y meto el id en la cola, y disminuyo su contador
+        t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos, recurso); // no valido q el recurso exista xq ya lo valide antes
+        queue_push(tmb->cola_bloqueados, pcb->processID);
+
+        log_trace(logger, "Se movio el proceso %d de EXEC a READY.", pcb->processID);
+    }
+    else
+    {
+        log_trace(logger, "No fue posible mover un proceso de EXEC a BLOCKED, por que no habia.");
+    }
+    evaluar_READY_a_EXEC(); // planifico xq se libero la cpu
 }
 void evaluar_BLOCKED_a_READY(t_queue colaRecurso)
 { // desbloqueo por fifo
@@ -508,7 +523,7 @@ void *atender_respuesta_proceso(void *arg)
                 { // 1: no te la di (te bloqueo)
                     log_trace(logger, "Voy a enviarle al CPU que no tiene la instancia, asi q sera bloqueado.");
                     agregar_a_paquete(respuesta_para_cpu, 1, sizeof(uint8_t));
-                    evaluar_EXEC_a_BLOCKED();
+                    evaluar_EXEC_a_BLOCKED(argWait);
                     // termino el ciclo
                     sigo_esperando_cosas_de_cpu = false;
                 }

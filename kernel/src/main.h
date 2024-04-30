@@ -55,7 +55,7 @@ void evaluar_READY_a_EXEC();
 void evaluar_EXEC_a_READY();
 void evaluar_READY_a_EXIT(t_PCB *pcb);
 void evaluar_BLOCKED_a_EXIT(t_PCB *pcb);
-void evaluar_EXEC_a_BLOCKED();
+void evaluar_EXEC_a_BLOCKED(char *recurso);
 void evaluar_BLOCKED_a_READY();
 void evaluar_EXEC_a_EXIT();
 
