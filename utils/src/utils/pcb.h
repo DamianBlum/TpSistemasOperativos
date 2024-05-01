@@ -30,6 +30,7 @@ typedef struct
     uint32_t EDX;
     uint32_t SI;
     uint32_t DI;
+    t_list *recursos_asignados; // esto es para cuando por consola matan un proceso en running, poder devolver las instancias de los recursos q solicito, ESTO NO LO VOY A ENVIAR A CPU
 } t_PCB;
 
 t_PCB *crear_pcb(int *contadorProcesos, int quantum);

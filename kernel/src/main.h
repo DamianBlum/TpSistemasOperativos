@@ -56,10 +56,12 @@ void evaluar_EXEC_a_READY();
 void evaluar_READY_a_EXIT(t_PCB *pcb);
 void evaluar_BLOCKED_a_EXIT(t_PCB *pcb);
 void evaluar_EXEC_a_BLOCKED(char *recurso);
-void evaluar_BLOCKED_a_READY();
+void evaluar_BLOCKED_a_READY(t_queue *colaRecurso);
 void evaluar_EXEC_a_EXIT();
 
 void cambiar_estado_proceso(uint32_t id, e_estado_proceso estadoActual, e_estado_proceso nuevoEstado);
+
+void liberar_recursos(t_PCB *pcb); // esto es para el algo_a_EXIT, le saco todos los recursos q tiene asignado el proceso :D
 
 // memoria
 void liberar_memoria(uint32_t id);
