@@ -335,11 +335,12 @@ void evaluar_READY_a_EXEC() // hilar
             log_trace(logger, "Entre a planificacion por FIFO.");
             id = queue_pop(cola_READY);
             break;
-        case RR: // esto deberia ser lo mismo q fifo
-            log_error(logger, "Todavia no desarrollado.");
-            id = __UINT32_MAX__; // esto es algo para poder identificar q no esta desarrollado en CPU
+        case RR: // igual q fifo pero creo el hilo con el quantum
+            id = queue_pop(cola_READY);
+            pthread_t p;
+            pthread_create(&p, NULL, trigger_interrupcion_quantum, obtener_pcb_de_lista_por_id(id));
             break;
-        case VRR:
+        case VRR: // esto lo q tiene de especial es q tengo q hacer un hilo mas q vaya contando el tiempo de ejecucion y una segunda cola de ready para los procesos prioritarios
             log_error(logger, "Todavia no desarrollado.");
             id = __UINT32_MAX__;
             break;
@@ -669,7 +670,7 @@ uint8_t desasignar_recurso(char *recurso, t_PCB *pcb)
     uint8_t r;
     if (tmb != NULL)
     {                                        // existe, esta todo piola
-        if (!pidio_el_recuros(pcb, recurso)) // tengo q fijarme si el recurso fue pedido por el proceso anteriormente
+        if (!pidio_el_recurso(pcb, recurso)) // tengo q fijarme si el recurso fue pedido por el proceso anteriormente
         {
             r = 1;
         }
@@ -738,3 +739,34 @@ void crear_proceso_en_memoria(uint32_t id, char *path)
 }
 
 // desarrollo del quantum
+
+void *trigger_interrupcion_quantum(void *args) // escuchar audio q me mande a wsp
+{
+    t_PCB *pcb = (t_PCB *)args;
+    log_trace(logger, "Entre al hilo para enviar la interrupcion de fin de quantum del proceso %u.", pcb->processID);
+    log_debug(logger, "Valor del quantum: %u", pcb->quantum); // el %u es para unsigned, x las dudas
+
+    uint32_t q_en_s = pcb->quantum / 1000; // como sleep es en segundos, hago la cuentita para pasarlo de ms a s (terrible cuenta), supongo q no importa, pero x el tipo de dato q lo guardo, se queda en lo entero, osea 2500 ms => 2s
+    sleep(q_en_s);
+
+    // el objetivo de esto es saber si el proceso sigue ejecutando
+    // imaginate q yo creo el proceso y, por lo tanto, esta funcion. Desp el proceso se desaloja por alguna razon sin terminar su quantum
+    // entonces reviso si el proceso en cuestion sigue ejecutando y, si es asi, mando la interrupcion, el problema de esto es:
+    // como carajo consigo el quantum q me falto ejecutar? opcion q se me ocurrio, HAY OTRO HILO QUE LLEVA EL TIEMPO EJECUTANDO (NOSECOMO) Y LO DEVUELVE (TAMPOCOSECOMO) Y DESP LOS RESTO
+
+    log_trace(logger, "Termino el quantum del proceso %u.", pcb->processID);
+
+    if (queue_peek(cola_RUNNING) == pcb->processID)
+    {
+        log_trace(logger, "Voy a mandar la interrupcion a CPU para el proceso %u.", pcb->processID);
+        t_paquete *paquete_interrupcion = crear_paquete();
+        agregar_a_paquete(paquete_interrupcion, pcb->processID, sizeof(pcb->processID)); // le mando el id del proceso xq no se q mandar
+        enviar_paquete(paquete_interrupcion, cliente_cpu_interrupt, logger);
+    }
+    else
+    {
+        log_trace(logger, "El proceso %u fue desalojado del CPU antes de que terminara su queantum, no mando nada.", pcb->processID);
+    }
+
+    log_trace(logger, "Termino el hilo para el queantum del proceso %u.", pcb->processID);
+}

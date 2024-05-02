@@ -33,9 +33,9 @@ void mostrar_menu();
 e_algoritmo_planificacion obtener_algoritmo_planificacion(char *algo);
 void instanciar_colas();
 void obtener_valores_de_recursos();
-uint8_t asignar_recurso(char *recurso);
-uint8_t desasignar_recurso(char *recurso);
-void eliminar_id_de_la_cola(t_queue *cola, uint32_t id);
+uint8_t asignar_recurso(char *recurso, t_PCB *pcb);
+uint8_t desasignar_recurso(char *recurso, t_PCB *pcb);
+bool eliminar_id_de_la_cola(t_queue *cola, uint32_t id);
 t_manejo_bloqueados *crear_manejo_bloqueados();
 void destruir_manejor_bloqueados(t_manejo_bloqueados *tmb);
 bool pidio_el_recurso(t_PCB *pcb, char *recurso);
@@ -67,4 +67,6 @@ void liberar_recursos(t_PCB *pcb); // esto es para el algo_a_EXIT, le saco todos
 // memoria
 void liberar_memoria(uint32_t id);
 void crear_proceso_en_memoria(uint32_t id, char *path);
+
+void *trigger_interrupcion_quantum(void *args);
 #endif
