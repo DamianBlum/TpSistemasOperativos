@@ -557,14 +557,17 @@ void *atender_respuesta_proceso(void *arg)
                     agregar_a_paquete(respuesta_para_cpu_signal, 0, sizeof(uint8_t));
                 }
                 else if (resultado_asignar_recurso_signal == 1)
-                { // solamente le digo a cpu q esta todo bien
-                    log_trace(logger, "Voy a enviarle al CPU que salio todo bien. Pero no se desbloquea ningun proceso.");
-                    agregar_a_paquete(respuesta_para_cpu_signal, 0, sizeof(uint8_t));
+                { // me pidio que haga signal de un recurso que no era suyo, por lo tanto lo mato
+                    log_error(logger, "El cpu me pidio que libere un recurso que nunca fue pedido. Lo tenemos que matar!");
+                    agregar_a_paquete(respuesta_para_cpu_signal, 1, sizeof(uint8_t));
+                    evaluar_EXEC_a_EXIT();
+                    // termino el ciclo
+                    sigo_esperando_cosas_de_cpu = false;
                 }
                 else if (respuesta_para_cpu_signal == 2)
                 { // le digo a cpu q desaloje el proceso y lo mando a exit
                     log_error(logger, "El cpu me pidio un recurso que no existe. Lo tenemos que matar!");
-                    agregar_a_paquete(respuesta_para_cpu_signal, 1, sizeof(uint8_t)); // le mando un 1 xq para cpu es lo mismo matar el proceso que bloquearlo
+                    agregar_a_paquete(respuesta_para_cpu_signal, 1, sizeof(uint8_t));
                     evaluar_EXEC_a_EXIT();
                     // termino el ciclo
                     sigo_esperando_cosas_de_cpu = false;
@@ -648,23 +651,39 @@ uint8_t asignar_recurso(char *recurso, t_PCB *pcb)
     return r;
 }
 
+bool pidio_el_recurso(t_PCB *pcb, char *recurso)
+{
+    t_list *l = pcb->recursos_asignados;
+
+    for (uint32_t i = 0; i < list_size(l); i++)
+    {
+        if (string_equals_ignore_case(recurso, list_get(l, i)))
+            return true;
+    }
+    return false;
+}
+
 uint8_t desasignar_recurso(char *recurso, t_PCB *pcb)
 {
     t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos, recurso);
     uint8_t r;
     if (tmb != NULL)
-    { // existe, esta todo piola
-        log_debug(logger, "Valor del recurso %s antes de modificarlo: %d", tmb->instancias_recursos);
-        tmb->instancias_recursos += 1;
-        log_debug(logger, "Valor del recurso %s desp de modifiarlo: %d", tmb->instancias_recursos);
-
-        // saco del pcb el recurso q le di
-        list_remove_element(pcb->recursos_asignados, recurso);
-
-        if (tmb->instancias_recursos >= 0)
-            r = 0; // hay q desbloquear a alguien
+    {                                        // existe, esta todo piola
+        if (!pidio_el_recuros(pcb, recurso)) // tengo q fijarme si el recurso fue pedido por el proceso anteriormente
+        {
+            r = 1;
+        }
         else
-            r = 1; // creo q no hago nada?
+        {
+            log_debug(logger, "Valor del recurso %s antes de modificarlo: %d", tmb->instancias_recursos);
+            tmb->instancias_recursos += 1;
+            log_debug(logger, "Valor del recurso %s desp de modifiarlo: %d", tmb->instancias_recursos);
+
+            // saco del pcb el recurso q le di
+            list_remove_element(pcb->recursos_asignados, recurso);
+
+            r = 0;
+        }
     }
     else
     { // cagaste
@@ -717,3 +736,5 @@ void crear_proceso_en_memoria(uint32_t id, char *path)
     enviar_paquete(p, cliente_memoria, logger);
     // entiendo q no es necesario devolver si esto salio bien o no
 }
+
+// desarrollo del quantum
