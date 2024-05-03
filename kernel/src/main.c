@@ -338,8 +338,8 @@ void evaluar_READY_a_EXEC() // hilar (me olvide xq xD)
         case RR: // igual q fifo pero creo el hilo con el quantum
             log_trace(logger, "Entre a planificacion por RR.");
             id = queue_pop(cola_READY);
-            pthread_t p;
-            pthread_create(&p, NULL, trigger_interrupcion_quantum, obtener_pcb_de_lista_por_id(id));
+            pthread_t prr;
+            pthread_create(&prr, NULL, trigger_interrupcion_quantum, obtener_pcb_de_lista_por_id(id));
             break;
         case VRR: // esto lo q tiene de especial es q tengo q hacer un hilo mas q vaya contando el tiempo de ejecucion y una segunda cola de ready para los procesos prioritarios
             log_trace(logger, "Entre a planificacion por VRR.");
@@ -353,8 +353,8 @@ void evaluar_READY_a_EXEC() // hilar (me olvide xq xD)
                 log_trace(logger, "Voy a elegir un proceso de la cola normal.");
                 id = queue_pop(cola_READY);
             }
-            pthread_t p;
-            pthread_create(&p, NULL, trigger_interrupcion_quantum, obtener_pcb_de_lista_por_id(id));
+            pthread_t pvrr;
+            pthread_create(&pvrr, NULL, trigger_interrupcion_quantum, obtener_pcb_de_lista_por_id(id));
             // arranco el cronometro para q se ponga a contar el tiempo en ejecucion
             obtener_pcb_de_lista_por_id(id)->tiempo_en_ejecucion = temporal_create();
             break;
@@ -402,9 +402,20 @@ void evaluar_EXEC_a_READY()
     // estas validaciones las hago por las dudas nada mas, creo q en ningun caso se puede dar esto
     if (!queue_is_empty(cola_RUNNING))
     {
+
         t_PCB *pcb = devolver_pcb_desde_lista(lista_de_pcbs, (uint32_t)queue_pop(cola_RUNNING));
-        pcb->estado = E_READY;
-        queue_push(cola_READY, pcb->processID);
+        // hago las cosas especificas de VRR
+        if (debe_ir_a_cola_prioritaria(pcb)) // se fija si estoy en vrr y si tiene q ir a prio
+        {
+            pcb->estado = E_READY_PRIORITARIO;
+            queue_push(cola_READY_PRIORITARIA, pcb->processID);
+        }
+        else
+        {
+            pcb->estado = E_READY;
+            queue_push(cola_READY, pcb->processID);
+        }
+
         log_trace(logger, "Se movio el proceso %d de EXEC a READY.", pcb->processID);
     }
     else
@@ -474,7 +485,18 @@ void evaluar_BLOCKED_a_READY(t_queue *colaRecurso)
     queue_push(cola_READY, id);
 
     t_PCB *pcb = devolver_pcb_desde_lista(lista_de_pcbs, id);
-    pcb->estado = E_READY;
+
+    // hago las cosas especificas de VRR
+    if (debe_ir_a_cola_prioritaria(pcb)) // se fija si estoy en vrr y si tiene q ir a prio
+    {
+        pcb->estado = E_READY_PRIORITARIO;
+        queue_push(cola_READY_PRIORITARIA, pcb->processID);
+    }
+    else
+    {
+        pcb->estado = E_READY;
+        queue_push(cola_READY, pcb->processID);
+    }
 }
 void evaluar_EXEC_a_EXIT()
 {
@@ -510,7 +532,7 @@ void *atender_respuesta_proceso(void *arg)
     int op = recibir_operacion(cliente_cpu_dispatch, logger); // si, uso el cliente como socket servidor
     // aca tengo q pausar la planificacion si me metieron un DETENER_PLANIFICACION
     // await(esta_planificacion_pausada)
-
+    t_PCB *pcb_en_running;
     bool sigo_esperando_cosas_de_cpu = true;
     while (sigo_esperando_cosas_de_cpu)
     {
@@ -519,7 +541,7 @@ void *atender_respuesta_proceso(void *arg)
             t_list *lista_respuesta_cpu = list_create();
             lista_respuesta_cpu = recibir_paquete(cliente_cpu_dispatch, logger);
             log_trace(logger, "CPU me devolvio el contexto de ejecucion.");
-            t_PCB *pcb_en_running = devolver_pcb_desde_lista(lista_de_pcbs, idProcesoActual);
+            pcb_en_running = devolver_pcb_desde_lista(lista_de_pcbs, idProcesoActual);
             actualizar_pcb(lista_respuesta_cpu, pcb_en_running, logger);
             // ---------------------------------------------- //
             e_motivo_desalojo motivo_desalojo = conseguir_motivo_desalojo_de_registros_empaquetados(lista_respuesta_cpu);
@@ -620,6 +642,7 @@ void *atender_respuesta_proceso(void *arg)
             sigo_esperando_cosas_de_cpu = false;
         }
     }
+    cosas_vrr_cuando_se_desaloja_un_proceso(pcb_en_running); // lo hago aca al final xq es cuando se q el proceso fue desalojado
     log_trace(logger, "Termino el hilo para el proceso %d.", idProcesoActual);
 }
 
@@ -782,4 +805,31 @@ void *trigger_interrupcion_quantum(void *args) // escuchar audio q me mande a ws
     }
 
     log_trace(logger, "Termino el hilo para el queantum del proceso %u.", pcb->processID);
+}
+
+void cosas_vrr_cuando_se_desaloja_un_proceso(t_PCB *pcb)
+{ // si estoy en vrr, dentengo el cronometro y le resto al quantum lo ejecutado para quedarme con lo q le falta
+    if (algoritmo_planificacion == VRR)
+    {
+        temporal_stop(pcb->tiempo_en_ejecucion); // esto en si no es necesario pero bueno, por las dudas lo detengo
+        int64_t tiempo_ejecutado = temporal_gettime(pcb->tiempo_en_ejecucion);
+        log_debug(logger, "Tiempo que se ejecuto el programa: %d | Quantum: %d", tiempo_ejecutado, quantum);
+
+        temporal_destroy(pcb->tiempo_en_ejecucion); // esto es para evitar problemas de memoria, cada vez q paso un proceso de algo a exec, lo creo de vuelta
+        if (tiempo_ejecutado < pcb->quantum)
+        {                                     // teoricamente, esto es siempre verdad salvo en el caso de q mande una interrupcion al cpu por fin de quantum, por eso hago esta validacion
+            pcb->quantum -= tiempo_ejecutado; // obtengo mi nuevo quantum
+        }
+        else
+        { // reinicio el quantum para la prox vez q tenga q ejecutar
+            pcb->quantum = quantum;
+        }
+
+        log_debug(logger, "Se modifico el quantum del proceso %u a %u para la planificacion por VRR.", pcb->processID, pcb->quantum);
+    }
+}
+
+bool debe_ir_a_cola_prioritaria(t_PCB *pcb)
+{
+    return pcb->quantum < quantum && algoritmo_planificacion == VRR;
 }

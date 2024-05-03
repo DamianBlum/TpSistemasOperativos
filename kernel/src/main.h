@@ -12,6 +12,7 @@
 #include <pthread.h>
 #include <readline/readline.h>
 #include <commons/temporal.h>
+#include <math.h> // lo uso para redondear los tiempos de ejecucion
 
 typedef struct
 {
@@ -70,4 +71,7 @@ void liberar_memoria(uint32_t id);
 void crear_proceso_en_memoria(uint32_t id, char *path);
 
 void *trigger_interrupcion_quantum(void *args);
+
+void cosas_vrr_cuando_se_desaloja_un_proceso(t_PCB *pcb);
+bool debe_ir_a_cola_prioritaria(t_PCB *pcb);
 #endif
