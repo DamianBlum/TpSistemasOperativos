@@ -243,11 +243,18 @@ e_instruccion parsear_instruccion(char* instruccionString){
 
 void fetch() 
 {
-    log_trace(logger, "Estoy en elfetch con el PC %d", registros->PC);
+    log_trace(logger, "Estoy en el fetch con el PC %d", registros->PC);
     //Buscamos la siguiente instruccion con el pc en memoria y la asignamos a la variable instruccion
     // char instr_recibida = recibir_mensaje(socket, logger); para conseguir la instruccion
     // por ahora lo hacemos default
-    linea_de_instruccion = string_duplicate("SUB AX BX");
+    t_paquete* envioMemoria = crear_paquete();
+
+    agregar_a_paquete(envioMemoria, registros->PID, sizeof(uint32_t));
+    agregar_a_paquete(envioMemoria, registros->PC, sizeof(uint32_t));
+    enviar_paquete(envioMemoria,cliente_memoria, logger);
+
+    linea_de_instruccion = recibir_mensaje(cliente_memoria, logger);
+
     log_debug(logger, "LA instruccion leida es %s", linea_de_instruccion);
     return EXIT_SUCCESS;
 }
