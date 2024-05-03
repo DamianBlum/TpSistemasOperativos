@@ -455,12 +455,12 @@ void instruccion_io_gen_sleep() {
 
     // Espero la respuesta de Kernel
     char* mensajeKernel = string_new();
-    respuestaKernel = recibir_mensaje(socket_cliente_dispatch,logger);
+    mensajeKernel = recibir_mensaje(socket_cliente_dispatch,logger);
 
     // LIBERAR LA MEMORIA
     free(nroInterfaz);
     free(tiempoTrabajoString);
-    eliminar_paquete(respuestaKernel);
+    eliminar_paquete(mensajeKernel);
     eliminar_paquete(paqueteAKernel);
 }
 
