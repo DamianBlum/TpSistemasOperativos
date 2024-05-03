@@ -255,7 +255,10 @@ void fetch()
 
     linea_de_instruccion = recibir_mensaje(cliente_memoria, logger);
 
-    log_debug(logger, "LA instruccion leida es %s", linea_de_instruccion);
+
+
+    log_debug(logger, "La instruccion leida es %s", linea_de_instruccion);
+    eliminar_paquete(envioMemoria);
     return EXIT_SUCCESS;
 }
 
@@ -469,7 +472,7 @@ void instruccion_io_gen_sleep() {
     mensajeKernel = recibir_mensaje(socket_cliente_dispatch,logger);
 
     // Si me devuelve 0 esta todo OK, si no todo MAL
-    if(strcstrcmp(mensajeKernel, "0") != 0) {
+    if(strcmp(mensajeKernel, "0") != 0) {
         mandar_pcb = false;
         proceso_actual_ejecutando = false;
     }
