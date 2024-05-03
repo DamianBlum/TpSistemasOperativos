@@ -31,7 +31,7 @@ e_instruccion instruccion;
 char **linea_de_instruccion_separada;
 
 // para saber si sigo ejecutando el proceso actual
-bool proceso_actual_ejecutando
+bool proceso_actual_ejecutando;
 
 // para saber si despues de ejecutar el proceso tengo que mandar el pcb o ya se hizo antes
 bool mandar_pcb;
@@ -445,17 +445,27 @@ void instruccion_io_gen_sleep() {
 
     int tiempoTrabajo = atoi(tiempoTrabajoString);
 
-    // Envio mensaje a kernel del numero de interfaz
-    enviar_mensaje(nroInterfaz,socket_cliente_dispatch,logger);
 
-    // Creo el paquete para enviar el tiempo de trabajo a kernel
+    // Creo paquete
+    // Envio el PCB a Kernel
     t_paquete* paqueteAKernel = crear_paquete();
+
+    log_trace(logger, "CPU va a enviar un PCB a Kernel")
+    registros->motivo_desalojo = MOTIVO_DESALOJO_IO_GEN_SLEEP;
+    empaquetar_registros(paqueteAKernel,registros);
+    agregar_a_paquete(paqueteAKernel,nroInterfaz,strlen(nroInterfaz)+1);
     agregar_a_paquete(paqueteAKernel,tiempoTrabajo,sizeof(int));
     enviar_paquete(paqueteAKernel,socket_cliente_dispatch,logger);
 
     // Espero la respuesta de Kernel
     char* mensajeKernel = string_new();
     mensajeKernel = recibir_mensaje(socket_cliente_dispatch,logger);
+
+    // Si me devuelve 0 esta todo OK, si no todo MAL
+    if(strcstrcmp(mensajeKernel, "0") != 0) {
+        mandar_pcb = false;
+        proceso_actual_ejecutando = false;
+    }
 
     // LIBERAR LA MEMORIA
     free(nroInterfaz);
@@ -525,8 +535,8 @@ void check_interrupt(){}
 
 void enviar_pcb(e_motivo_desalojo motivo_desalojo){
     log_trace(logger, "CPU va a enviar un PCB a Kernel");
-    registros->motivo_desalojo= motivo_desalojo;
-    t_paquete *paquete_de_pcb =crear_paquete();
+    registros->motivo_desalojo = motivo_desalojo;
+    t_paquete *paquete_de_pcb = crear_paquete();
     empaquetar_registros(paquete_de_pcb,registros);
     enviar_paquete(paquete_de_pcb,socket_cliente_dispatch,logger);
 }
