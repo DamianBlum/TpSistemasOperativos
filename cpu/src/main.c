@@ -31,7 +31,7 @@ e_instruccion instruccion;
 char **linea_de_instruccion_separada;
 
 // para saber si sigo ejecutando el proceso actual
-bool proceso_actual_ejecutando
+bool proceso_actual_ejecutando;
 
 // para saber si despues de ejecutar el proceso tengo que mandar el pcb o ya se hizo antes
 bool mandar_pcb;
@@ -107,7 +107,7 @@ void *servidor_dispatch(void *arg)
                 log_error(logger, "Recibi una operacion rara (%d), termino el servidor.", operacion);
                 return EXIT_FAILURE;
         }
-        mandar_pcb= true;
+        mandar_pcb = true;
         proceso_actual_ejecutando = true;
         while (proceso_actual_ejecutando) {
             registros->AX = 2;
@@ -243,11 +243,18 @@ e_instruccion parsear_instruccion(char* instruccionString){
 
 void fetch() 
 {
-    log_trace(logger, "Estoy en elfetch con el PC %d", registros->PC);
+    log_trace(logger, "Estoy en el fetch con el PC %d", registros->PC);
     //Buscamos la siguiente instruccion con el pc en memoria y la asignamos a la variable instruccion
     // char instr_recibida = recibir_mensaje(socket, logger); para conseguir la instruccion
     // por ahora lo hacemos default
-    linea_de_instruccion = string_duplicate("SUB AX BX");
+    t_paquete* envioMemoria = crear_paquete();
+
+    agregar_a_paquete(envioMemoria, registros->PID, sizeof(uint32_t));
+    agregar_a_paquete(envioMemoria, registros->PC, sizeof(uint32_t));
+    enviar_paquete(envioMemoria,cliente_memoria, logger);
+
+    linea_de_instruccion = recibir_mensaje(cliente_memoria, logger);
+
     log_debug(logger, "LA instruccion leida es %s", linea_de_instruccion);
     return EXIT_SUCCESS;
 }
@@ -434,6 +441,46 @@ void instruccion_signal(){
     }
 }
 
+void instruccion_io_gen_sleep() {
+    log_trace(logger, "EJECUTANDO LA INSTRUCCION IO_GEN_SLEEP");
+
+    char* nroInterfaz = string_new();
+    nroInterfaz = linea_de_instruccion_separada[1];
+
+    char* tiempoTrabajoString = string_new();
+    tiempoTrabajoString = linea_de_instruccion_separada[2];
+
+    int tiempoTrabajo = atoi(tiempoTrabajoString);
+
+
+    // Creo paquete
+    // Envio el PCB a Kernel
+    t_paquete* paqueteAKernel = crear_paquete();
+
+    log_trace(logger, "CPU va a enviar un PCB a Kernel")
+    registros->motivo_desalojo = MOTIVO_DESALOJO_IO_GEN_SLEEP;
+    empaquetar_registros(paqueteAKernel,registros);
+    agregar_a_paquete(paqueteAKernel,nroInterfaz,strlen(nroInterfaz)+1);
+    agregar_a_paquete(paqueteAKernel,tiempoTrabajo,sizeof(int));
+    enviar_paquete(paqueteAKernel,socket_cliente_dispatch,logger);
+
+    // Espero la respuesta de Kernel
+    char* mensajeKernel = string_new();
+    mensajeKernel = recibir_mensaje(socket_cliente_dispatch,logger);
+
+    // Si me devuelve 0 esta todo OK, si no todo MAL
+    if(strcstrcmp(mensajeKernel, "0") != 0) {
+        mandar_pcb = false;
+        proceso_actual_ejecutando = false;
+    }
+
+    // LIBERAR LA MEMORIA
+    free(nroInterfaz);
+    free(tiempoTrabajoString);
+    eliminar_paquete(mensajeKernel);
+    eliminar_paquete(paqueteAKernel);
+}
+
 void asignarValoresIntEnRegistros(char* registroDestino, int valor, char* instruccion) {
 
     if (strcmp(registroDestino, "AX") == 0) {
@@ -495,8 +542,8 @@ void check_interrupt(){}
 
 void enviar_pcb(e_motivo_desalojo motivo_desalojo){
     log_trace(logger, "CPU va a enviar un PCB a Kernel");
-    registros->motivo_desalojo= motivo_desalojo;
-    t_paquete *paquete_de_pcb =crear_paquete();
+    registros->motivo_desalojo = motivo_desalojo;
+    t_paquete *paquete_de_pcb = crear_paquete();
     empaquetar_registros(paquete_de_pcb,registros);
     enviar_paquete(paquete_de_pcb,socket_cliente_dispatch,logger);
 }
