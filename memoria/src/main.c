@@ -33,12 +33,8 @@ int main(int argc, char *argv[])
     crear_proceso("prueba.txt", 1);
     crear_proceso("prueba2.txt", 2);
     // consigo el proceso 1
-    t_memoria_proceso *proceso = dictionary_get(procesos, "1");
-    printf("El proceso 1 tiene el archivo %s\n", proceso->nombre_archivo);
-   
 
     
-    /*
     socket_servidor = iniciar_servidor(config, "PUERTO_ESCUCHA");
 
     log_info(logger, "Servidor %d creado.", socket_servidor);
@@ -51,16 +47,16 @@ int main(int argc, char *argv[])
     pthread_create(&tid[SOY_CPU], NULL, servidor_cpu, NULL);
 
     // Recibimos la conexion de la kernel y creamos un hilo para trabajarlo
-    cliente_kernel = esperar_cliente(socket_servidor, logger);
-    pthread_create(&tid[SOY_KERNEL], NULL, servidor_kernel, NULL);
+    /*cliente_kernel = esperar_cliente(socket_servidor, logger);
+    pthread_create(&tid[SOY_KERNEL], NULL, servidor_kernel, NULL);*/
 
     // Recibimos la conexion de la I/O y creamos un hilo para trabajarlo
-    cliente_entradasalida = esperar_cliente(socket_servidor, logger);
-    pthread_create(&tid[SOY_IO], NULL, servidor_entradasalida, NULL);
+    /*cliente_entradasalida = esperar_cliente(socket_servidor, logger);
+    pthread_create(&tid[SOY_IO], NULL, servidor_entradasalida, NULL);*/
 
-    pthread_join(tid[SOY_CPU], NULL);
+    //pthread_join(tid[SOY_CPU], NULL);
     pthread_join(tid[SOY_KERNEL], NULL);
-    pthread_join(tid[SOY_IO], NULL);*/
+    //pthread_join(tid[SOY_IO], NULL);
     
     destruir_logger(logger);
     destruir_config(config);
@@ -156,9 +152,7 @@ void *servidor_cpu(void *arg)
             uint32_t pid = (uint32_t)list_get(lista, 0);
             uint32_t pc = (uint32_t)list_get(lista, 1);
             t_memoria_proceso* proceso_actual=encontrar_proceso(pid);
-
-
-            enviar_mensaje(cliente_cpu, "owo", logger);
+            enviar_mensaje(cliente_cpu, proceso_actual->lineas_de_codigo[pc], logger);
             break;
         case EXIT: // indica desconeccion
             log_error(logger, "Se desconecto el cliente %d.", cliente_cpu);
