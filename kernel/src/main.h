@@ -11,6 +11,7 @@
 #include <commons/collections/queue.h>
 #include <pthread.h>
 #include <readline/readline.h>
+#include <utils/quantum.h>
 
 typedef struct
 {
