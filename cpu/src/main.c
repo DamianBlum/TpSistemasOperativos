@@ -107,7 +107,7 @@ void *servidor_dispatch(void *arg)
                 log_error(logger, "Recibi una operacion rara (%d), termino el servidor.", operacion);
                 return EXIT_FAILURE;
         }
-        mandar_pcb= true;
+        mandar_pcb = true;
         proceso_actual_ejecutando = true;
         while (proceso_actual_ejecutando) {
             registros->AX = 2;
@@ -432,6 +432,36 @@ void instruccion_signal(){
         proceso_actual_ejecutando=false;
         mandar_pcb=false;
     }
+}
+
+void instruccion_io_gen_sleep() {
+    log_trace(logger, "EJECUTANDO LA INSTRUCCION IO_GEN_SLEEP");
+
+    char* nroInterfaz = string_new();
+    nroInterfaz = linea_de_instruccion_separada[1];
+
+    char* tiempoTrabajoString = string_new();
+    tiempoTrabajoString = linea_de_instruccion_separada[2];
+
+    int tiempoTrabajo = atoi(tiempoTrabajoString);
+
+    // Envio mensaje a kernel del numero de interfaz
+    enviar_mensaje(nroInterfaz,socket_cliente_dispatch,logger);
+
+    // Creo el paquete para enviar el tiempo de trabajo a kernel
+    t_paquete* paqueteAKernel = crear_paquete();
+    agregar_a_paquete(paqueteAKernel,tiempoTrabajo,sizeof(int));
+    enviar_paquete(paqueteAKernel,socket_cliente_dispatch,logger);
+
+    // Espero la respuesta de Kernel
+    char* mensajeKernel = string_new();
+    respuestaKernel = recibir_mensaje(socket_cliente_dispatch,logger);
+
+    // LIBERAR LA MEMORIA
+    free(nroInterfaz);
+    free(tiempoTrabajoString);
+    eliminar_paquete(respuestaKernel);
+    eliminar_paquete(paqueteAKernel);
 }
 
 void asignarValoresIntEnRegistros(char* registroDestino, int valor, char* instruccion) {
