@@ -30,11 +30,10 @@ int main(int argc, char *argv[])
     path = config_get_string_value(config, "PATH_INSTRUCCIONES");
 
     //Para mostrar Funcionamiento de crear_proceso
-    crear_proceso("prueba.txt", 1);
-    crear_proceso("prueba2.txt", 2);
-    // consigo el proceso 1
+    /*crear_proceso("prueba.txt", 1);
+    crear_proceso("prueba2.txt", 2);*/
 
-    
+
     socket_servidor = iniciar_servidor(config, "PUERTO_ESCUCHA");
 
     log_info(logger, "Servidor %d creado.", socket_servidor);
@@ -47,14 +46,14 @@ int main(int argc, char *argv[])
     pthread_create(&tid[SOY_CPU], NULL, servidor_cpu, NULL);
 
     // Recibimos la conexion de la kernel y creamos un hilo para trabajarlo
-    /*cliente_kernel = esperar_cliente(socket_servidor, logger);
-    pthread_create(&tid[SOY_KERNEL], NULL, servidor_kernel, NULL);*/
+    cliente_kernel = esperar_cliente(socket_servidor, logger);
+    pthread_create(&tid[SOY_KERNEL], NULL, servidor_kernel, NULL);
 
     // Recibimos la conexion de la I/O y creamos un hilo para trabajarlo
     /*cliente_entradasalida = esperar_cliente(socket_servidor, logger);
     pthread_create(&tid[SOY_IO], NULL, servidor_entradasalida, NULL);*/
 
-    //pthread_join(tid[SOY_CPU], NULL);
+    pthread_join(tid[SOY_CPU], NULL);
     pthread_join(tid[SOY_KERNEL], NULL);
     //pthread_join(tid[SOY_IO], NULL);
     
@@ -131,7 +130,6 @@ void *servidor_cpu(void *arg)
 {
     log_info(logger, "El socket cliente %d entro al servidor de CPU", cliente_cpu);
     // abro el archivo txt "prueba.txt"para leerlo como pruebo de la comunicacion
-    archivo_text_proceso = fopen("prueba.txt", "r");
     int sigo_funcionando = 1;
     while (sigo_funcionando)
     {
@@ -151,8 +149,14 @@ void *servidor_cpu(void *arg)
             
             uint32_t pid = (uint32_t)list_get(lista, 0);
             uint32_t pc = (uint32_t)list_get(lista, 1);
+            log_debug(logger, "El pid es: %d y el pc es: %d", pid, pc);
+
             t_memoria_proceso* proceso_actual=encontrar_proceso(pid);
-            enviar_mensaje(cliente_cpu, proceso_actual->lineas_de_codigo[pc], logger);
+            
+            char* linea_de_instruccion=string_duplicate(proceso_actual->lineas_de_codigo[pc]);
+            log_debug(logger, "lineas de codigo: %s", linea_de_instruccion);
+            enviar_mensaje(linea_de_instruccion, cliente_cpu, logger);
+            free(linea_de_instruccion); 
             break;
         case EXIT: // indica desconeccion
             log_error(logger, "Se desconecto el cliente %d.", cliente_cpu);
@@ -223,6 +227,9 @@ int crear_proceso(char* nombre_archivo, uint32_t process_id){
     while (fgets(longitud, 100, archivo_text_proceso) != NULL)
     {
         linea = string_duplicate(longitud);
+        //linea se esta guardando al final con un \n y despues con el \O, ahora elimino el \n pero dejando el \0
+        linea[strlen(linea) - 1] = '\0';
+        log_debug(logger, "Linea: %s", linea);
         string_array_push(&lineas, linea);
     }
     
@@ -236,14 +243,11 @@ int crear_proceso(char* nombre_archivo, uint32_t process_id){
 
     dictionary_put(procesos, string_pid, proceso);
 
-    log_debug(logger," Syze del diccionario: %d\n", dictionary_size(procesos));
 
     // libero variables
     free(path_completo);
-    free(linea);
     free(string_pid);
 
-    printf("prueba");
     return 0;
 }
 
@@ -256,9 +260,11 @@ t_memoria_proceso* crear_estructura_proceso(char* nombre_archivo, char** lineas_
 }
 
 t_memoria_proceso* encontrar_proceso(uint32_t pid){
+    log_trace(logger, "Buscando proceso %d", pid);
     // busco el proceso en el diccionario de procesos
     char* string_pid = string_itoa((int)pid);
     t_memoria_proceso *proceso = dictionary_get(procesos, string_pid);
+    log_debug(logger, "Proceso encontrado %s", proceso->nombre_archivo);
     free(string_pid);
     return proceso;
 }
