@@ -45,3 +45,50 @@ e_motivo_desalojo conseguir_motivo_desalojo_de_registros_empaquetados(t_list *li
 {
     return (e_motivo_desalojo)list_get(lista, 12);
 }
+
+char *motivo_desalojo_texto(e_motivo_desalojo e)
+{
+    char *motivo;
+    switch (e)
+    {
+    case MOTIVO_DESALOJO_EXIT:
+        motivo = string_duplicate("EXIT");
+        break;
+    case MOTIVO_DESALOJO_INTERRUPCION:
+        motivo = string_duplicate("INTERRUPCION");
+        break;
+    case MOTIVO_DESALOJO_WAIT:
+        motivo = string_duplicate("WAIT");
+        break;
+    case MOTIVO_DESALOJO_SIGNAL:
+        motivo = string_duplicate("SIGNAL");
+        break;
+    case MOTIVO_DESALOJO_IO_GEN_SLEEP:
+        motivo = string_duplicate("IO SLEEP");
+        break;
+    case MOTIVO_DESALOJO_IO_STDIN_READ:
+        motivo = string_duplicate("IO STDIN READ");
+        break;
+    case MOTIVO_DESALOJO_IO_STDOUT_WRITE:
+        motivo = string_duplicate("IO STDOUT WRITE");
+        break;
+    case MOTIVO_DESALOJO_IO_FS_CREATE:
+        motivo = string_duplicate("IO FS CREATE");
+        break;
+    case MOTIVO_DESALOJO_IO_FS_DELETE:
+        motivo = string_duplicate("IO FS DELETE");
+        break;
+    case MOTIVO_DESALOJO_IO_FS_TRUNCATE:
+        motivo = string_duplicate("IO FS TRUNCATE");
+        break;
+    case MOTIVO_DESALOJO_IO_FS_WRITE:
+        motivo = string_duplicate("IO FS WRITE");
+        break;
+    case MOTIVO_DESALOJO_IO_FS_READ:
+        motivo = string_duplicate("IO FS READ");
+        break;
+    default:
+        motivo = string_duplicate("Chanfles");
+        break;
+    }
+}
