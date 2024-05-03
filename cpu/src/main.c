@@ -52,14 +52,12 @@ int main(int argc, char *argv[])
     */
     // PARTE SERVIDOR
 
-    
     pthread_create(&tid[DISPATCH], NULL, servidor_dispatch, NULL);
     pthread_create(&tid[INTERRUPT], NULL, servidor_interrupt, NULL);
     
     
     pthread_join(tid[DISPATCH], NULL);
     pthread_join(tid[INTERRUPT], NULL);
-
 
     // liberar_conexion(cliente_memoria, logger); cuando pruebe lo de ser cliente de memoria descomentar esto
 
@@ -254,9 +252,8 @@ void fetch()
     enviar_paquete(envioMemoria,cliente_memoria, logger);
 
     linea_de_instruccion = recibir_mensaje(cliente_memoria, logger);
-
-
-
+    
+    linea_de_instruccion = "SUM AX BX";
     log_debug(logger, "La instruccion leida es %s", linea_de_instruccion);
     eliminar_paquete(envioMemoria);
     return EXIT_SUCCESS;
@@ -413,7 +410,7 @@ void instruccion_wait(){
     log_trace(logger, "EJECUTANDO LA INSTRUCCION WAIT");
     enviar_pcb(MOTIVO_DESALOJO_WAIT);
     char* nombre_recurso= linea_de_instruccion_separada[1];
-    log_debug(logger,"Recurso que voy a ir a buscar %s",nombre_recurso;
+    log_debug(logger,"Recurso que voy a ir a buscar %s",nombre_recurso);
     enviar_mensaje(nombre_recurso,socket_cliente_dispatch,logger);
     char* resultado=recibir_mensaje(socket_cliente_dispatch,logger);
     // Convierte resultado a int
@@ -431,7 +428,7 @@ void instruccion_signal(){
     log_trace(logger, "EJECUTANDO LA INSTRUCCION SIGNAL");
     enviar_pcb(MOTIVO_DESALOJO_SIGNAL);
     char* nombre_recurso= linea_de_instruccion_separada[1];
-    log_debug(logger,"Recurso que voy a ir a devolver %s",nombre_recurso;
+    log_debug(logger,"Recurso que voy a ir a devolver %s",nombre_recurso);
     enviar_mensaje(nombre_recurso,socket_cliente_dispatch,logger);
     char* resultado=recibir_mensaje(socket_cliente_dispatch,logger);
     // Convierte resultado a int
@@ -460,7 +457,7 @@ void instruccion_io_gen_sleep() {
     // Envio el PCB a Kernel
     t_paquete* paqueteAKernel = crear_paquete();
 
-    log_trace(logger, "CPU va a enviar un PCB a Kernel")
+    log_trace(logger, "CPU va a enviar un PCB a Kernel");
     registros->motivo_desalojo = MOTIVO_DESALOJO_IO_GEN_SLEEP;
     empaquetar_registros(paqueteAKernel,registros);
     agregar_a_paquete(paqueteAKernel,nroInterfaz,strlen(nroInterfaz)+1);
