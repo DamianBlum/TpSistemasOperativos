@@ -46,10 +46,11 @@ int main(int argc, char *argv[])
     linea_de_instruccion_separada = string_array_new();
     
     // Parte cliente, por ahora esta harcodeado, despues agregar
-    /* 
+    
     cliente_memoria = crear_conexion(config, "IP_MEMORIA", "PUERTO_MEMORIA", logger);
-    enviar_mensaje("Hola Memoria soy yo, tu cliente CPU :D", cliente_memoria, logger);
-    */
+    
+
+    
     // PARTE SERVIDOR
 
     pthread_create(&tid[DISPATCH], NULL, servidor_dispatch, NULL);
@@ -59,8 +60,9 @@ int main(int argc, char *argv[])
     pthread_join(tid[DISPATCH], NULL);
     pthread_join(tid[INTERRUPT], NULL);
 
-    // liberar_conexion(cliente_memoria, logger); cuando pruebe lo de ser cliente de memoria descomentar esto
 
+    liberar_conexion(cliente_memoria, logger);
+    
     // libero todas las variables que uso
     free(linea_de_instruccion);
     destruir_registros(registros);
@@ -250,7 +252,8 @@ void fetch()
     agregar_a_paquete(envioMemoria, registros->PID, sizeof(uint32_t));
     agregar_a_paquete(envioMemoria, registros->PC, sizeof(uint32_t));
     enviar_paquete(envioMemoria,cliente_memoria, logger);
-
+    log_debug(logger, "Se envio el PID %d y el PC %d a memoria", registros->PID, registros->PC);
+    recibir_operacion(cliente_memoria, logger);
     linea_de_instruccion = recibir_mensaje(cliente_memoria, logger);
     
     linea_de_instruccion = "SUM AX BX";
@@ -353,9 +356,12 @@ void instruccion_sum(){
     char* registroOrigen = string_new();
     registroOrigen = linea_de_instruccion_separada[2];
 
+    log_debug(logger, "Registro Destino: %s", registroDestino);
+    log_debug(logger, "Registro Origen: %s", registroOrigen);
+
     // Obtengo el valor almacenado en el registro uint8_t
-    int valorOrigen = obtenerValorRegistros(registroOrigen);  
     int valorDestino = obtenerValorRegistros(registroDestino);
+    int valorOrigen = obtenerValorRegistros(registroOrigen); 
     int valorFinal = valorOrigen + valorDestino;
 
     asignarValoresIntEnRegistros(registroDestino,valorFinal,"SUM");
@@ -410,7 +416,7 @@ void instruccion_wait(){
     log_trace(logger, "EJECUTANDO LA INSTRUCCION WAIT");
     enviar_pcb(MOTIVO_DESALOJO_WAIT);
     char* nombre_recurso= linea_de_instruccion_separada[1];
-    log_debug(logger,"Recurso que voy a ir a buscar %s",nombre_recurso);
+    log_debug(logger,"Recurso que voy a ir a buscar %s",nombre_recurso));
     enviar_mensaje(nombre_recurso,socket_cliente_dispatch,logger);
     char* resultado=recibir_mensaje(socket_cliente_dispatch,logger);
     // Convierte resultado a int
@@ -428,7 +434,7 @@ void instruccion_signal(){
     log_trace(logger, "EJECUTANDO LA INSTRUCCION SIGNAL");
     enviar_pcb(MOTIVO_DESALOJO_SIGNAL);
     char* nombre_recurso= linea_de_instruccion_separada[1];
-    log_debug(logger,"Recurso que voy a ir a devolver %s",nombre_recurso);
+    log_debug(logger,"Recurso que voy a ir a devolver %s",nombre_recurso));
     enviar_mensaje(nombre_recurso,socket_cliente_dispatch,logger);
     char* resultado=recibir_mensaje(socket_cliente_dispatch,logger);
     // Convierte resultado a int
@@ -457,7 +463,7 @@ void instruccion_io_gen_sleep() {
     // Envio el PCB a Kernel
     t_paquete* paqueteAKernel = crear_paquete();
 
-    log_trace(logger, "CPU va a enviar un PCB a Kernel");
+    log_trace(logger, "CPU va a enviar un PCB a Kernel");;
     registros->motivo_desalojo = MOTIVO_DESALOJO_IO_GEN_SLEEP;
     empaquetar_registros(paqueteAKernel,registros);
     agregar_a_paquete(paqueteAKernel,nroInterfaz,strlen(nroInterfaz)+1);
@@ -469,6 +475,7 @@ void instruccion_io_gen_sleep() {
     mensajeKernel = recibir_mensaje(socket_cliente_dispatch,logger);
 
     // Si me devuelve 0 esta todo OK, si no todo MAL
+    if(strcmp(mensajeKernel, "0") != 0) {
     if(strcmp(mensajeKernel, "0") != 0) {
         mandar_pcb = false;
         proceso_actual_ejecutando = false;
@@ -482,6 +489,8 @@ void instruccion_io_gen_sleep() {
 }
 
 void asignarValoresIntEnRegistros(char* registroDestino, int valor, char* instruccion) {
+
+    log_debug(logger, "%d", strcmp(registroDestino, "BX"));
 
     if (strcmp(registroDestino, "AX") == 0) {
         registros->AX = (uint8_t)valor;
@@ -511,6 +520,9 @@ void asignarValoresIntEnRegistros(char* registroDestino, int valor, char* instru
 }
 
 int obtenerValorRegistros(char* registroCPU){
+
+    log_debug(logger,"%d", (int) registros->BX);
+
     if (strcmp(registroCPU, "AX") == 0) {
         return (int) registros->AX;
     } else if (strcmp(registroCPU, "BX") == 0) {

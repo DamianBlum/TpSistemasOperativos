@@ -49,7 +49,6 @@ void desempaquetar_pcb_a_registros(t_list *paquetes, t_registros *regs, t_log *l
     {                         // es para q puedan avanzar en cpu antes de q tengamos lo de kernel
         regs->PID = (uint32_t)10;
         regs->PC = (uint32_t)0;
-        regs->quantum = (uint32_t)0;
         regs->AX = (uint8_t)1;
         regs->BX = (uint8_t)2;
         regs->CX = (uint8_t)3;
