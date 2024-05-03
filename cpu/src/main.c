@@ -414,10 +414,15 @@ void instruccion_wait(){
     // envio el pcb a kernel y luego un mensaje con el nombre del recurso que quiero
     // Esta instrucción solicita al Kernel que se asigne una instancia del recurso indicado por parámetro.
     log_trace(logger, "EJECUTANDO LA INSTRUCCION WAIT");
-    enviar_pcb(MOTIVO_DESALOJO_WAIT);
+    log_trace(logger, "CPU va a enviar un PCB a Kernel");
     char* nombre_recurso= linea_de_instruccion_separada[1];
-    log_debug(logger,"Recurso que voy a ir a buscar %s",nombre_recurso));
-    enviar_mensaje(nombre_recurso,socket_cliente_dispatch,logger);
+    registros->motivo_desalojo = MOTIVO_DESALOJO_WAIT;
+    t_paquete *paquete_de_pcb = crear_paquete();
+    empaquetar_registros(paquete_de_pcb,registros);
+    agregar_a_paquete(paquete_de_pcb,nombre_recurso,strlen(nombre_recurso)+1);
+    enviar_paquete(paquete_de_pcb,socket_cliente_dispatch,logger);
+
+
     char* resultado=recibir_mensaje(socket_cliente_dispatch,logger);
     // Convierte resultado a int
     int resultado_numero=atoi(resultado);
@@ -432,10 +437,13 @@ void instruccion_wait(){
 void instruccion_signal(){
     // Esta instrucción solicita al Kernel que se libere una instancia del recurso indicado por parámetro.
     log_trace(logger, "EJECUTANDO LA INSTRUCCION SIGNAL");
-    enviar_pcb(MOTIVO_DESALOJO_SIGNAL);
+    log_trace(logger, "CPU va a enviar un PCB a Kernel");
     char* nombre_recurso= linea_de_instruccion_separada[1];
-    log_debug(logger,"Recurso que voy a ir a devolver %s",nombre_recurso));
-    enviar_mensaje(nombre_recurso,socket_cliente_dispatch,logger);
+    registros->motivo_desalojo = MOTIVO_DESALOJO_SIGNAL;
+    t_paquete *paquete_de_pcb = crear_paquete();
+    empaquetar_registros(paquete_de_pcb,registros);
+    agregar_a_paquete(paquete_de_pcb,nombre_recurso,strlen(nombre_recurso)+1);
+    enviar_paquete(paquete_de_pcb,socket_cliente_dispatch,logger);
     char* resultado=recibir_mensaje(socket_cliente_dispatch,logger);
     // Convierte resultado a int
     int resultado_numero=atoi(resultado);
