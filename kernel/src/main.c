@@ -27,7 +27,8 @@ t_queue *cola_NEW;
 t_queue *cola_READY;
 t_queue *cola_RUNNING; // si, es una cola para un unico proceso, algun problema?
 // t_queue *cola_BLOCKED; no se usa mas esto, ahora las colas de bloqueados estan dentro de diccionario_recursos
-t_queue *cola_EXIT; // esta es mas q nada para desp poder ver los procesos q ya terminaron
+t_queue *cola_EXIT;              // esta es mas q nada para desp poder ver los procesos q ya terminaron
+t_queue *cola_READY_PRIORITARIA; // es la q usa VRR para su wea
 // Queue de vrr
 // esto se hara en su respectivo momento
 
@@ -258,8 +259,6 @@ bool eliminar_id_de_la_cola(t_queue *cola, uint32_t id) // si lo encontre y elim
     return loEncontre;
 }
 
-// planificacion de corto plazo
-
 e_algoritmo_planificacion obtener_algoritmo_planificacion(char *algo)
 {
     if (string_equals_ignore_case("RR", algo))
@@ -275,6 +274,7 @@ void instanciar_colas()
     cola_READY = queue_create();
     cola_RUNNING = queue_create();
     cola_EXIT = queue_create();
+    cola_READY_PRIORITARIA = queue_create();
     // cola_BLOCKED = queue_create(); estas colas ahora se instancias en el t_manejo_bloqueados *crear_manejo_bloqueados();
 }
 
@@ -322,7 +322,7 @@ void evaluar_NEW_a_READY()
     }
 }
 
-void evaluar_READY_a_EXEC() // hilar
+void evaluar_READY_a_EXEC() // hilar (me olvide xq xD)
 {
     log_trace(logger, "Entre a READY a EXEC para evaluar si se puede asignar un proceso al CPU.");
     if (queue_is_empty(cola_RUNNING) && !queue_is_empty(cola_READY) && !esta_planificacion_pausada) // valido q no este nadie corriendo, ready no este vacio y la planificacion no este pausada
@@ -336,13 +336,27 @@ void evaluar_READY_a_EXEC() // hilar
             id = queue_pop(cola_READY);
             break;
         case RR: // igual q fifo pero creo el hilo con el quantum
+            log_trace(logger, "Entre a planificacion por RR.");
             id = queue_pop(cola_READY);
             pthread_t p;
             pthread_create(&p, NULL, trigger_interrupcion_quantum, obtener_pcb_de_lista_por_id(id));
             break;
         case VRR: // esto lo q tiene de especial es q tengo q hacer un hilo mas q vaya contando el tiempo de ejecucion y una segunda cola de ready para los procesos prioritarios
-            log_error(logger, "Todavia no desarrollado.");
-            id = __UINT32_MAX__;
+            log_trace(logger, "Entre a planificacion por VRR.");
+            if (!queue_is_empty(cola_READY_PRIORITARIA))
+            {
+                log_trace(logger, "Voy a elegir un proceso de la cola prioritaria.");
+                id = queue_pop(cola_READY_PRIORITARIA);
+            }
+            else
+            {
+                log_trace(logger, "Voy a elegir un proceso de la cola normal.");
+                id = queue_pop(cola_READY);
+            }
+            pthread_t p;
+            pthread_create(&p, NULL, trigger_interrupcion_quantum, obtener_pcb_de_lista_por_id(id));
+            // arranco el cronometro para q se ponga a contar el tiempo en ejecucion
+            obtener_pcb_de_lista_por_id(id)->tiempo_en_ejecucion = temporal_create();
             break;
         default:
             log_error(logger, "Esto nunca va a pasar.");
@@ -746,7 +760,7 @@ void *trigger_interrupcion_quantum(void *args) // escuchar audio q me mande a ws
     log_trace(logger, "Entre al hilo para enviar la interrupcion de fin de quantum del proceso %u.", pcb->processID);
     log_debug(logger, "Valor del quantum: %u", pcb->quantum); // el %u es para unsigned, x las dudas
 
-    iniciar_quantum(pcb->quantum);
+    sleep(pcb->quantum / 1000); // seteo el q de ms a s
 
     // el objetivo de esto es saber si el proceso sigue ejecutando
     // imaginate q yo creo el proceso y, por lo tanto, esta funcion. Desp el proceso se desaloja por alguna razon sin terminar su quantum
