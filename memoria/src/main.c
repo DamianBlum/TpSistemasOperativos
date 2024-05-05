@@ -91,8 +91,8 @@ void *servidor_kernel(void *arg)
                         char* nombre_archivo = list_get(lista, 1);
                         uint32_t process_id = (uint32_t)list_get(lista, 2);
                         int resultado=crear_proceso(nombre_archivo, process_id);
-
-                        if(resultado==0){
+                        
+                        if(resultado == 0){
                             log_info(logger, "Se creo el proceso %d con el archivo %s.", process_id, nombre_archivo);
                         }
                         else{
@@ -100,10 +100,10 @@ void *servidor_kernel(void *arg)
                         }
 
                         t_paquete* paquete_a_enviar=crear_paquete();
-                        agregar_a_paquete(paquete_a_enviar, resultado, sizeof(bool));
+                        agregar_a_paquete(paquete_a_enviar, resultado, sizeof(int));
                         enviar_paquete(paquete_a_enviar,cliente_kernel, logger);
-                        eliminar_paquete(paquete_a_enviar);
-
+                        //eliminar_paquete(paquete_a_enviar);
+                        log_debug(logger, "Envie el resultado de la operacion INICIAR_PROCESO al kernel");
                         break;
                     case BORRAR_PROCESO:
                         uint32_t pid = (uint32_t)list_get(lista, 1);
@@ -112,6 +112,8 @@ void *servidor_kernel(void *arg)
                     default:
                         break;
                 }
+
+                break;
             case EXIT: // indica desconeccion
                 log_error(logger, "Se desconecto el cliente %d.", cliente_cpu);
                 sigo_funcionando = 0;
