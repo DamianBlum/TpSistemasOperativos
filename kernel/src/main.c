@@ -195,11 +195,16 @@ void crear_proceso(char *path)
 
     t_PCB *nuevo_pcb = crear_pcb(&contadorParaGenerarIdProcesos, quantum);
 
-    list_add(lista_de_pcbs, nuevo_pcb);
-
-    queue_push(cola_NEW, nuevo_pcb->processID); // ahora las colas solo van a tener los ids (para manejarlo mas simple)
-
-    log_info(logger, "Se crea el proceso %d en NEW.", nuevo_pcb->processID); // log obligatorio
+    if (crear_proceso_en_memoria(nuevo_pcb->processID, path))
+    { // se creo el proceso correctamente en memoria
+        list_add(lista_de_pcbs, nuevo_pcb);
+        queue_push(cola_NEW, nuevo_pcb->processID);                              // ahora las colas solo van a tener los ids (para manejarlo mas simple)
+        log_info(logger, "Se crea el proceso %d en NEW.", nuevo_pcb->processID); // log obligatorio
+    }
+    else
+    { // no se pudo generar el proceso ya q el path esta mal
+        log_error(logger, "No se pudo crear el proceso ya que el path ingresado no corresponde a ningun programa: %s", path);
+    }
 }
 
 void eliminar_proceso(uint32_t id)
@@ -766,14 +771,29 @@ void liberar_memoria(uint32_t id)
     enviar_paquete(p, cliente_memoria, logger);
 }
 
-void crear_proceso_en_memoria(uint32_t id, char *path)
+bool crear_proceso_en_memoria(uint32_t id, char *path)
 {
+    log_trace(logger, "Voy a enviarle a memoria el path para que cree el proceso.");
     t_paquete *p = crear_paquete();
-    // agregar_a_paquete(p, E_CREAR_PROCESO_MEMORIA, sizeof(e_acciones_memoria));
+    uint8_t motivo = 0;
+    agregar_a_paquete(p, motivo, sizeof(motivo)); // el 0 es de iniciar proceso
+    agregar_a_paquete(p, path, strlen(path) + 1);
     agregar_a_paquete(p, id, sizeof(id));
-    agregar_a_paquete(p, path, strlen(path));
     enviar_paquete(p, cliente_memoria, logger);
-    // entiendo q no es necesario devolver si esto salio bien o no
+
+    // espero la respuesta sobre como salio la creacion
+    bool v = false;
+    int op = recibir_operacion(cliente_memoria, logger);
+    if (op == PAQUETE)
+    {
+        t_list *l = list_create();
+        l = recibir_paquete(cliente_memoria, logger);
+        log_debug(logger, "Respuesta recibida de Memoria: %u", (uint8_t)list_get(l, 0));
+        v = ((uint8_t)list_get(l, 0) == 0);
+        list_destroy(l);
+    }
+    // recibir cualquier otra cosa implica false, por que? porque si
+    return v;
 }
 
 // desarrollo del quantum

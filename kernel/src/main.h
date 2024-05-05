@@ -68,7 +68,7 @@ void liberar_recursos(t_PCB *pcb); // esto es para el algo_a_EXIT, le saco todos
 
 // memoria
 void liberar_memoria(uint32_t id);
-void crear_proceso_en_memoria(uint32_t id, char *path);
+bool crear_proceso_en_memoria(uint32_t id, char *path);
 
 void *trigger_interrupcion_quantum(void *args);
 
