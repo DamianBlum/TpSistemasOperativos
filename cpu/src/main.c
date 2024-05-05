@@ -133,11 +133,11 @@ void *servidor_dispatch(void *arg)
             //recordar que las unicas interrupciones son o por quantum o por entrada salida que pida la instruccion!
             // la unica interrupcion exterena es de cuando se quiere eliminar un proceso
             registros->PC++;
-            proceso_actual_ejecutando= false; // por ahora para probar una sola instruccion;
+            /*proceso_actual_ejecutando= false;  para prueba univocas*/ 
         }
         // 
         if (mandar_pcb)
-            enviar_pcb(MOTIVO_DESALOJO_EXIT); //todavia no se si es exit o no, o si importa ponerlo en la funcion
+            enviar_pcb(MOTIVO_DESALOJO_INTERRUPCION); //todavia no se si es exit o no, o si importa ponerlo en la funcion
     }
 }
 
@@ -158,12 +158,14 @@ void *servidor_interrupt(void *arg) // por aca va a recibir un bit cuando quiere
         case MENSAJE:
             char *mensaje = recibir_mensaje(socket_cliente_interrupt, logger);
             log_info(logger, "Recibi el mensaje: %s.", mensaje);
-            // hago algo con el mensaje
+            // no deberia haber ningun caso de este estilo
             break;
         case PAQUETE:
             t_list *lista = list_create();
             lista = recibir_paquete(socket_cliente_interrupt, logger);
             log_info(logger, "Recibi un paquete.");
+            // el paquete tiene el id pero no me importa, nomas ahora cambiar interrupcion a true
+            interrupcion = true;
             break;
         case EXIT: // indica desconeccion
             log_error(logger, "Se desconecto el cliente %d.", socket_cliente_interrupt);
@@ -247,11 +249,12 @@ void fetch()
     //Buscamos la siguiente instruccion con el pc en memoria y la asignamos a la variable instruccion
     // char instr_recibida = recibir_mensaje(socket, logger); para conseguir la instruccion
     // por ahora lo hacemos default
-    t_paquete* envioMemoria = crear_paquete();
 
+    t_paquete* envioMemoria = crear_paquete();
     agregar_a_paquete(envioMemoria, registros->PID, sizeof(uint32_t));
     agregar_a_paquete(envioMemoria, registros->PC, sizeof(uint32_t));
     enviar_paquete(envioMemoria,cliente_memoria, logger);
+
     log_debug(logger, "Se envio el PID %d y el PC %d a memoria", registros->PID, registros->PC);
     recibir_operacion(cliente_memoria, logger);
     linea_de_instruccion = recibir_mensaje(cliente_memoria, logger);
@@ -484,7 +487,6 @@ void instruccion_io_gen_sleep() {
 
     // Si me devuelve 0 esta todo OK, si no todo MAL
     if(strcmp(mensajeKernel, "0") != 0) {
-    if(strcmp(mensajeKernel, "0") != 0) {
         mandar_pcb = false;
         proceso_actual_ejecutando = false;
     }
@@ -558,12 +560,33 @@ int obtenerValorRegistros(char* registroCPU){
     return EXIT_SUCCESS;
 }
 
-void check_interrupt(){} 
+void check_interrupt(){
+    if (interrupcion) {
+        log_trace(logger, "Se recibio una interrupcion");
+        mandar_pcb = true;
+        proceso_actual_ejecutando = false;
+        interrupcion = false;
+    }
+} 
 
-void enviar_pcb(e_motivo_desalojo motivo_desalojo){
+void enviar_pcb(e_motivo_desalojo motivo_desalojo, AgregarDatosPaquete agregarDatosPaquete, void* datos){
     log_trace(logger, "CPU va a enviar un PCB a Kernel");
     registros->motivo_desalojo = motivo_desalojo;
     t_paquete *paquete_de_pcb = crear_paquete();
     empaquetar_registros(paquete_de_pcb,registros);
+    agregarDatosPaquete(paquete_de_pcb,datos);
     enviar_paquete(paquete_de_pcb,socket_cliente_dispatch,logger);
 }
+
+void agregarDatosRecurso(t_paquete* paquete, void* nombre_recurso){
+    //en este caso datos va a ser el nombre del recurso que voy a pedir o devolver
+    agregar_a_paquete(paquete,nombre_recurso,strlen(nombre_recurso)+1);
+}
+
+void agregarDatosTiempo(t_paquete* paquete, void* datos){
+    // en este caso datos tiene dos cosas el numero de interfaz y el tiempo de trabajo
+    char** datos_tiempo = (char**) datos;
+    agregar_a_paquete(paquete,datos_tiempo[0],strlen(datos_tiempo[0])+1);
+    agregar_a_paquete(paquete,datos_tiempo[1],sizeof(int));
+}
+
