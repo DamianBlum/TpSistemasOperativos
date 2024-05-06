@@ -561,7 +561,8 @@ void *atender_respuesta_proceso(void *arg)
             case MOTIVO_DESALOJO_WAIT:
                 char *argWait = list_get(lista_respuesta_cpu, 14); // hacer desp esto en una funcion
                 log_debug(logger, "Argumento del wait: %s", argWait);
-                t_paquete *respuesta_para_cpu = crear_paquete();
+                t_paquete *respuesta_para_cpu = crear_paquete(); // esto esta haciendo un sf y no se xq
+                log_trace(logger, "aca 6");
                 // hago la magia de darle los recursos
                 uint8_t resultado_asignar_recurso = asignar_recurso(argWait, pcb_en_running);
                 if (resultado_asignar_recurso == 0)
@@ -591,6 +592,7 @@ void *atender_respuesta_proceso(void *arg)
                 char *argSignal = list_get(lista_respuesta_cpu, 14); // hacer desp esto en una funcion
                 log_debug(logger, "Argumento del signal: %s", argWait);
                 t_paquete *respuesta_para_cpu_signal = crear_paquete();
+                log_trace(logger, "aca 6");
                 // desasigno
                 uint8_t resultado_asignar_recurso_signal = desasignar_recurso(argSignal, pcb_en_running);
                 if (resultado_asignar_recurso_signal == 0)
@@ -672,10 +674,13 @@ void obtener_valores_de_recursos()
 
 uint8_t asignar_recurso(char *recurso, t_PCB *pcb)
 {
+    log_trace(logger, "aca 1");
     t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos, recurso);
+    log_trace(logger, "aca 2");
     uint8_t r;
     if (tmb != NULL)
     { // existe, esta todo piola
+        log_trace(logger, "aca 3");
         log_debug(logger, "Valor del recurso %s antes de modificarlo: %d", tmb->instancias_recursos);
         tmb->instancias_recursos -= 1;
         log_debug(logger, "Valor del recurso %s desp de modifiarlo: %d", tmb->instancias_recursos);
@@ -692,6 +697,7 @@ uint8_t asignar_recurso(char *recurso, t_PCB *pcb)
     { // cagaste
         r = 2;
     }
+    log_trace(logger, "aca 4");
     return r;
 }
 
