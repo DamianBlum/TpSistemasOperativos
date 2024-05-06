@@ -14,6 +14,7 @@ int cliente_entradasalida;
 // hilos
 pthread_t tid[3];
 
+
 FILE * archivo_text_proceso;
 // diccionario de procesos
 t_dictionary *procesos;

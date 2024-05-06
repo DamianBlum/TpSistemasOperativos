@@ -41,7 +41,7 @@ typedef enum {
     INSTRUCTION_EXIT
 } e_instruccion;
 
-typedef void (*AgregarDatosPaquete)(t_paquete*, void*);
+typedef void (*Agregar_datos_paquete)(t_paquete*, void*);
 
 
 int main(int argc, char *argv[]);

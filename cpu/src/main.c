@@ -18,8 +18,13 @@ pthread_t tid[2];
 // registros 
 t_registros *registros;
 
+
 // bit para la interrupion
 bool interrupcion;
+
+// mutex para la variable interrupcion
+pthread_mutex_t mutex_interrupcion = PTHREAD_MUTEX_INITIALIZER;
+int interrupcion_init;
 
 // Linea de instruccion que llega de memoria
 char *linea_de_instruccion;
@@ -38,6 +43,9 @@ bool mandar_pcb;
 
 int main(int argc, char *argv[])
 {
+    // Inicializo las variables
+    interrupcion = false;
+    interrupcion_init = pthread_mutex_init(&mutex_interrupcion, NULL);
     registros = crear_registros();
     logger = iniciar_logger("cpu.log", "CPU", argc, argv);
     config = iniciar_config("cpu.config");
@@ -64,6 +72,7 @@ int main(int argc, char *argv[])
     liberar_conexion(cliente_memoria, logger);
     
     // libero todas las variables que uso
+    pthread_mutex_destroy(&mutex_interrupcion);
     free(linea_de_instruccion);
     destruir_registros(registros);
     destruir_config(config);
@@ -107,11 +116,9 @@ void *servidor_dispatch(void *arg)
                 log_error(logger, "Recibi una operacion rara (%d), termino el servidor.", operacion);
                 return EXIT_FAILURE;
         }
-        mandar_pcb = true;
+        mandar_pcb = false;
         proceso_actual_ejecutando = true;
         while (proceso_actual_ejecutando) {
-            registros->AX = 2;
-            registros->BX = 3;
 
             fetch(); 
             log_debug(logger, "LOG DESPUES DEL FETCH: %s", linea_de_instruccion);
@@ -137,7 +144,7 @@ void *servidor_dispatch(void *arg)
         }
         // 
         if (mandar_pcb)
-            enviar_pcb(MOTIVO_DESALOJO_INTERRUPCION); //todavia no se si es exit o no, o si importa ponerlo en la funcion
+            enviar_pcb(MOTIVO_DESALOJO_INTERRUPCION); //hubo una interrupcion y se debera mandar el pcb a kernel
     }
 }
 
@@ -163,9 +170,13 @@ void *servidor_interrupt(void *arg) // por aca va a recibir un bit cuando quiere
         case PAQUETE:
             t_list *lista = list_create();
             lista = recibir_paquete(socket_cliente_interrupt, logger);
-            log_info(logger, "Recibi un paquete.");
+            log_info(logger, "Recibi el id que quiere se quiere eliminar: %d.", list_get(lista, 0));
             // el paquete tiene el id pero no me importa, nomas ahora cambiar interrupcion a true
+
+            // al modificar la variable global, necesito que no se interrumpa en el medio
+            pthread_mutex_lock(&mutex_interrupcion);
             interrupcion = true;
+            pthread_mutex_unlock(&mutex_interrupcion);
             break;
         case EXIT: // indica desconeccion
             log_error(logger, "Se desconecto el cliente %d.", socket_cliente_interrupt);
@@ -321,6 +332,7 @@ void execute() {
     case IO_FS_READ:
         break;
     case INSTRUCTION_EXIT:
+        instruccion_exit();
         break;
     default:
         log_error(logger, "instruccion incorreta");
@@ -433,7 +445,6 @@ void instruccion_wait(){
     if (resultado_numero == 1){
         log_debug(logger,"No se pudo obtener el recurso %s",nombre_recurso);
         proceso_actual_ejecutando=false;
-        mandar_pcb=false;
     }
 }
 
@@ -454,7 +465,6 @@ void instruccion_signal(){
     if(resultado_numero == 1){
         log_debug(logger,"No existia ese recurso %s",nombre_recurso);
         proceso_actual_ejecutando=false;
-        mandar_pcb=false;
     }
 }
 
@@ -487,7 +497,6 @@ void instruccion_io_gen_sleep() {
 
     // Si me devuelve 0 esta todo OK, si no todo MAL
     if(strcmp(mensajeKernel, "0") != 0) {
-        mandar_pcb = false;
         proceso_actual_ejecutando = false;
     }
 
@@ -496,6 +505,13 @@ void instruccion_io_gen_sleep() {
     free(tiempoTrabajoString);
     eliminar_paquete(mensajeKernel);
     eliminar_paquete(paqueteAKernel);
+}
+
+void instruccion_exit(){
+    log_trace(logger, "EJECUTANDO LA INSTRUCCION EXIT");
+    // deberia mandar el pcb a kernel
+    enviar_pcb(MOTIVO_DESALOJO_EXIT);
+    proceso_actual_ejecutando = false;
 }
 
 void asignarValoresIntEnRegistros(char* registroDestino, int valor, char* instruccion) {
@@ -561,32 +577,38 @@ int obtenerValorRegistros(char* registroCPU){
 }
 
 void check_interrupt(){
+    pthread_mutex_lock(&mutex_interrupcion);
     if (interrupcion) {
         log_trace(logger, "Se recibio una interrupcion");
         mandar_pcb = true;
         proceso_actual_ejecutando = false;
         interrupcion = false;
     }
+    pthread_mutex_unlock(&mutex_interrupcion);
 } 
 
-void enviar_pcb(e_motivo_desalojo motivo_desalojo, AgregarDatosPaquete agregarDatosPaquete, void* datos){
+void enviar_pcb(e_motivo_desalojo motivo_desalojo, Agregar_datos_paquete agregar_datos_paquete, void* datos){
     log_trace(logger, "CPU va a enviar un PCB a Kernel");
     registros->motivo_desalojo = motivo_desalojo;
     t_paquete *paquete_de_pcb = crear_paquete();
     empaquetar_registros(paquete_de_pcb,registros);
-    agregarDatosPaquete(paquete_de_pcb,datos);
+    Agregar_datos_paquete(paquete_de_pcb,datos);
     enviar_paquete(paquete_de_pcb,socket_cliente_dispatch,logger);
 }
 
-void agregarDatosRecurso(t_paquete* paquete, void* nombre_recurso){
+void agregar_datos_recurso(t_paquete* paquete, void* nombre_recurso){
     //en este caso datos va a ser el nombre del recurso que voy a pedir o devolver
     agregar_a_paquete(paquete,nombre_recurso,strlen(nombre_recurso)+1);
 }
 
-void agregarDatosTiempo(t_paquete* paquete, void* datos){
+void agregar_datos_tiempo(t_paquete* paquete, void* datos){
     // en este caso datos tiene dos cosas el numero de interfaz y el tiempo de trabajo
     char** datos_tiempo = (char**) datos;
     agregar_a_paquete(paquete,datos_tiempo[0],strlen(datos_tiempo[0])+1);
     agregar_a_paquete(paquete,datos_tiempo[1],sizeof(int));
+}
+
+void no_agregar_datos(t_paquete* paquete, void* datos){
+    // no se agrega nada
 }
 
