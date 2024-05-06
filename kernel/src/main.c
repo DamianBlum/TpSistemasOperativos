@@ -772,7 +772,7 @@ void liberar_memoria(uint32_t id)
     log_trace(logger, "Voy a decirle a memoria q libere lo del proceso %d", id);
 
     t_paquete *p = crear_paquete();
-    // agregar_a_paquete(p, E_LIBERAR_MEMORIA, sizeof(e_acciones_memoria));
+    agregar_a_paquete(p, 1, sizeof(uint8_t)); // 1 es de borrar proceso
     agregar_a_paquete(p, id, sizeof(id));
     enviar_paquete(p, cliente_memoria, logger);
 }
@@ -781,8 +781,7 @@ bool crear_proceso_en_memoria(uint32_t id, char *path)
 {
     log_trace(logger, "Voy a enviarle a memoria el path para que cree el proceso.");
     t_paquete *p = crear_paquete();
-    uint8_t motivo = 0;
-    agregar_a_paquete(p, motivo, sizeof(motivo)); // el 0 es de iniciar proceso
+    agregar_a_paquete(p, 0, sizeof(uint8_t)); // el 0 es de iniciar proceso
     agregar_a_paquete(p, path, strlen(path) + 1);
     agregar_a_paquete(p, id, sizeof(id));
     enviar_paquete(p, cliente_memoria, logger);
