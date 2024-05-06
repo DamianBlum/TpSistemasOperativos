@@ -766,7 +766,7 @@ void liberar_memoria(uint32_t id)
     log_trace(logger, "Voy a decirle a memoria q libere lo del proceso %d", id);
 
     t_paquete *p = crear_paquete();
-    // agregar_a_paquete(p, E_LIBERAR_MEMORIA, sizeof(e_acciones_memoria));
+     agregar_a_paquete(p, 1, sizeof(uint8_t));
     agregar_a_paquete(p, id, sizeof(id));
     enviar_paquete(p, cliente_memoria, logger);
 }
