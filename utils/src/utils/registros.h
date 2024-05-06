@@ -25,8 +25,8 @@ typedef enum
 typedef struct
 {
     uint32_t PID;
-    uint32_t PC;      // program counter
-    uint8_t AX;       // los 8 de proposito general
+    uint32_t PC; // program counter
+    uint8_t AX;  // los 8 de proposito general
     uint8_t BX;
     uint8_t CX;
     uint8_t DX;
@@ -43,5 +43,6 @@ void empaquetar_registros(t_paquete *p, t_registros *t);
 t_registros *crear_registros();
 t_registros *destruir_registros();
 e_motivo_desalojo conseguir_motivo_desalojo_de_registros_empaquetados(t_list *lista);
+char *motivo_desalojo_texto(e_motivo_desalojo e);
 
 #endif

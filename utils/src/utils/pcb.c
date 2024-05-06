@@ -20,6 +20,8 @@ t_PCB *crear_pcb(int *contadorProcesos, int quantum)
     pcb->EDX = 0;
     pcb->SI = 0;
     pcb->DI = 0;
+    pcb->recursos_asignados = list_create();
+    // pcb->temporal = temporal_create(); el create lo hago en el ready_a_exec ya q arranca el cronometro, desp lo destruyo en el exec_a_algo
     return pcb;
 }
 
@@ -123,6 +125,9 @@ char *estado_proceso_texto(e_estado_proceso estado)
         break;
     case E_READY:
         estado_texto = string_duplicate("READY");
+        break;
+    case E_READY_PRIORITARIO:
+        estado_texto = string_duplicate("READY PRIORITARIO");
         break;
     case E_RUNNING:
         estado_texto = string_duplicate("EXECUTE");
