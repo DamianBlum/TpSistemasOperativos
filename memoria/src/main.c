@@ -14,6 +14,7 @@ int cliente_entradasalida;
 // hilos
 pthread_t tid[3];
 
+
 FILE * archivo_text_proceso;
 // diccionario de procesos
 t_dictionary *procesos;
@@ -76,13 +77,13 @@ void *servidor_kernel(void *arg)
         {
             case MENSAJE:
                 char *mensaje = recibir_mensaje(cliente_kernel, logger);
-                log_info(logger, "Desde cliente %d: Recibi el mensaje: %s.", cliente_cpu, mensaje);
+                log_info(logger, "Desde cliente %d: Recibi el mensaje: %s.", cliente_kernel, mensaje);
                 // hago algo con el mensaje
                 break;
             case PAQUETE:
                 t_list *lista = list_create();
                 lista = recibir_paquete(cliente_kernel, logger);
-                log_info(logger, "Desde cliente %d: Recibi un paquete.", cliente_cpu);
+                log_info(logger, "Desde cliente %d: Recibi un paquete.", cliente_kernel);
                 e_operacion operacion_kernel= (e_operacion)list_get(lista, 0);
                 switch (operacion_kernel)
                 {
@@ -230,7 +231,8 @@ int crear_proceso(char* nombre_archivo, uint32_t process_id){
     {
         linea = string_duplicate(longitud);
         //linea se esta guardando al final con un \n y despues con el \O, ahora elimino el \n pero dejando el \0
-        linea[strlen(linea) - 1] = '\0';
+        if (linea[strlen(linea) - 1] == '\n') 
+            linea[strlen(linea) - 1] = '\0'; 
         log_debug(logger, "Linea: %s", linea);
         string_array_push(&lineas, linea);
     }

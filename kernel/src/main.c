@@ -44,6 +44,7 @@ int main(int argc, char *argv[])
     lista_de_pcbs = list_create();
     instanciar_colas();
     obtener_valores_de_recursos();
+    obtener_valores_de_recursos();
 
     // PARTE CLIENTE
     if (generar_clientes()) // error al crear los clientes de cpu

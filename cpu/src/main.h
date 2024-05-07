@@ -41,6 +41,8 @@ typedef enum {
     INSTRUCTION_EXIT
 } e_instruccion;
 
+typedef void (*Agregar_datos_paquete)(t_paquete*, void*);
+
 
 int main(int argc, char *argv[]);
 void *servidor_dispatch(void *arg);
@@ -51,4 +53,7 @@ void decode();
 void execute();
 void check_interrupt(); 
 void enviar_pcb();
+void no_agregar_datos(t_paquete* paquete, void* datos);
+void agregar_datos_tiempo(t_paquete* paquete, void* datos);
+void agregar_datos_recurso(t_paquete* paquete, void* nombre_recurso);
 #endif
