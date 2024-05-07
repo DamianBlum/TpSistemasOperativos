@@ -14,6 +14,7 @@ int cliente_entradasalida;
 // hilos
 pthread_t tid[3];
 
+
 FILE * archivo_text_proceso;
 // diccionario de procesos
 t_dictionary *procesos;
@@ -76,13 +77,13 @@ void *servidor_kernel(void *arg)
         {
             case MENSAJE:
                 char *mensaje = recibir_mensaje(cliente_kernel, logger);
-                log_info(logger, "Desde cliente %d: Recibi el mensaje: %s.", cliente_cpu, mensaje);
+                log_info(logger, "Desde cliente %d: Recibi el mensaje: %s.", cliente_kernel, mensaje);
                 // hago algo con el mensaje
                 break;
             case PAQUETE:
                 t_list *lista = list_create();
                 lista = recibir_paquete(cliente_kernel, logger);
-                log_info(logger, "Desde cliente %d: Recibi un paquete.", cliente_cpu);
+                log_info(logger, "Desde cliente %d: Recibi un paquete.", cliente_kernel);
                 e_operacion operacion_kernel= (e_operacion)list_get(lista, 0);
                 switch (operacion_kernel)
                 {
@@ -91,8 +92,8 @@ void *servidor_kernel(void *arg)
                         char* nombre_archivo = list_get(lista, 1);
                         uint32_t process_id = (uint32_t)list_get(lista, 2);
                         int resultado=crear_proceso(nombre_archivo, process_id);
-
-                        if(resultado==0){
+                        
+                        if(resultado == 0){
                             log_info(logger, "Se creo el proceso %d con el archivo %s.", process_id, nombre_archivo);
                         }
                         else{
@@ -100,10 +101,10 @@ void *servidor_kernel(void *arg)
                         }
 
                         t_paquete* paquete_a_enviar=crear_paquete();
-                        agregar_a_paquete(paquete_a_enviar, resultado, sizeof(bool));
+                        agregar_a_paquete(paquete_a_enviar, resultado, sizeof(int));
                         enviar_paquete(paquete_a_enviar,cliente_kernel, logger);
-                        eliminar_paquete(paquete_a_enviar);
-
+                        //eliminar_paquete(paquete_a_enviar);
+                        log_debug(logger, "Envie el resultado de la operacion INICIAR_PROCESO al kernel");
                         break;
                     case BORRAR_PROCESO:
                         uint32_t pid = (uint32_t)list_get(lista, 1);
@@ -112,6 +113,8 @@ void *servidor_kernel(void *arg)
                     default:
                         break;
                 }
+
+                break;
             case EXIT: // indica desconeccion
                 log_error(logger, "Se desconecto el cliente %d.", cliente_cpu);
                 sigo_funcionando = 0;
@@ -228,7 +231,8 @@ int crear_proceso(char* nombre_archivo, uint32_t process_id){
     {
         linea = string_duplicate(longitud);
         //linea se esta guardando al final con un \n y despues con el \O, ahora elimino el \n pero dejando el \0
-        linea[strlen(linea) - 1] = '\0';
+        if (linea[strlen(linea) - 1] == '\n') 
+            linea[strlen(linea) - 1] = '\0'; 
         log_debug(logger, "Linea: %s", linea);
         string_array_push(&lineas, linea);
     }

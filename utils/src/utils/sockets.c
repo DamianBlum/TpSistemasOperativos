@@ -105,7 +105,6 @@ t_paquete *crear_paquete(void)
 void agregar_a_paquete(t_paquete *paquete, void *valor, int tamanio)
 {
 	paquete->buffer->stream = realloc(paquete->buffer->stream, paquete->buffer->size + tamanio + sizeof(int));
-	printf("Stream: %s\n", (char *)paquete->buffer->stream);
 	memcpy(paquete->buffer->stream + paquete->buffer->size, &tamanio, sizeof(int));
 	if (tamanio != sizeof(uint32_t) && tamanio != sizeof(uint8_t))
 		memcpy(paquete->buffer->stream + paquete->buffer->size + sizeof(int), valor, tamanio);

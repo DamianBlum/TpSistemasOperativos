@@ -18,8 +18,13 @@ pthread_t tid[2];
 // registros 
 t_registros *registros;
 
+
 // bit para la interrupion
 bool interrupcion;
+
+// mutex para la variable interrupcion
+pthread_mutex_t mutex_interrupcion = PTHREAD_MUTEX_INITIALIZER;
+int interrupcion_init;
 
 // Linea de instruccion que llega de memoria
 char *linea_de_instruccion;
@@ -38,6 +43,9 @@ bool mandar_pcb;
 
 int main(int argc, char *argv[])
 {
+    // Inicializo las variables
+    interrupcion = false;
+    interrupcion_init = pthread_mutex_init(&mutex_interrupcion, NULL);
     registros = crear_registros();
     logger = iniciar_logger("cpu.log", "CPU", argc, argv);
     config = iniciar_config("cpu.config");
@@ -53,7 +61,6 @@ int main(int argc, char *argv[])
     
     // PARTE SERVIDOR
 
-    
     pthread_create(&tid[DISPATCH], NULL, servidor_dispatch, NULL);
     pthread_create(&tid[INTERRUPT], NULL, servidor_interrupt, NULL);
     
@@ -65,6 +72,7 @@ int main(int argc, char *argv[])
     liberar_conexion(cliente_memoria, logger);
     
     // libero todas las variables que uso
+    pthread_mutex_destroy(&mutex_interrupcion);
     free(linea_de_instruccion);
     destruir_registros(registros);
     destruir_config(config);
@@ -108,37 +116,21 @@ void *servidor_dispatch(void *arg)
                 log_error(logger, "Recibi una operacion rara (%d), termino el servidor.", operacion);
                 return EXIT_FAILURE;
         }
-        mandar_pcb = true;
+        mandar_pcb = false;
         proceso_actual_ejecutando = true;
-        while (proceso_actual_ejecutando) {
-            registros->AX = 2;
-            registros->BX = 3;
-
+        while (proceso_actual_ejecutando) { 
+            // ciclo de la instruccion en la cpu
             fetch(); 
-            log_debug(logger, "LOG DESPUES DEL FETCH: %s", linea_de_instruccion);
-            //busca con registros->PC en la memoria 
-            //y devuelve un string por ahora me imagine con una instruccion de esta forma "SUM AX BX" 
             decode(); 
-            log_debug(logger, "LOG ANTES DEL execute: %s", linea_de_instruccion_separada[0]);
-            log_debug(logger, "LOG ANTES DEL execute: %s", linea_de_instruccion_separada[1]);
-            log_debug(logger, "LOG ANTES DEL execute: %s", linea_de_instruccion_separada[2]);
-            //consigue la primera palabra que seria el "SUM" y en base a eso en un switch o algo de ese estilo despues ve que seria "AX" y "BX"
             execute(); 
-            log_debug(logger, "VALOR DEL REGISTRO AX: %d ", registros->AX );
-            //Ejecuta la instruccion y guarda la data en los registros que se actualizaro y aumenta el PC en uno si no fue un EXIT
-            // a la vez si es exucute de un exit deberia finalizar la ejecucion de este proceso no se como
-            // write back es como usar el log, ahi se actualiza el PC en uno
             check_interrupt();
-            // se fija si esta la interrupcion de eliminar_proceso
-            // y el cpu carga despues nuevo_registros
-            //recordar que las unicas interrupciones son o por quantum o por entrada salida que pida la instruccion!
-            // la unica interrupcion exterena es de cuando se quiere eliminar un proceso
             registros->PC++;
-            proceso_actual_ejecutando= false; // por ahora para probar una sola instruccion;
+            log_debug(logger, " | AX: %d, BX: %d |", registros->AX, registros->BX);
         }
-        // 
-        if (mandar_pcb)
-            enviar_pcb(MOTIVO_DESALOJO_EXIT); //todavia no se si es exit o no, o si importa ponerlo en la funcion
+        
+        if (mandar_pcb) { // hubo una interrupcion 
+            enviar_pcb(MOTIVO_DESALOJO_INTERRUPCION,no_agregar_datos);
+        }
     }
 }
 
@@ -159,12 +151,18 @@ void *servidor_interrupt(void *arg) // por aca va a recibir un bit cuando quiere
         case MENSAJE:
             char *mensaje = recibir_mensaje(socket_cliente_interrupt, logger);
             log_info(logger, "Recibi el mensaje: %s.", mensaje);
-            // hago algo con el mensaje
+            // no deberia haber ningun caso de este estilo
             break;
         case PAQUETE:
             t_list *lista = list_create();
             lista = recibir_paquete(socket_cliente_interrupt, logger);
-            log_info(logger, "Recibi un paquete.");
+            log_info(logger, "Recibi el id que quiere se quiere eliminar: %d.", list_get(lista, 0));
+            // el paquete tiene el id pero no me importa, nomas ahora cambiar interrupcion a true
+
+            // al modificar la variable global, necesito que no se interrumpa en el medio
+            pthread_mutex_lock(&mutex_interrupcion);
+            interrupcion = true;
+            pthread_mutex_unlock(&mutex_interrupcion);
             break;
         case EXIT: // indica desconeccion
             log_error(logger, "Se desconecto el cliente %d.", socket_cliente_interrupt);
@@ -244,25 +242,32 @@ e_instruccion parsear_instruccion(char* instruccionString){
 
 void fetch() 
 {
-    log_trace(logger, "Estoy en el fetch con el PC %d", registros->PC);
     //Buscamos la siguiente instruccion con el pc en memoria y la asignamos a la variable instruccion
-    // char instr_recibida = recibir_mensaje(socket, logger); para conseguir la instruccion
-    // por ahora lo hacemos default
-    t_paquete* envioMemoria = crear_paquete();
+    log_info(logger, "PID: < %d > - FETCH - Program Counter: < %d >", registros->PID, registros->PC);
 
+    // creacion del paquete a enviar
+    t_paquete* envioMemoria = crear_paquete();
     agregar_a_paquete(envioMemoria, registros->PID, sizeof(uint32_t));
     agregar_a_paquete(envioMemoria, registros->PC, sizeof(uint32_t));
     enviar_paquete(envioMemoria,cliente_memoria, logger);
-    log_debug(logger, "Se envio el PID %d y el PC %d a memoria", registros->PID, registros->PC);
+
+    log_debug(logger, "Se envio el PID < %d > y el PC < %d > a memoria", registros->PID, registros->PC);
+
+    // hay que recibir la operacion porque si no lee mal la instruccion, aunque no se use
     recibir_operacion(cliente_memoria, logger);
+
+    // Recibimos la instruccion de memoria
     linea_de_instruccion = recibir_mensaje(cliente_memoria, logger);
-    log_debug(logger, "La instruccion leida es %s", linea_de_instruccion);
+    log_debug(logger, "La instruccion leida es: < %s >", linea_de_instruccion);
+
+    // liberamos el paquete
+    //eliminar_paquete(envioMemoria);
     return EXIT_SUCCESS;
 }
 
 void decode(){
+    // divide la instruccion en partes y la asigna a la variable instruccion el nombre de la misma
     linea_de_instruccion_separada = string_split(linea_de_instruccion, " ");
-
     instruccion = parsear_instruccion(linea_de_instruccion_separada[0]);
 
     return EXIT_SUCCESS;
@@ -271,6 +276,7 @@ void decode(){
 
 void execute() {
     log_trace(logger, "Estoy en el execute");
+    // en base al nombre de la misma utilizamos una funcion distinta
     switch (instruccion)
     {
     case SET:
@@ -316,26 +322,24 @@ void execute() {
     case IO_FS_READ:
         break;
     case INSTRUCTION_EXIT:
+        instruccion_exit();
         break;
     default:
-        log_error(logger, "instruccion incorreta");
+        log_error(logger, "instruccion incorreta: fatal error :p");
         break;
     }
 }
 
 void instruction_set(){
-    log_trace(logger, "EJECUTANDO LA INSTRUCCION SET");
+    log_info(logger, "PID: < %d > - Ejecutando: < SET > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
     char* registroDestino = string_new();
     char* valorEnString = string_new();
 
     registroDestino = linea_de_instruccion_separada[1];
-    log_debug(logger, "Registro Destino: %s", registroDestino);
 
     valorEnString = linea_de_instruccion_separada[2];
-    log_debug(logger, "Valor en string: %s", valorEnString);
 
     int valorEnInt = atoi(valorEnString);
-    log_debug(logger, "Valor en string: %d", valorEnInt);
 
     // Establecer el valor en el registro correspondiente
     asignarValoresIntEnRegistros(registroDestino, valorEnInt, "SET");
@@ -346,16 +350,13 @@ void instruction_set(){
 }
 
 void instruccion_sum(){
-    log_trace(logger, "EJECUTANDO LA INSTRUCCION SUM");
+    log_info(logger, "PID: < %d > - Ejecutando: < SUM > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
 
     char* registroDestino = string_new();
     registroDestino = linea_de_instruccion_separada[1];
     
     char* registroOrigen = string_new();
     registroOrigen = linea_de_instruccion_separada[2];
-
-    log_debug(logger, "Registro Destino: %s", registroDestino);
-    log_debug(logger, "Registro Origen: %s", registroOrigen);
 
     // Obtengo el valor almacenado en el registro uint8_t
     int valorDestino = obtenerValorRegistros(registroDestino);
@@ -368,21 +369,20 @@ void instruccion_sum(){
 }
 
 void instruccion_jnz(){
-    log_trace(logger, "EJECUTANDO LA INSTRUCCION JNZ");
+    log_info(logger, "PID: < %d > - Ejecutando: < JNZ > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
 
     char* registroDestino = string_new();
-    registroDestino = linea_de_instruccion_separada[0];
+    registroDestino = linea_de_instruccion_separada[1];
 
     char* parametro = string_new();
-    parametro = linea_de_instruccion[1];
+    parametro = linea_de_instruccion_separada[2];
 
-    int nuevoPC = atoi(parametro);
+    int nuevoPC = atoi(parametro) - 1;
 
     int valorDelRegistro = obtenerValorRegistros(registroDestino);  
     if(valorDelRegistro != 0) {
         registros->PC = (uint32_t) nuevoPC;
         log_debug(logger, "Se actualizo el PC a la instruccion nro: %d", nuevoPC);
-        return;
     }
 
     free(registroDestino);
@@ -390,7 +390,7 @@ void instruccion_jnz(){
 }
 
 void instruccion_sub(){
-    log_trace(logger, "EJECUTANDO LA INSTRUCCION SUB");
+    log_info(logger, "PID: < %d > - Ejecutando: < SUB > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
 
     char* registroDestino = string_new();
     registroDestino = linea_de_instruccion_separada[1];
@@ -411,42 +411,54 @@ void instruccion_sub(){
 void instruccion_wait(){
     // envio el pcb a kernel y luego un mensaje con el nombre del recurso que quiero
     // Esta instrucción solicita al Kernel que se asigne una instancia del recurso indicado por parámetro.
-    log_trace(logger, "EJECUTANDO LA INSTRUCCION WAIT");
-    enviar_pcb(MOTIVO_DESALOJO_WAIT);
-    char* nombre_recurso= linea_de_instruccion_separada[1];
-    log_debug(logger,"Recurso que voy a ir a buscar %s",nombre_recurso);
-    enviar_mensaje(nombre_recurso,socket_cliente_dispatch,logger);
-    char* resultado=recibir_mensaje(socket_cliente_dispatch,logger);
-    // Convierte resultado a int
+    log_info(logger, "PID: < %d > - Ejecutando: < WAIT > - < %s >", registros->PID, linea_de_instruccion_separada[1]);
+    log_trace(logger, "CPU va a enviar un PCB a Kernel");
+    char* nombre_recurso = string_new();
+    nombre_recurso = linea_de_instruccion_separada[1];
+    
+    enviar_pcb(MOTIVO_DESALOJO_WAIT, agregar_datos_recurso, nombre_recurso);
+    
+    // Espero la respuesta de Kernel
+    char* resultado = recibir_mensaje(socket_cliente_dispatch,logger);
+
     int resultado_numero=atoi(resultado);
     // En nuestro conversacion con kernel si es 0 consigio el recurso y 1 significa que, o no existe, o no me lo puede dar
     if (resultado_numero == 1){
-        log_debug(logger,"No se pudo obtener el recurso %s",nombre_recurso);
+        log_debug(logger,"No se pudo obtener el recurso < %s >",nombre_recurso);
         proceso_actual_ejecutando=false;
-        mandar_pcb=false;
     }
+
+    free(resultado);
+    free(nombre_recurso);
 }
 
 void instruccion_signal(){
     // Esta instrucción solicita al Kernel que se libere una instancia del recurso indicado por parámetro.
-    log_trace(logger, "EJECUTANDO LA INSTRUCCION SIGNAL");
-    enviar_pcb(MOTIVO_DESALOJO_SIGNAL);
-    char* nombre_recurso= linea_de_instruccion_separada[1];
-    log_debug(logger,"Recurso que voy a ir a devolver %s",nombre_recurso);
-    enviar_mensaje(nombre_recurso,socket_cliente_dispatch,logger);
-    char* resultado=recibir_mensaje(socket_cliente_dispatch,logger);
-    // Convierte resultado a int
+    log_info(logger, "PID: < %d > - Ejecutando: < SIGNAL > - < %s >", registros->PID, linea_de_instruccion_separada[1]);
+    log_trace(logger, "CPU va a enviar un PCB a Kernel");
+
+    char* nombre_recurso = string_new();
+    nombre_recurso = linea_de_instruccion_separada[1];
+    
+    enviar_pcb(MOTIVO_DESALOJO_SIGNAL,agregar_datos_recurso,nombre_recurso);
+    
+    // Espero la respuesta de Kernel
+    char* resultado = string_new();
+    resultado=recibir_mensaje(socket_cliente_dispatch,logger);
+
     int resultado_numero=atoi(resultado);
-    // todavia no se nuestra conversacion con kernel de esto
+    
     if(resultado_numero == 1){
         log_debug(logger,"No existia ese recurso %s",nombre_recurso);
         proceso_actual_ejecutando=false;
-        mandar_pcb=false;
     }
+
+    free(nombre_recurso);
+    free(resultado);
 }
 
 void instruccion_io_gen_sleep() {
-    log_trace(logger, "EJECUTANDO LA INSTRUCCION IO_GEN_SLEEP");
+    log_info(logger, "PID: < %d > - Ejecutando: < JNZ > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
 
     char* nroInterfaz = string_new();
     nroInterfaz = linea_de_instruccion_separada[1];
@@ -456,39 +468,37 @@ void instruccion_io_gen_sleep() {
 
     int tiempoTrabajo = atoi(tiempoTrabajoString);
 
+    char** datos_tiempo = string_array_new();
+    string_array_push(datos_tiempo,nroInterfaz);
+    string_array_push(datos_tiempo,tiempoTrabajoString);
 
-    // Creo paquete
-    // Envio el PCB a Kernel
-    t_paquete* paqueteAKernel = crear_paquete();
-
-    log_trace(logger, "CPU va a enviar un PCB a Kernel");
-    registros->motivo_desalojo = MOTIVO_DESALOJO_IO_GEN_SLEEP;
-    empaquetar_registros(paqueteAKernel,registros);
-    agregar_a_paquete(paqueteAKernel,nroInterfaz,strlen(nroInterfaz)+1);
-    agregar_a_paquete(paqueteAKernel,tiempoTrabajo,sizeof(int));
-    enviar_paquete(paqueteAKernel,socket_cliente_dispatch,logger);
-
+    enviar_pcb(MOTIVO_DESALOJO_IO_GEN_SLEEP,agregar_datos_tiempo,datos_tiempo);
+    
     // Espero la respuesta de Kernel
-    char* mensajeKernel = string_new();
-    mensajeKernel = recibir_mensaje(socket_cliente_dispatch,logger);
+    char* resultado = string_new();
+    resultado = recibir_mensaje(socket_cliente_dispatch,logger);
 
-    // Si me devuelve 0 esta todo OK, si no todo MAL
-    if(strcmp(mensajeKernel, "0") != 0) {
-        mandar_pcb = false;
+    int resultado_numero=atoi(resultado);
+    // Si me devuelve 1 esta todo MAL, si no todo BIEN
+    if(resultado_numero == 1) {
         proceso_actual_ejecutando = false;
     }
 
     // LIBERAR LA MEMORIA
     free(nroInterfaz);
     free(tiempoTrabajoString);
-    eliminar_paquete(mensajeKernel);
-    eliminar_paquete(paqueteAKernel);
+    free(resultado);
+    string_array_destroy(datos_tiempo);
+}
+
+void instruccion_exit(){
+    log_info(logger, "PID: < %d > - Ejecutando: < EXIT > - < >", registros->PID);
+    // deberia mandar el pcb a kernel
+    enviar_pcb(MOTIVO_DESALOJO_EXIT,no_agregar_datos, NULL);
+    proceso_actual_ejecutando = false;
 }
 
 void asignarValoresIntEnRegistros(char* registroDestino, int valor, char* instruccion) {
-
-    log_debug(logger, "%d", strcmp(registroDestino, "BX"));
-
     if (strcmp(registroDestino, "AX") == 0) {
         registros->AX = (uint8_t)valor;
     } else if (strcmp(registroDestino, "BX") == 0) {
@@ -517,9 +527,6 @@ void asignarValoresIntEnRegistros(char* registroDestino, int valor, char* instru
 }
 
 int obtenerValorRegistros(char* registroCPU){
-
-    log_debug(logger,"%d", (int) registros->BX);
-
     if (strcmp(registroCPU, "AX") == 0) {
         return (int) registros->AX;
     } else if (strcmp(registroCPU, "BX") == 0) {
@@ -547,12 +554,48 @@ int obtenerValorRegistros(char* registroCPU){
     return EXIT_SUCCESS;
 }
 
-void check_interrupt(){} 
+void check_interrupt(){
+    pthread_mutex_lock(&mutex_interrupcion);
+    if (interrupcion) {
+        log_trace(logger, "Se recibio una interrupcion");
+        mandar_pcb = true;
+        proceso_actual_ejecutando = false;
+        interrupcion = false;
+    }
+    pthread_mutex_unlock(&mutex_interrupcion);
+} 
 
-void enviar_pcb(e_motivo_desalojo motivo_desalojo){
+void enviar_pcb(e_motivo_desalojo motivo_desalojo, Agregar_datos_paquete agregar_datos_paquete, void* datos){
     log_trace(logger, "CPU va a enviar un PCB a Kernel");
     registros->motivo_desalojo = motivo_desalojo;
     t_paquete *paquete_de_pcb = crear_paquete();
     empaquetar_registros(paquete_de_pcb,registros);
+    agregar_datos_paquete(paquete_de_pcb,datos);
     enviar_paquete(paquete_de_pcb,socket_cliente_dispatch,logger);
+    //eliminar_paquete(paquete_de_pcb);
 }
+
+void agregar_datos_recurso(t_paquete* paquete, void* nombre_recurso){
+    //en este caso datos va a ser el nombre del recurso que voy a pedir o devolver
+
+    agregar_a_paquete(paquete,nombre_recurso,strlen(nombre_recurso)+1);
+}
+
+void agregar_datos_tiempo(t_paquete* paquete, void* datos){
+    // en este caso datos tiene dos cosas el numero de interfaz y el tiempo de trabajo
+    log_debug(logger,"Estoy en la funcion agregar_datos_tiempo");
+
+    char** datos_tiempo = (char**) datos;
+    
+    agregar_a_paquete(paquete,datos_tiempo[0],strlen(datos_tiempo[0])+1); // Agregas al paquete el nroInterfaz
+    
+    int timeClock = atoi(datos_tiempo[1]);
+    
+    agregar_a_paquete(paquete,(uint32_t)timeClock, sizeof(uint32_t)); // Agregas al paquete el tiempo
+}
+
+void no_agregar_datos(t_paquete* paquete, void* datos){
+    log_debug(logger,"Estoy en la funcion no_agregar_datos");
+}
+    
+

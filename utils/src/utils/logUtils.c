@@ -33,6 +33,11 @@ t_log *iniciar_logger(char *nombreLog, char *rutaLog, int argc, char *argv[])
             modo = string_duplicate("WARNING");
             nuevo_logger = log_create(nombreLog, rutaLog, 1, LOG_LEVEL_WARNING);
         }
+        else if (string_equals_ignore_case("-mute", argv[1]))
+        {
+            modo = string_duplicate("TRACE - MUTE");
+            nuevo_logger = log_create(nombreLog, rutaLog, 0, LOG_LEVEL_TRACE);
+        }
         else // si ingreso cualquier otra cosa lo pongo en info
         {
             modo = string_duplicate("INFO");
