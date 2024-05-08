@@ -330,7 +330,7 @@ void evaluar_NEW_a_READY()
 
 void evaluar_READY_a_EXEC() // hilar (me olvide xq xD)
 {
-    log_trace(logger, "Entre a READY a EXEC para evaluar si se puede asignar un proceso al CPU.");
+    log_trace(logger, "Voy a evaluar si puedo mover un proceso de READY a EXEC (asignar un proceso al CPU).");
     if (queue_is_empty(cola_RUNNING) && !queue_is_empty(cola_READY) && !esta_planificacion_pausada) // valido q no este nadie corriendo, ready no este vacio y la planificacion no este pausada
     {                                                                                               // tengo q hacer algo distinto segun cada algoritmo de planificacion
         uint32_t id;
@@ -391,6 +391,7 @@ void evaluar_READY_a_EXEC() // hilar (me olvide xq xD)
 
 void evaluar_NEW_a_EXIT(t_PCB *pcb)
 {
+    log_trace(logger, "Voy a mover el proceso %u de NEW a EXIT", pcb->processID);
     // libero la memoria
     liberar_memoria(pcb->processID);
     // le cambio el estado
@@ -403,8 +404,10 @@ void evaluar_NEW_a_EXIT(t_PCB *pcb)
     cant_procesos_ejecutando--;
     log_debug(logger, "Grado de multiprogramacion actual: %d", cant_procesos_ejecutando);
 }
+
 void evaluar_EXEC_a_READY()
 {
+    log_trace(logger, "Voy a evaluar si puedo mover un proceso de EXEC a READY.");
     // estas validaciones las hago por las dudas nada mas, creo q en ningun caso se puede dar esto
     if (!queue_is_empty(cola_RUNNING))
     {
@@ -415,14 +418,14 @@ void evaluar_EXEC_a_READY()
         {
             pcb->estado = E_READY_PRIORITARIO;
             queue_push(cola_READY_PRIORITARIA, pcb->processID);
+            log_trace(logger, "Se movio el proceso %d de EXEC a READY PRIORITARIO.", pcb->processID);
         }
         else
         {
             pcb->estado = E_READY;
             queue_push(cola_READY, pcb->processID);
+            log_trace(logger, "Se movio el proceso %d de EXEC a READY.", pcb->processID);
         }
-
-        log_trace(logger, "Se movio el proceso %d de EXEC a READY.", pcb->processID);
     }
     else
     {
@@ -430,8 +433,10 @@ void evaluar_EXEC_a_READY()
     }
     evaluar_READY_a_EXEC(); // planifico xq se libero la cpu
 }
+
 void evaluar_READY_a_EXIT(t_PCB *pcb)
 {
+    log_trace(logger, "Voy a mover el proceso %d de READY a EXIT.", pcb->processID);
     // libero la memoria
     liberar_memoria(pcb->processID);
     // le cambio el estado
@@ -444,8 +449,10 @@ void evaluar_READY_a_EXIT(t_PCB *pcb)
     cant_procesos_ejecutando--;
     log_debug(logger, "Grado de multiprogramacion actual: %d", cant_procesos_ejecutando);
 }
+
 void evaluar_BLOCKED_a_EXIT(t_PCB *pcb)
 {
+    log_trace(logger, "Voy a mover el proceso %d de BLOCKED a EXIT.", pcb->processID);
     // libero la memoria
     liberar_memoria(pcb->processID);
     // le cambio el estado
@@ -466,8 +473,10 @@ void evaluar_BLOCKED_a_EXIT(t_PCB *pcb)
     cant_procesos_ejecutando--;
     log_debug(logger, "Grado de multiprogramacion actual: %d", cant_procesos_ejecutando);
 }
+
 void evaluar_EXEC_a_BLOCKED(char *recurso)
 {
+    log_trace(logger, "Voy a evaluar si puedo mover un proceso de la cola EXEC a BLOCKED.");
     if (!queue_is_empty(cola_RUNNING))
     {
         t_PCB *pcb = devolver_pcb_desde_lista(lista_de_pcbs, (uint32_t)queue_pop(cola_RUNNING));
@@ -488,7 +497,7 @@ void evaluar_EXEC_a_BLOCKED(char *recurso)
 
 void evaluar_BLOCKED_a_READY(t_queue *colaRecurso)
 { // desbloqueo por fifo
-    log_trace(logger, "Entre a evaluar si puedo mover a algun proceso de BLOCKED a READY.");
+    log_trace(logger, "Voy a evaluar si puedo mover a algun proceso de la cola BLOCKED a READY.");
 
     if (queue_is_empty(colaRecurso))
     { // no hay nadie q desbloquear
@@ -497,11 +506,10 @@ void evaluar_BLOCKED_a_READY(t_queue *colaRecurso)
     }
 
     uint32_t id = queue_pop(colaRecurso);
-    log_debug(logger, "1: %u", id);
     queue_push(cola_READY, id);
-    log_debug(logger, "2");
+
     t_PCB *pcb = devolver_pcb_desde_lista(lista_de_pcbs, id);
-    log_debug(logger, "3");
+
     // hago las cosas especificas de VRR
     if (debe_ir_a_cola_prioritaria(pcb)) // se fija si estoy en vrr y si tiene q ir a prio
     {
@@ -516,10 +524,12 @@ void evaluar_BLOCKED_a_READY(t_queue *colaRecurso)
         queue_push(cola_READY, pcb->processID);
     }
 }
+
 void evaluar_EXEC_a_EXIT()
 {
-    // medio falso el nombre este xq no evaluo nada, simplemente hago todo lo necesario para terminar el proceso
     uint32_t id = (uint32_t)queue_pop(cola_RUNNING);
+
+    log_trace(logger, "Voy a mover el proceso %d de EXEC a EXIT.", id);
 
     liberar_memoria(id);
 
