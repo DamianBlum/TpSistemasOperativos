@@ -74,4 +74,6 @@ void *trigger_interrupcion_quantum(void *args);
 
 void cosas_vrr_cuando_se_desaloja_un_proceso(t_PCB *pcb);
 bool debe_ir_a_cola_prioritaria(t_PCB *pcb);
+
+void asd(t_manejo_bloqueados *tmb);
 #endif

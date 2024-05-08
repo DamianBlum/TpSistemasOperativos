@@ -485,21 +485,33 @@ void evaluar_EXEC_a_BLOCKED(char *recurso)
     }
     evaluar_READY_a_EXEC(); // planifico xq se libero la cpu
 }
+
 void evaluar_BLOCKED_a_READY(t_queue *colaRecurso)
 { // desbloqueo por fifo
+    log_trace(logger, "Entre a evaluar si puedo mover a algun proceso de BLOCKED a READY.");
+
+    if (queue_is_empty(colaRecurso))
+    { // no hay nadie q desbloquear
+        log_trace(logger, "No hay procesos bloqueados por el recurso.");
+        return;
+    }
+
     uint32_t id = queue_pop(colaRecurso);
+    log_debug(logger, "1: %u", id);
     queue_push(cola_READY, id);
-
+    log_debug(logger, "2");
     t_PCB *pcb = devolver_pcb_desde_lista(lista_de_pcbs, id);
-
+    log_debug(logger, "3");
     // hago las cosas especificas de VRR
     if (debe_ir_a_cola_prioritaria(pcb)) // se fija si estoy en vrr y si tiene q ir a prio
     {
+        log_trace(logger, "El proceso %d va a desbloquearse a la cola de READY PRIORITARIO.");
         pcb->estado = E_READY_PRIORITARIO;
         queue_push(cola_READY_PRIORITARIA, pcb->processID);
     }
     else
-    {
+    { // entra aca si estoy en FIFO y RR
+        log_trace(logger, "El proceso %d va a desbloquearse a la cola de READY.");
         pcb->estado = E_READY;
         queue_push(cola_READY, pcb->processID);
     }
@@ -535,13 +547,14 @@ void *atender_respuesta_proceso(void *arg)
     uint32_t idProcesoActual = queue_peek(cola_RUNNING); // esto es para el log del final
     log_trace(logger, "Entre a un hilo para atender la finalizacion del proceso %d.", idProcesoActual);
 
-    int op = recibir_operacion(cliente_cpu_dispatch, logger); // si, uso el cliente como socket servidor
     // aca tengo q pausar la planificacion si me metieron un DETENER_PLANIFICACION
     // await(esta_planificacion_pausada)
     t_PCB *pcb_en_running;
     bool sigo_esperando_cosas_de_cpu = true;
     while (sigo_esperando_cosas_de_cpu)
     {
+        int op = recibir_operacion(cliente_cpu_dispatch, logger); // si, uso el cliente como socket servidor
+
         if (op == PAQUETE)
         {
             t_list *lista_respuesta_cpu = list_create();
@@ -560,10 +573,9 @@ void *atender_respuesta_proceso(void *arg)
                 sigo_esperando_cosas_de_cpu = false;
                 break;
             case MOTIVO_DESALOJO_WAIT:
-                char *argWait = list_get(lista_respuesta_cpu, 14); // hacer desp esto en una funcion
+                char *argWait = list_get(lista_respuesta_cpu, 13); // hacer desp esto en una funcion
                 log_debug(logger, "Argumento del wait: %s", argWait);
-                t_paquete *respuesta_para_cpu = crear_paquete(); // esto esta haciendo un sf y no se xq
-                log_trace(logger, "aca 6");
+                t_paquete *respuesta_para_cpu = crear_paquete();
                 // hago la magia de darle los recursos
                 uint8_t resultado_asignar_recurso = asignar_recurso(argWait, pcb_en_running);
                 if (resultado_asignar_recurso == 0)
@@ -590,10 +602,9 @@ void *atender_respuesta_proceso(void *arg)
                 enviar_paquete(respuesta_para_cpu, cliente_cpu_dispatch, logger);
                 break;
             case MOTIVO_DESALOJO_SIGNAL:
-                char *argSignal = list_get(lista_respuesta_cpu, 14); // hacer desp esto en una funcion
+                char *argSignal = list_get(lista_respuesta_cpu, 13); // hacer desp esto en una funcion
                 log_debug(logger, "Argumento del signal: %s", argWait);
                 t_paquete *respuesta_para_cpu_signal = crear_paquete();
-                log_trace(logger, "aca 6");
                 // desasigno
                 uint8_t resultado_asignar_recurso_signal = desasignar_recurso(argSignal, pcb_en_running);
                 if (resultado_asignar_recurso_signal == 0)
@@ -618,6 +629,7 @@ void *atender_respuesta_proceso(void *arg)
                     // termino el ciclo
                     sigo_esperando_cosas_de_cpu = false;
                 }
+                enviar_paquete(respuesta_para_cpu_signal, cliente_cpu_dispatch, logger);
                 break;
             case MOTIVO_DESALOJO_INTERRUPCION:
                 // termino el ciclo
@@ -675,16 +687,14 @@ void obtener_valores_de_recursos()
 
 uint8_t asignar_recurso(char *recurso, t_PCB *pcb)
 {
-    log_trace(logger, "aca 1");
     t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos, recurso);
-    log_trace(logger, "aca 2");
     uint8_t r;
     if (tmb != NULL)
     { // existe, esta todo piola
-        log_trace(logger, "aca 3");
-        log_debug(logger, "Valor del recurso %s antes de modificarlo: %d", tmb->instancias_recursos);
+        // hasta aca llegue (los logs de abajo no los hace)
+        log_debug(logger, "Valor del recurso %s antes de modificarlo: %d", recurso, tmb->instancias_recursos);
         tmb->instancias_recursos -= 1;
-        log_debug(logger, "Valor del recurso %s desp de modifiarlo: %d", tmb->instancias_recursos);
+        log_debug(logger, "Valor del recurso %s desp de modifiarlo: %d", recurso, tmb->instancias_recursos);
 
         // guardo en el pcb el nombre del recurso q solicite
         list_add(pcb->recursos_asignados, recurso);
@@ -698,7 +708,6 @@ uint8_t asignar_recurso(char *recurso, t_PCB *pcb)
     { // cagaste
         r = 2;
     }
-    log_trace(logger, "aca 4");
     return r;
 }
 
@@ -714,6 +723,16 @@ bool pidio_el_recurso(t_PCB *pcb, char *recurso)
     return false;
 }
 
+void asd(t_manejo_bloqueados *tmb)
+{
+    log_debug(logger, "-----------------------------------------------------");
+
+    for (int i = 0; i < list_size(dictionary_keys(diccionario_recursos)); i++)
+        log_debug(logger, "%d- Key: %s | Valor ir: %d", i, list_get(dictionary_keys(diccionario_recursos), i), ((t_manejo_bloqueados *)dictionary_get(diccionario_recursos, list_get(dictionary_keys(diccionario_recursos), i)))->instancias_recursos);
+
+    log_debug(logger, "-----------------------------------------------------");
+}
+
 uint8_t desasignar_recurso(char *recurso, t_PCB *pcb)
 {
     t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos, recurso);
@@ -726,9 +745,9 @@ uint8_t desasignar_recurso(char *recurso, t_PCB *pcb)
         }
         else
         {
-            log_debug(logger, "Valor del recurso %s antes de modificarlo: %d", tmb->instancias_recursos);
+            log_debug(logger, "Valor del recurso %s antes de modificarlo: %d", recurso, tmb->instancias_recursos);
             tmb->instancias_recursos += 1;
-            log_debug(logger, "Valor del recurso %s desp de modifiarlo: %d", tmb->instancias_recursos);
+            log_debug(logger, "Valor del recurso %s desp de modifiarlo: %d", recurso, tmb->instancias_recursos);
 
             // saco del pcb el recurso q le di
             list_remove_element(pcb->recursos_asignados, recurso);
