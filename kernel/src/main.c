@@ -647,6 +647,9 @@ void *atender_respuesta_proceso(void *arg)
 
                 // planifico
                 evaluar_EXEC_a_READY();
+
+                // planifico
+                evaluar_EXEC_a_READY();
                 break;
             case MOTIVO_DESALOJO_IO_GEN_SLEEP:
                 break;
