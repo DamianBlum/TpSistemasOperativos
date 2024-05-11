@@ -621,16 +621,15 @@ void *atender_respuesta_proceso(void *arg)
                 { // hay instancias disponibles, voy a desbloquear a alguien y le respondo a cpu
                     evaluar_BLOCKED_a_READY((t_queue *)((t_manejo_bloqueados *)dictionary_get(diccionario_recursos, argSignal))->cola_bloqueados);
                     log_trace(logger, "Voy a enviarle al CPU que salio todo bien.");
-                    agregar_a_paquete(respuesta_para_cpu_signal, 0, sizeof(uint8_t));
                 }
                 else if (respuesta_para_cpu_signal == 1)
                 { // le digo a cpu q desaloje el proceso y lo mando a exit
                     log_error(logger, "El cpu me pidio un recurso que no existe. Lo tenemos que matar!");
-                    agregar_a_paquete(respuesta_para_cpu_signal, 1, sizeof(uint8_t));
                     evaluar_EXEC_a_EXIT();
                     // termino el ciclo
                     sigo_esperando_cosas_de_cpu = false;
                 }
+                agregar_a_paquete(respuesta_para_cpu_signal, respuesta_para_cpu_signal, sizeof(uint8_t));
                 enviar_paquete(respuesta_para_cpu_signal, cliente_cpu_dispatch, logger);
                 break;
             case MOTIVO_DESALOJO_INTERRUPCION:
