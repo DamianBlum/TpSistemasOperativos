@@ -210,7 +210,7 @@ void crear_proceso(char *path)
 
 void eliminar_proceso(uint32_t id)
 {
-    // tengo q decirle a memoria q libere lo de este proceso
+    // el llamado a liberar memoria se hace desde los evaluar_ALGO_a_ALGO
 
     t_PCB *pcb_a_finalizar = devolver_pcb_desde_lista(lista_de_pcbs, id);
     if (pcb_a_finalizar == NULL)
@@ -644,6 +644,9 @@ void *atender_respuesta_proceso(void *arg)
             case MOTIVO_DESALOJO_INTERRUPCION:
                 // termino el ciclo
                 sigo_esperando_cosas_de_cpu = false;
+
+                // planifico
+                evaluar_EXEC_a_READY();
                 break;
             case MOTIVO_DESALOJO_IO_GEN_SLEEP:
                 break;
@@ -804,7 +807,7 @@ void liberar_memoria(uint32_t id)
     t_paquete *p = crear_paquete();
     agregar_a_paquete(p, 1, sizeof(uint8_t)); // 1 es de borrar proceso
     agregar_a_paquete(p, id, sizeof(id));
-    enviar_paquete(p, cliente_memoria, logger);
+    // enviar_paquete(p, cliente_memoria, logger); todavia no esta implementado en memoria
 }
 
 bool crear_proceso_en_memoria(uint32_t id, char *path)
@@ -848,7 +851,7 @@ void *trigger_interrupcion_quantum(void *args) // escuchar audio q me mande a ws
 
     log_trace(logger, "Termino el quantum del proceso %u.", pcb->processID);
 
-    if (queue_peek(cola_RUNNING) == pcb->processID)
+    if (!queue_is_empty(cola_RUNNING) && queue_peek(cola_RUNNING) == pcb->processID) // lo primero es xq si es el unico proceso en el sistema, voy a tener un sf haciendo el peek
     {
         log_trace(logger, "Voy a mandar la interrupcion a CPU para el proceso %u.", pcb->processID);
         t_paquete *paquete_interrupcion = crear_paquete();
