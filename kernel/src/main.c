@@ -613,7 +613,7 @@ void *atender_respuesta_proceso(void *arg)
                 break;
             case MOTIVO_DESALOJO_SIGNAL:
                 char *argSignal = list_get(lista_respuesta_cpu, 13); // hacer desp esto en una funcion
-                log_debug(logger, "Argumento del signal: %s", argWait);
+                log_debug(logger, "Argumento del signal: %s", argSignal);
                 t_paquete *respuesta_para_cpu_signal = crear_paquete();
                 // desasigno
                 uint8_t resultado_asignar_recurso_signal = desasignar_recurso(argSignal, pcb_en_running);
@@ -623,15 +623,7 @@ void *atender_respuesta_proceso(void *arg)
                     log_trace(logger, "Voy a enviarle al CPU que salio todo bien.");
                     agregar_a_paquete(respuesta_para_cpu_signal, 0, sizeof(uint8_t));
                 }
-                else if (resultado_asignar_recurso_signal == 1)
-                { // me pidio que haga signal de un recurso que no era suyo, por lo tanto lo mato
-                    log_error(logger, "El cpu me pidio que libere un recurso que nunca fue pedido. Lo tenemos que matar!");
-                    agregar_a_paquete(respuesta_para_cpu_signal, 1, sizeof(uint8_t));
-                    evaluar_EXEC_a_EXIT();
-                    // termino el ciclo
-                    sigo_esperando_cosas_de_cpu = false;
-                }
-                else if (respuesta_para_cpu_signal == 2)
+                else if (respuesta_para_cpu_signal == 1)
                 { // le digo a cpu q desaloje el proceso y lo mando a exit
                     log_error(logger, "El cpu me pidio un recurso que no existe. Lo tenemos que matar!");
                     agregar_a_paquete(respuesta_para_cpu_signal, 1, sizeof(uint8_t));
@@ -709,9 +701,6 @@ uint8_t asignar_recurso(char *recurso, t_PCB *pcb)
         tmb->instancias_recursos -= 1;
         log_debug(logger, "Valor del recurso %s desp de modifiarlo: %d", recurso, tmb->instancias_recursos);
 
-        // guardo en el pcb el nombre del recurso q solicite
-        list_add(pcb->recursos_asignados, recurso);
-
         if (tmb->instancias_recursos < 0)
             r = 1; // hay q bloquear el proceso
         else
@@ -722,18 +711,6 @@ uint8_t asignar_recurso(char *recurso, t_PCB *pcb)
         r = 2;
     }
     return r;
-}
-
-bool pidio_el_recurso(t_PCB *pcb, char *recurso)
-{
-    t_list *l = pcb->recursos_asignados;
-
-    for (uint32_t i = 0; i < list_size(l); i++)
-    {
-        if (string_equals_ignore_case(recurso, list_get(l, i)))
-            return true;
-    }
-    return false;
 }
 
 void asd(t_manejo_bloqueados *tmb)
@@ -751,37 +728,17 @@ uint8_t desasignar_recurso(char *recurso, t_PCB *pcb)
     t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos, recurso);
     uint8_t r;
     if (tmb != NULL)
-    {                                        // existe, esta todo piola
-        if (!pidio_el_recurso(pcb, recurso)) // tengo q fijarme si el recurso fue pedido por el proceso anteriormente
-        {
-            r = 1;
-        }
-        else
-        {
-            log_debug(logger, "Valor del recurso %s antes de modificarlo: %d", recurso, tmb->instancias_recursos);
-            tmb->instancias_recursos += 1;
-            log_debug(logger, "Valor del recurso %s desp de modifiarlo: %d", recurso, tmb->instancias_recursos);
-
-            // saco del pcb el recurso q le di
-            list_remove_element(pcb->recursos_asignados, recurso);
-
-            r = 0;
-        }
+    {
+        log_debug(logger, "Valor del recurso %s antes de modificarlo: %d", recurso, tmb->instancias_recursos);
+        tmb->instancias_recursos += 1;
+        log_debug(logger, "Valor del recurso %s desp de modifiarlo: %d", recurso, tmb->instancias_recursos);
+        r = 0;
     }
     else
     { // cagaste
-        r = 2;
+        r = 1;
     }
     return r;
-}
-
-void liberar_recursos(t_PCB *pcb)
-{
-    t_list *lr = pcb->recursos_asignados;
-    while (!list_is_empty(lr))
-    {
-        desasignar_recurso(list_get(lr, 0), pcb);
-    }
 }
 
 t_manejo_bloqueados *crear_manejo_bloqueados()
