@@ -17,7 +17,7 @@ int quantum;
 int grado_multiprogramacion;  // este es el definido por parametro de config
 int cant_procesos_ejecutando; // y este es un contador de procesos en el sistema, se modifica en el planificador de largo plazo
 e_algoritmo_planificacion algoritmo_planificacion;
-bool esta_planificacion_pausada = false;
+bool esta_planificacion_pausada = true;
 // lista de pcbs
 t_list *lista_de_pcbs;
 // diccionario de recursos
@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
         {
             log_debug(logger, "Entraste a INICIAR_PROCESO, path: %s.", comandoSpliteado[1]);
             crear_proceso(comandoSpliteado[1]);
-            evaluar_NEW_a_READY();
+            // evaluar_NEW_a_READY(); creeeeeeo q esto no deberia estar aca
         }
         else if (string_equals_ignore_case("PROCESO_ESTADO", comandoSpliteado[0]) || string_equals_ignore_case("PE", comandoSpliteado[0]))
         {
@@ -94,6 +94,7 @@ int main(int argc, char *argv[])
         {
             log_debug(logger, "Entraste a INICIAR_PLAFICACION.");
             esta_planificacion_pausada = false;
+            evaluar_NEW_a_READY();
             evaluar_READY_a_EXEC(); // este esta para cuando recien se arranco el programa y cuando se despausa la planificacion
         }
         else if (string_equals_ignore_case("DETENER_PLANIFICACION", comandoSpliteado[0]) || string_equals_ignore_case("DP", comandoSpliteado[0]))
