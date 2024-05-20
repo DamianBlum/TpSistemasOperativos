@@ -51,10 +51,9 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
 
     // CREACION HILO SERVIDOR I/O
-    /*
-        pthread_create(&hilo_servidor_io, NULL, atender_servidor_io, NULL);
-        pthread_join(hilo_servidor_io, NULL);
-    */
+    // pthread_create(&hilo_servidor_io, NULL, atender_servidor_io, NULL);
+    // pthread_join(hilo_servidor_io, NULL); esto no hace falta
+
     // PARTE CONSOLA INTERACTIVA
     int seguir = 1;
     while (seguir)
@@ -487,7 +486,7 @@ void evaluar_EXEC_a_BLOCKED(char *recurso)
         t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos, recurso); // no valido q el recurso exista xq ya lo valide antes
         queue_push(tmb->cola_bloqueados, pcb->processID);
 
-        log_trace(logger, "Se movio el proceso %d de EXEC a READY.", pcb->processID);
+        log_trace(logger, "Se movio el proceso %d de EXEC a BLOCKED.", pcb->processID);
     }
     else
     {
@@ -556,7 +555,7 @@ void *atender_respuesta_proceso(void *arg)
 {
 
     uint32_t idProcesoActual = queue_peek(cola_RUNNING); // esto es para el log del final
-    log_trace(logger, "Entre a un hilo para atender la finalizacion del proceso %d.", idProcesoActual);
+    log_trace(logger, "Entre a un hilo para esperar la finalizacion del proceso %d.", idProcesoActual);
 
     // aca tengo q pausar la planificacion si me metieron un DETENER_PLANIFICACION
     // await(esta_planificacion_pausada)
@@ -593,11 +592,13 @@ void *atender_respuesta_proceso(void *arg)
                 { // 0: te di la instancia
                     log_trace(logger, "Voy a enviarle al CPU que tiene la instancia.");
                     agregar_a_paquete(respuesta_para_cpu, 0, sizeof(uint8_t));
+                    enviar_paquete(respuesta_para_cpu, cliente_cpu_dispatch, logger);
                 }
                 else if (resultado_asignar_recurso == 1)
                 { // 1: no te la di (te bloqueo)
                     log_trace(logger, "Voy a enviarle al CPU que no tiene la instancia, asi q sera bloqueado.");
                     agregar_a_paquete(respuesta_para_cpu, 1, sizeof(uint8_t));
+                    enviar_paquete(respuesta_para_cpu, cliente_cpu_dispatch, logger);
                     evaluar_EXEC_a_BLOCKED(argWait);
                     // termino el ciclo
                     sigo_esperando_cosas_de_cpu = false;
@@ -606,11 +607,11 @@ void *atender_respuesta_proceso(void *arg)
                 { // 2: mato al proceso xq pidio algo nada q ver
                     log_error(logger, "El cpu me pidio un recurso que no existe. Lo tenemos que matar!");
                     agregar_a_paquete(respuesta_para_cpu, 1, sizeof(uint8_t)); // le mando un 1 xq para cpu es lo mismo matar el proceso que bloquearlo
+                    enviar_paquete(respuesta_para_cpu, cliente_cpu_dispatch, logger);
                     evaluar_EXEC_a_EXIT();
                     // termino el ciclo
                     sigo_esperando_cosas_de_cpu = false;
                 }
-                enviar_paquete(respuesta_para_cpu, cliente_cpu_dispatch, logger);
                 break;
             case MOTIVO_DESALOJO_SIGNAL:
                 char *argSignal = list_get(lista_respuesta_cpu, 13); // hacer desp esto en una funcion
@@ -711,16 +712,6 @@ uint8_t asignar_recurso(char *recurso, t_PCB *pcb)
         r = 2;
     }
     return r;
-}
-
-void asd(t_manejo_bloqueados *tmb)
-{
-    log_debug(logger, "-----------------------------------------------------");
-
-    for (int i = 0; i < list_size(dictionary_keys(diccionario_recursos)); i++)
-        log_debug(logger, "%d- Key: %s | Valor ir: %d", i, list_get(dictionary_keys(diccionario_recursos), i), ((t_manejo_bloqueados *)dictionary_get(diccionario_recursos, list_get(dictionary_keys(diccionario_recursos), i)))->instancias_recursos);
-
-    log_debug(logger, "-----------------------------------------------------");
 }
 
 uint8_t desasignar_recurso(char *recurso, t_PCB *pcb)
