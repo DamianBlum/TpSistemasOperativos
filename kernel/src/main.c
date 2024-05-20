@@ -513,13 +513,13 @@ void evaluar_BLOCKED_a_READY(t_queue *colaRecurso)
     // hago las cosas especificas de VRR
     if (debe_ir_a_cola_prioritaria(pcb)) // se fija si estoy en vrr y si tiene q ir a prio
     {
-        log_trace(logger, "El proceso %d va a desbloquearse a la cola de READY PRIORITARIO.");
+        log_trace(logger, "El proceso %d va a desbloquearse a la cola de READY PRIORITARIO.", pcb->processID);
         pcb->estado = E_READY_PRIORITARIO;
         queue_push(cola_READY_PRIORITARIA, pcb->processID);
     }
     else
     { // entra aca si estoy en FIFO y RR
-        log_trace(logger, "El proceso %d va a desbloquearse a la cola de READY.");
+        log_trace(logger, "El proceso %d va a desbloquearse a la cola de READY.", pcb->processID);
         pcb->estado = E_READY;
         queue_push(cola_READY, pcb->processID);
     }
@@ -621,18 +621,20 @@ void *atender_respuesta_proceso(void *arg)
                 uint8_t resultado_asignar_recurso_signal = desasignar_recurso(argSignal, pcb_en_running);
                 if (resultado_asignar_recurso_signal == 0)
                 { // hay instancias disponibles, voy a desbloquear a alguien y le respondo a cpu
+                    agregar_a_paquete(respuesta_para_cpu_signal, respuesta_para_cpu_signal, sizeof(uint8_t));
+                    enviar_paquete(respuesta_para_cpu_signal, cliente_cpu_dispatch, logger);
                     evaluar_BLOCKED_a_READY((t_queue *)((t_manejo_bloqueados *)dictionary_get(diccionario_recursos, argSignal))->cola_bloqueados);
                     log_trace(logger, "Voy a enviarle al CPU que salio todo bien.");
                 }
                 else if (respuesta_para_cpu_signal == 1)
                 { // le digo a cpu q desaloje el proceso y lo mando a exit
                     log_error(logger, "El cpu me pidio un recurso que no existe. Lo tenemos que matar!");
+                    agregar_a_paquete(respuesta_para_cpu_signal, respuesta_para_cpu_signal, sizeof(uint8_t));
+                    enviar_paquete(respuesta_para_cpu_signal, cliente_cpu_dispatch, logger);
                     evaluar_EXEC_a_EXIT();
                     // termino el ciclo
                     sigo_esperando_cosas_de_cpu = false;
                 }
-                agregar_a_paquete(respuesta_para_cpu_signal, respuesta_para_cpu_signal, sizeof(uint8_t));
-                enviar_paquete(respuesta_para_cpu_signal, cliente_cpu_dispatch, logger);
                 break;
             case MOTIVO_DESALOJO_INTERRUPCION:
                 // termino el ciclo
