@@ -20,6 +20,8 @@ e_algoritmo_planificacion algoritmo_planificacion;
 bool esta_planificacion_pausada = true;
 // lista de pcbs
 t_list *lista_de_pcbs;
+// lista de i/os
+t_list *lista_de_entradas_salidas;
 // diccionario de recursos
 t_dictionary *diccionario_recursos;
 // Queues de estados
@@ -42,17 +44,18 @@ int main(int argc, char *argv[])
     grado_multiprogramacion = config_get_int_value(config, "GRADO_MULTIPROGRAMACION");
     algoritmo_planificacion = obtener_algoritmo_planificacion(config_get_string_value(config, "ALGORITMO_PLANIFICACION"));
     lista_de_pcbs = list_create();
+    lista_de_entradas_salidas = list_create();
     instanciar_colas();
     obtener_valores_de_recursos();
     obtener_valores_de_recursos();
-
-    // PARTE CLIENTE
-    if (generar_clientes()) // error al crear los clientes de cpu
-        return EXIT_FAILURE;
+    /*
+        // PARTE CLIENTE
+        if (generar_clientes()) // error al crear los clientes de cpu
+            return EXIT_FAILURE;*/
 
     // CREACION HILO SERVIDOR I/O
-    // pthread_create(&hilo_servidor_io, NULL, atender_servidor_io, NULL);
-    // pthread_join(hilo_servidor_io, NULL); esto no hace falta
+    pthread_create(&hilo_servidor_io, NULL, atender_servidor_io, NULL);
+    pthread_join(hilo_servidor_io, NULL); // esto no hace falta
 
     // PARTE CONSOLA INTERACTIVA
     int seguir = 1;
@@ -144,42 +147,55 @@ int generar_clientes()
 
 void *atender_servidor_io(void *arg)
 {
-    // PARTE SERVIDOR
+    // Este servidor solamente se encarga de conectar los clientes de io y crear los hilos que los van a atender
     socket_servidor = iniciar_servidor(config, "PUERTO_ESCUCHA");
 
     log_info(logger, "Servidor %d creado.", socket_servidor);
 
-    socket_cliente_io = esperar_cliente(socket_servidor, logger); // hilarlo
-
-    int sigo_funcionando = 1;
-    while (sigo_funcionando)
+    while (true)
     {
-        int operacion = recibir_operacion(socket_cliente_io, logger);
+        socket_cliente_io = esperar_cliente(socket_servidor, logger);
 
-        switch (operacion) // MENSAJE y PAQUETE son del enum op_code de sockets.h
-        {
-        case MENSAJE:
-            char *mensaje = recibir_mensaje(socket_cliente_io, logger);
-            log_info(logger, "Recibi el mensaje: %s.", mensaje);
-            // hago algo con el mensaje
-            break;
-        case PAQUETE:
-            t_list *lista = list_create();
-            lista = recibir_paquete(socket_cliente_io, logger);
-            log_info(logger, "Recibi un paquete.");
-            // hago algo con el paquete
-            break;
-        case EXIT: // indica desconeccion
-            log_error(logger, "Se desconecto el cliente %d.", socket_cliente_io);
-            sigo_funcionando = 0;
-            break;
-        default: // recibi algo q no es eso, vamos a suponer q es para terminar
-            log_error(logger, "Recibi una operacion rara (%d), termino el servidor.", operacion);
-            destruir_logger(logger);
-            destruir_config(config);
-            return EXIT_FAILURE;
-        }
+        pthread_t hilo_atender_cliente_io;
+        pthread_create(&hilo_atender_cliente_io, NULL, atender_cliente_io, socket_cliente_io);
     }
+}
+
+void *atender_cliente_io(void *arg)
+{
+    int cliente_io = (int)arg;
+    log_trace(logger, "Entre al hilo para atender al cliente de I/O %d", cliente_io);
+
+    // espero el mensaje de IO donde me trae el nombre de su interfaz
+    recibir_operacion(cliente_io, logger);
+    t_list *datosInterfaz = recibir_paquete(cliente_io, logger); // esto me trae el nombre de la interfaz y su tipo (por ahora)
+    char *nombreInterfaz = list_get(datosInterfaz, 0);
+    e_tipo_interfaz tipoInterfaz = list_get(datosInterfaz, 1);
+
+    // valido que el nombre ya no este ingresado por otra interfaz
+    t_paquete *resp = crear_paquete();
+    if (ya_existe_la_interfaz(nombreInterfaz))
+    {
+        log_error(logger, "Servidor %d: La interfaz solicitada ya habia sido creada, voy a avisarle al cliente y finalizar este hilo.", cliente_io);
+        agregar_a_paquete(resp, 1, sizeof(uint8_t)); // no se pudo crear
+        enviar_paquete(resp, cliente_io, logger);
+        return EXIT_FAILURE;
+    }
+    list_add(lista_de_entradas_salidas, nombreInterfaz);
+    agregar_a_paquete(resp, 0, sizeof(uint8_t)); // interfaz creada en kernel con exito
+    enviar_paquete(resp, cliente_io, logger);
+
+    //
+}
+
+bool ya_existe_la_interfaz(char *ni)
+{
+    for (uint8_t i = 0; i < list_size(lista_de_entradas_salidas); i++)
+    {
+        if (string_equals_ignore_case(ni, (char *)list_get(lista_de_entradas_salidas, i)))
+            return true;
+    }
+    return false;
 }
 
 // planificacion de largo plazo
