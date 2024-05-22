@@ -8,6 +8,7 @@
 #include <commons/string.h>
 #include <utils/sockets.h>
 #include <pthread.h>
+#include <dirent.h>
 
 typedef enum
 {
@@ -32,7 +33,6 @@ typedef struct
 } t_interfaz;
 
 int main(int argc, char *argv[]);
-
 void hacer_io_stdin_read(t_list* lista);
 void hacer_io_stdout_write(t_list* lista);
 void hacer_io_sleep(t_list* lista);
@@ -41,6 +41,6 @@ void hacer_io_fs_create(t_list* lista);
 void hacer_io_fs_delete(t_list* lista);
 void hacer_io_fs_truncate(t_list* lista);
 void hacer_io_fs_write(t_list* lista);
-
 void manejo_de_interfaz(void* args);
+e_tipo_interfaz convertir_tipo_interfaz_enum(char* tipo_interfaz);
 #endif

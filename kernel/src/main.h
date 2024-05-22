@@ -13,6 +13,7 @@
 #include <readline/readline.h>
 #include <commons/temporal.h>
 #include <math.h> // lo uso para redondear los tiempos de ejecucion
+#include <utils/interfazUtils.h>
 
 typedef struct
 {
@@ -30,7 +31,9 @@ typedef enum
 int main(int argc, char *argv[]);
 int generar_clientes();
 void *atender_servidor_io(void *arg);
+void *atender_cliente_io(void *arg);
 void *atender_respuesta_proceso(void *arg);
+bool ya_existe_la_interfaz(char *ni);
 void mostrar_menu();
 e_algoritmo_planificacion obtener_algoritmo_planificacion(char *algo);
 void instanciar_colas();

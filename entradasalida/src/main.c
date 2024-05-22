@@ -11,12 +11,29 @@ int cliente_memoria;
 
 int main(int argc, char *argv[])
 {
+    // Hacer un while que segun la cantidad de archivos de configuracion que haya, va a crear una interfaz por cada uno de ellos
+    // Listar todo los archivos configs en la ruta actual
     logger = iniciar_logger("e-s.log", "ENTRADA-SALIDA", argc, argv);
+    DIR *d;
+    struct dirent *directorio;
+    d = opendir("./configs");
+    if (d == NULL)
+    {
+        log_error(logger, "No se pudo abrir el directorio.");
+        return EXIT_FAILURE;
+    }
 
-    t_interfaz* interfaz_generica = crear_nueva_interfaz("generico", "e-s.config");
-    pthread_t hilo_para_atender_interfaz;
-    pthread_create(&hilo_para_atender_interfaz, NULL, manejo_de_interfaz, interfaz_generica);
-    
+    while (directorio = readdir(d))
+    {
+        if (string_ends_with(directorio->d_name, ".config"))
+        {
+            t_interfaz* interfaz_generica = crear_nueva_interfaz(directorio->d_name, directorio->d_name);
+            pthread_t hilo_para_atender_interfaz;
+            pthread_create(&hilo_para_atender_interfaz, NULL, manejo_de_interfaz, interfaz_generica);
+        }
+    }
+    closedir(d);
+    //para liberar las conexiones
 
     // hacer lo que toque hacer
     
@@ -24,7 +41,7 @@ int main(int argc, char *argv[])
     liberar_conexion(interfaz_generica->conexion_kernel, logger);
     liberar_conexion(interfaz_generica->conexion_memoria, logger);
     destruir_config(config);
-    destruir_logger(logger);
+    destruir_logger(logger);*/
 
     return EXIT_SUCCESS;
 }
@@ -54,6 +71,13 @@ t_interfaz* crear_nueva_interfaz(char* nombre_interfaz, char* nombre_archivo_con
     interfaz->conexion_memoria = crear_conexion(config, "IP_MEMORIA", "PUERTO_MEMORIA",logger);
 
     enviar_mensaje(nombre_interfaz, interfaz->conexion_kernel, logger);
+    t_list* paquete=recibir_paquete(interfaz->conexion_kernel, logger);
+    int resultado = (int)list_get(paquete, 0);
+    if(resultado == 1)
+    {
+        log_error(logger, "No fue posible crear la interfaz.");
+        return NULL;
+    }
     destruir_config(config);
     return interfaz;
 }
@@ -136,12 +160,40 @@ int ejecutar_instruccion(char* nombre_instruccion, e_tipo_interfaz tipo_interfaz
     return ejecuto_correctamente;
 }
 
+void hacer_io_stdin_read(t_list* lista)
+{
+}
+
+void hacer_io_stdout_write(t_list* lista)
+{
+}
+
 void hacer_io_sleep(t_list* lista)
 {
     sleep((uint32_t)list_get(lista, 1));
 }
 
-void manejo_de_interfaz(void* args)
+void hacer_io_fs_read(t_list *lista)
+{
+}
+
+void hacer_io_fs_create(t_list *lista)
+{
+}
+
+void hacer_io_fs_delete(t_list *lista)
+{
+}
+
+void hacer_io_fs_truncate(t_list *lista)
+{
+}
+
+void hacer_io_fs_write(t_list *lista)
+{
+}
+
+void manejo_de_interfaz(void *args)
 {
     t_interfaz* interfaz = (t_interfaz*)args;
 

@@ -20,7 +20,6 @@ t_PCB *crear_pcb(int *contadorProcesos, int quantum)
     pcb->EDX = 0;
     pcb->SI = 0;
     pcb->DI = 0;
-    pcb->recursos_asignados = list_create();
     // pcb->temporal = temporal_create(); el create lo hago en el ready_a_exec ya q arranca el cronometro, desp lo destruyo en el exec_a_algo
     return pcb;
 }
@@ -82,7 +81,7 @@ void desempaquetar_pcb_a_registros(t_list *paquetes, t_registros *regs, t_log *l
 
 void actualizar_pcb(t_list *paquetes, t_PCB *pcb, t_log *logger)
 {
-    log_debug(logger, "\nContenido del pcb antes de actualizarlo:\n|Process id: %d|\n|Program counter: %d|\n|Quantum: %d|\n|Estado: %d|\n|AX: %d|\n|BX: %d|\n|CX: %d|\n|DX: %d|\n|EAX=%d|\n|EBX=%d|\n|ECX=%d|\n|EDX=%d|\n|SI=%d|\n|DI=%d", pcb->processID, pcb->programCounter, pcb->quantum, (int)pcb->estado, pcb->AX, pcb->BX, pcb->CX, pcb->DX, pcb->EAX, pcb->EBX, pcb->ECX, pcb->EDX, pcb->SI, pcb->DI);
+    log_debug(logger, "\nContenido del pcb antes de actualizarlo:\n|Process id: %d| Program counter: %d| Quantum: %d| Estado: %d| AX: %d| BX: %d| CX: %d| DX: %d| EAX=%d| EBX=%d| ECX=%d| EDX=%d| SI=%d| DI=%d|", pcb->processID, pcb->programCounter, pcb->quantum, (int)pcb->estado, pcb->AX, pcb->BX, pcb->CX, pcb->DX, pcb->EAX, pcb->EBX, pcb->ECX, pcb->EDX, pcb->SI, pcb->DI);
 
     pcb->programCounter = (uint32_t)list_get(paquetes, 1);
     pcb->AX = (uint8_t)list_get(paquetes, 2);
@@ -96,7 +95,7 @@ void actualizar_pcb(t_list *paquetes, t_PCB *pcb, t_log *logger)
     pcb->SI = (uint32_t)list_get(paquetes, 10);
     pcb->DI = (uint32_t)list_get(paquetes, 11);
 
-    log_debug(logger, "\nContenido del pcb despues de actualizarlo:\n|Process id: %d|\n|Program counter: %d|\n|Quantum: %d|\n|Estado: %d|\n|AX: %d|\n|BX: %d|\n|CX: %d|\n|DX: %d|\n|EAX=%d|\n|EBX=%d|\n|ECX=%d|\n|EDX=%d|\n|SI=%d|\n|DI=%d", pcb->processID, pcb->programCounter, pcb->quantum, (int)pcb->estado, pcb->AX, pcb->BX, pcb->CX, pcb->DX, pcb->EAX, pcb->EBX, pcb->ECX, pcb->EDX, pcb->SI, pcb->DI);
+    log_debug(logger, "\nContenido del pcb despues de actualizarlo:\n|Process id: %d| Program counter: %d| Quantum: %d| Estado: %d| AX: %d| BX: %d| CX: %d| DX: %d| EAX=%d| EBX=%d| ECX=%d| EDX=%d| SI=%d| DI=%d|", pcb->processID, pcb->programCounter, pcb->quantum, (int)pcb->estado, pcb->AX, pcb->BX, pcb->CX, pcb->DX, pcb->EAX, pcb->EBX, pcb->ECX, pcb->EDX, pcb->SI, pcb->DI);
 }
 
 t_PCB *devolver_pcb_desde_lista(t_list *lista, uint32_t id)
