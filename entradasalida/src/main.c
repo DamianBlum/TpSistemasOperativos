@@ -9,11 +9,15 @@ int cliente_kernel;
 // Conexion con memoria
 int cliente_memoria;
 
+// hilos
+t_list *lista_de_hilos;
+
 int main(int argc, char *argv[])
-{
+{   
     // Hacer un while que segun la cantidad de archivos de configuracion que haya, va a crear una interfaz por cada uno de ellos
     // Listar todo los archivos configs en la ruta actual
     logger = iniciar_logger("e-s.log", "ENTRADA-SALIDA", argc, argv);
+    lista_de_hilos =list_create();
     DIR *d;
     struct dirent *directorio;
     d = opendir("./configs");
@@ -22,39 +26,33 @@ int main(int argc, char *argv[])
         log_error(logger, "No se pudo abrir el directorio.");
         return EXIT_FAILURE;
     }
-
+    int i=0;
     while (directorio = readdir(d))
     {
         if (string_ends_with(directorio->d_name, ".config"))
         {
-            t_interfaz* interfaz_generica = crear_nueva_interfaz(directorio->d_name, directorio->d_name);
+            
+            t_interfaz* interfaz_generica = crear_nueva_interfaz("Interfaz_%d",i, directorio->d_name);
             pthread_t hilo_para_atender_interfaz;
             pthread_create(&hilo_para_atender_interfaz, NULL, manejo_de_interfaz, interfaz_generica);
+            list_add(lista_de_hilos, hilo_para_atender_interfaz);
+            i++;
         }
     }
     closedir(d);
-    //para liberar las conexiones
 
-    // hacer lo que toque hacer
-    
+    while ( !list_is_empty(lista_de_hilos) )
+    {
+        pthread_t hilo = list_remove(lista_de_hilos, 0);
+        pthread_join(hilo, NULL);
+    }
 
-    liberar_conexion(interfaz_generica->conexion_kernel, logger);
-    liberar_conexion(interfaz_generica->conexion_memoria, logger);
     destruir_config(config);
-    destruir_logger(logger);*/
+    destruir_logger(logger);
 
     return EXIT_SUCCESS;
 }
 
-int crear_conexiones_de_entrada_salida()
-{
-    cliente_kernel = crear_conexion(config, "IP_KERNEL", "PUERTO_KERNEL", logger);
-    cliente_memoria = crear_conexion(config, "IP_MEMORIA", "PUERTO_MEMORIA", logger);
-
-    if (cliente_kernel == -1 || cliente_memoria == -1)
-        return 0;
-    return 1;
-}
 
 t_interfaz* crear_nueva_interfaz(char* nombre_interfaz, char* nombre_archivo_config)
 {
@@ -78,6 +76,7 @@ t_interfaz* crear_nueva_interfaz(char* nombre_interfaz, char* nombre_archivo_con
         log_error(logger, "No fue posible crear la interfaz.");
         return NULL;
     }
+    log_debug(logger, "Interfaz creada correctamente de tipo %s.", config_get_string_value(config,"TIPO_INTERFAZ"));
     destruir_config(config);
     return interfaz;
 }
@@ -226,6 +225,8 @@ void manejo_de_interfaz(void *args)
                 return EXIT_FAILURE;
                 break;
         }
+        liberar_conexion(interfaz->conexion_kernel, logger);
+        liberar_conexion(interfaz->conexion_memoria, logger);
     }
     return EXIT_SUCCESS;
 
