@@ -168,9 +168,7 @@ void *atender_cliente_io(void *arg)
 
     // espero el mensaje de IO donde me trae el nombre de su interfaz
     recibir_operacion(cliente_io, logger);
-    t_list *datosInterfaz = recibir_paquete(cliente_io, logger); // esto me trae el nombre de la interfaz y su tipo (por ahora)
-    char *nombreInterfaz = list_get(datosInterfaz, 0);
-    e_tipo_interfaz tipoInterfaz = list_get(datosInterfaz, 1);
+    char *nombreInterfaz = recibir_mensaje(cliente_io, logger);
 
     // valido que el nombre ya no este ingresado por otra interfaz
     t_paquete *resp = crear_paquete();

@@ -8,3 +8,5 @@ typedef enum
     STDOUT,
     DIALFS,
 } e_tipo_interfaz;
+
+#endif
