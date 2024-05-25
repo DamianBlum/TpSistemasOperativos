@@ -121,7 +121,6 @@ void *servidor_dispatch(void *arg)
             execute();
             check_interrupt();
             registros->PC++;
-            sleep(1);
         }
 
         if (mandar_pcb)
