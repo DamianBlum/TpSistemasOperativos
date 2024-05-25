@@ -50,16 +50,16 @@ int main(int argc, char *argv[])
     obtener_valores_de_recursos();
 
     // PARTE CLIENTE
-    /*if (generar_clientes()) // error al crear los clientes de cpu
+    if (generar_clientes()) // error al crear los clientes de cpu
         return EXIT_FAILURE;
-    */
+
     // CREACION HILO SERVIDOR I/O
-    
-        pthread_create(&hilo_servidor_io, NULL, atender_servidor_io, NULL);
-        pthread_join(hilo_servidor_io, NULL);
-    
+
+    pthread_create(&hilo_servidor_io, NULL, atender_servidor_io, NULL);
+    pthread_join(hilo_servidor_io, NULL);
+
     // PARTE CONSOLA INTERACTIVA
-    /*int seguir = 1;
+    int seguir = 1;
     while (seguir)
     {
         mostrar_menu();
@@ -131,7 +131,7 @@ int main(int argc, char *argv[])
     liberar_conexion(cliente_memoria, logger);
     destruir_logger(logger);
     destruir_config(config);
-*/
+
     return EXIT_SUCCESS;
 }
 
