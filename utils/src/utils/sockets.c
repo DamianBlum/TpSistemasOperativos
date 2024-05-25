@@ -11,13 +11,13 @@ void *serializar_paquete(t_paquete *paquete, int bytes, t_log *logger)
 
 	memcpy(magic + desplazamiento, &(paquete->codigo_operacion), sizeof(int));
 	desplazamiento += sizeof(int);
-	log_debug(logger, "DESPLAZAMIENTO 1: %d", desplazamiento);
+	// log_debug(logger, "DESPLAZAMIENTO 1: %d", desplazamiento);
 	memcpy(magic + desplazamiento, &(paquete->buffer->size), sizeof(int));
 	desplazamiento += sizeof(int);
-	log_debug(logger, "DESPLAZAMIENTO 2: %d", desplazamiento);
+	// log_debug(logger, "DESPLAZAMIENTO 2: %d", desplazamiento);
 	memcpy(magic + desplazamiento, paquete->buffer->stream, paquete->buffer->size);
 	desplazamiento += paquete->buffer->size;
-	log_debug(logger, "DESPLAZAMIENTO FINAL: %d", desplazamiento);
+	// log_debug(logger, "DESPLAZAMIENTO FINAL: %d", desplazamiento);
 	return magic;
 }
 
@@ -78,11 +78,11 @@ void enviar_mensaje(char *mensaje, int socket_cliente, t_log *logger)
 	memcpy(paquete->buffer->stream, mensaje, paquete->buffer->size);
 
 	int bytes = paquete->buffer->size + 2 * sizeof(int);
-	log_debug(logger, "Size del mensaje a enviar: %d.", bytes);
+	// log_debug(logger, "Size del mensaje a enviar: %d.", bytes);
 	void *a_enviar = serializar_paquete(paquete, bytes, logger);
 
 	int c = send(socket_cliente, a_enviar, bytes, 0);
-	log_debug(logger, "Bytes enviados en el mensaje: %d.", c);
+	// log_debug(logger, "Bytes enviados en el mensaje: %d.", c);
 	free(a_enviar);
 	eliminar_paquete(paquete);
 }
@@ -115,13 +115,13 @@ void agregar_a_paquete(t_paquete *paquete, void *valor, int tamanio)
 
 void enviar_paquete(t_paquete *paquete, int socket_cliente, t_log *logger)
 {
-	log_debug(logger, "Se va a enviar un paquete por el socket %d", socket_cliente);
+	// log_debug(logger, "Se va a enviar un paquete por el socket %d", socket_cliente);
 	int bytes = paquete->buffer->size + 2 * sizeof(int);
 	void *a_enviar = serializar_paquete(paquete, bytes, logger);
-	log_debug(logger, "Buffer antes de enviar: %d", paquete->buffer->size);
-	log_debug(logger, "Bytes antes de enviar: %d", bytes);
+	// log_debug(logger, "Buffer antes de enviar: %d", paquete->buffer->size);
+	// log_debug(logger, "Bytes antes de enviar: %d", bytes);
 	int c = send(socket_cliente, a_enviar, bytes, 0);
-	log_debug(logger, "Bytes enviados: %d", c);
+	// log_debug(logger, "Bytes enviados: %d", c);
 	free(a_enviar);
 	eliminar_paquete(paquete);
 }
@@ -259,17 +259,17 @@ t_list *recibir_paquete(int socket_cliente, t_log *logger)
 	t_list *valores = list_create();
 
 	buffer = recibir_buffer(&size, socket_cliente);
-	// log_debug(logger, "Buffer obtenido: %s.", (char *)buffer);
+	// log_debug(logger, "Size del paquete: %d", size);
 	while (desplazamiento < size)
 	{
 		memcpy(&tamanio, buffer + desplazamiento, sizeof(int));
-		log_debug(logger, "Tamanio obtenido: %d.", tamanio);
+		// log_debug(logger, "Tamanio obtenido: %d.", tamanio);
 		desplazamiento += sizeof(int);
 		if (tamanio == sizeof(uint32_t))
 		{
 			uint32_t valor;
 			memcpy(&valor, buffer + desplazamiento, tamanio);
-			log_debug(logger, "Valor uint32 obtenido: %d.", (int)valor);
+			// log_debug(logger, "Valor uint32 obtenido: %d.", (int)valor);
 			desplazamiento += tamanio;
 			list_add(valores, valor);
 		}
@@ -277,7 +277,7 @@ t_list *recibir_paquete(int socket_cliente, t_log *logger)
 		{
 			uint8_t valor;
 			memcpy(&valor, buffer + desplazamiento, tamanio);
-			log_debug(logger, "Valor uint8 obtenido: %d.", (int)valor);
+			// log_debug(logger, "Valor uint8 obtenido: %d.", (int)valor);
 			desplazamiento += tamanio;
 			list_add(valores, valor);
 		}
@@ -285,7 +285,7 @@ t_list *recibir_paquete(int socket_cliente, t_log *logger)
 		{
 			char *valor = malloc(tamanio);
 			memcpy(valor, buffer + desplazamiento, tamanio);
-			log_debug(logger, "Valor string obtenido: %s.", valor);
+			// log_debug(logger, "Valor string obtenido: %s.", valor);
 			desplazamiento += tamanio;
 			list_add(valores, valor);
 		}

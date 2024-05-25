@@ -17,9 +17,11 @@ int quantum;
 int grado_multiprogramacion;  // este es el definido por parametro de config
 int cant_procesos_ejecutando; // y este es un contador de procesos en el sistema, se modifica en el planificador de largo plazo
 e_algoritmo_planificacion algoritmo_planificacion;
-bool esta_planificacion_pausada = false;
+bool esta_planificacion_pausada = true;
 // lista de pcbs
 t_list *lista_de_pcbs;
+// lista de i/os
+t_list *lista_de_entradas_salidas;
 // diccionario de recursos
 t_dictionary *diccionario_recursos;
 // Queues de estados
@@ -42,18 +44,19 @@ int main(int argc, char *argv[])
     grado_multiprogramacion = config_get_int_value(config, "GRADO_MULTIPROGRAMACION");
     algoritmo_planificacion = obtener_algoritmo_planificacion(config_get_string_value(config, "ALGORITMO_PLANIFICACION"));
     lista_de_pcbs = list_create();
+    lista_de_entradas_salidas = list_create();
     instanciar_colas();
     obtener_valores_de_recursos();
-
-    // PARTE CLIENTE
-    if (generar_clientes()) // error al crear los clientes de cpu
-        return EXIT_FAILURE;
+    obtener_valores_de_recursos();
+    /*
+        // PARTE CLIENTE
+        if (generar_clientes()) // error al crear los clientes de cpu
+            return EXIT_FAILURE;*/
 
     // CREACION HILO SERVIDOR I/O
-    /*
-        pthread_create(&hilo_servidor_io, NULL, atender_servidor_io, NULL);
-        pthread_join(hilo_servidor_io, NULL);
-    */
+    pthread_create(&hilo_servidor_io, NULL, atender_servidor_io, NULL);
+    pthread_join(hilo_servidor_io, NULL); // esto no hace falta
+
     // PARTE CONSOLA INTERACTIVA
     int seguir = 1;
     while (seguir)
@@ -67,7 +70,7 @@ int main(int argc, char *argv[])
         {
             log_debug(logger, "Entraste a INICIAR_PROCESO, path: %s.", comandoSpliteado[1]);
             crear_proceso(comandoSpliteado[1]);
-            evaluar_NEW_a_READY();
+            // evaluar_NEW_a_READY(); creeeeeeo q esto no deberia estar aca
         }
         else if (string_equals_ignore_case("PROCESO_ESTADO", comandoSpliteado[0]) || string_equals_ignore_case("PE", comandoSpliteado[0]))
         {
@@ -93,6 +96,7 @@ int main(int argc, char *argv[])
         {
             log_debug(logger, "Entraste a INICIAR_PLAFICACION.");
             esta_planificacion_pausada = false;
+            evaluar_NEW_a_READY();
             evaluar_READY_a_EXEC(); // este esta para cuando recien se arranco el programa y cuando se despausa la planificacion
         }
         else if (string_equals_ignore_case("DETENER_PLANIFICACION", comandoSpliteado[0]) || string_equals_ignore_case("DP", comandoSpliteado[0]))
@@ -143,42 +147,53 @@ int generar_clientes()
 
 void *atender_servidor_io(void *arg)
 {
-    // PARTE SERVIDOR
+    // Este servidor solamente se encarga de conectar los clientes de io y crear los hilos que los van a atender
     socket_servidor = iniciar_servidor(config, "PUERTO_ESCUCHA");
 
     log_info(logger, "Servidor %d creado.", socket_servidor);
 
-    socket_cliente_io = esperar_cliente(socket_servidor, logger); // hilarlo
-
-    int sigo_funcionando = 1;
-    while (sigo_funcionando)
+    while (true)
     {
-        int operacion = recibir_operacion(socket_cliente_io, logger);
+        socket_cliente_io = esperar_cliente(socket_servidor, logger);
 
-        switch (operacion) // MENSAJE y PAQUETE son del enum op_code de sockets.h
-        {
-        case MENSAJE:
-            char *mensaje = recibir_mensaje(socket_cliente_io, logger);
-            log_info(logger, "Recibi el mensaje: %s.", mensaje);
-            // hago algo con el mensaje
-            break;
-        case PAQUETE:
-            t_list *lista = list_create();
-            lista = recibir_paquete(socket_cliente_io, logger);
-            log_info(logger, "Recibi un paquete.");
-            // hago algo con el paquete
-            break;
-        case EXIT: // indica desconeccion
-            log_error(logger, "Se desconecto el cliente %d.", socket_cliente_io);
-            sigo_funcionando = 0;
-            break;
-        default: // recibi algo q no es eso, vamos a suponer q es para terminar
-            log_error(logger, "Recibi una operacion rara (%d), termino el servidor.", operacion);
-            destruir_logger(logger);
-            destruir_config(config);
-            return EXIT_FAILURE;
-        }
+        pthread_t hilo_atender_cliente_io;
+        pthread_create(&hilo_atender_cliente_io, NULL, atender_cliente_io, socket_cliente_io);
     }
+}
+
+void *atender_cliente_io(void *arg)
+{
+    int cliente_io = (int)arg;
+    log_trace(logger, "Entre al hilo para atender al cliente de I/O %d", cliente_io);
+
+    // espero el mensaje de IO donde me trae el nombre de su interfaz
+    recibir_operacion(cliente_io, logger);
+    char *nombreInterfaz = recibir_mensaje(cliente_io, logger);
+
+    // valido que el nombre ya no este ingresado por otra interfaz
+    t_paquete *resp = crear_paquete();
+    if (ya_existe_la_interfaz(nombreInterfaz))
+    {
+        log_error(logger, "Servidor %d: La interfaz solicitada ya habia sido creada, voy a avisarle al cliente y finalizar este hilo.", cliente_io);
+        agregar_a_paquete(resp, 1, sizeof(uint8_t)); // no se pudo crear
+        enviar_paquete(resp, cliente_io, logger);
+        return EXIT_FAILURE;
+    }
+    list_add(lista_de_entradas_salidas, nombreInterfaz);
+    agregar_a_paquete(resp, 0, sizeof(uint8_t)); // interfaz creada en kernel con exito
+    enviar_paquete(resp, cliente_io, logger);
+
+    //
+}
+
+bool ya_existe_la_interfaz(char *ni)
+{
+    for (uint8_t i = 0; i < list_size(lista_de_entradas_salidas); i++)
+    {
+        if (string_equals_ignore_case(ni, (char *)list_get(lista_de_entradas_salidas, i)))
+            return true;
+    }
+    return false;
 }
 
 // planificacion de largo plazo
@@ -209,7 +224,7 @@ void crear_proceso(char *path)
 
 void eliminar_proceso(uint32_t id)
 {
-    // tengo q decirle a memoria q libere lo de este proceso
+    // el llamado a liberar memoria se hace desde los evaluar_ALGO_a_ALGO
 
     t_PCB *pcb_a_finalizar = devolver_pcb_desde_lista(lista_de_pcbs, id);
     if (pcb_a_finalizar == NULL)
@@ -329,7 +344,7 @@ void evaluar_NEW_a_READY()
 
 void evaluar_READY_a_EXEC() // hilar (me olvide xq xD)
 {
-    log_trace(logger, "Entre a READY a EXEC para evaluar si se puede asignar un proceso al CPU.");
+    log_trace(logger, "Voy a evaluar si puedo mover un proceso de READY a EXEC (asignar un proceso al CPU).");
     if (queue_is_empty(cola_RUNNING) && !queue_is_empty(cola_READY) && !esta_planificacion_pausada) // valido q no este nadie corriendo, ready no este vacio y la planificacion no este pausada
     {                                                                                               // tengo q hacer algo distinto segun cada algoritmo de planificacion
         uint32_t id;
@@ -390,6 +405,7 @@ void evaluar_READY_a_EXEC() // hilar (me olvide xq xD)
 
 void evaluar_NEW_a_EXIT(t_PCB *pcb)
 {
+    log_trace(logger, "Voy a mover el proceso %u de NEW a EXIT", pcb->processID);
     // libero la memoria
     liberar_memoria(pcb->processID);
     // le cambio el estado
@@ -402,8 +418,10 @@ void evaluar_NEW_a_EXIT(t_PCB *pcb)
     cant_procesos_ejecutando--;
     log_debug(logger, "Grado de multiprogramacion actual: %d", cant_procesos_ejecutando);
 }
+
 void evaluar_EXEC_a_READY()
 {
+    log_trace(logger, "Voy a evaluar si puedo mover un proceso de EXEC a READY.");
     // estas validaciones las hago por las dudas nada mas, creo q en ningun caso se puede dar esto
     if (!queue_is_empty(cola_RUNNING))
     {
@@ -414,14 +432,14 @@ void evaluar_EXEC_a_READY()
         {
             pcb->estado = E_READY_PRIORITARIO;
             queue_push(cola_READY_PRIORITARIA, pcb->processID);
+            log_trace(logger, "Se movio el proceso %d de EXEC a READY PRIORITARIO.", pcb->processID);
         }
         else
         {
             pcb->estado = E_READY;
             queue_push(cola_READY, pcb->processID);
+            log_trace(logger, "Se movio el proceso %d de EXEC a READY.", pcb->processID);
         }
-
-        log_trace(logger, "Se movio el proceso %d de EXEC a READY.", pcb->processID);
     }
     else
     {
@@ -429,8 +447,10 @@ void evaluar_EXEC_a_READY()
     }
     evaluar_READY_a_EXEC(); // planifico xq se libero la cpu
 }
+
 void evaluar_READY_a_EXIT(t_PCB *pcb)
 {
+    log_trace(logger, "Voy a mover el proceso %d de READY a EXIT.", pcb->processID);
     // libero la memoria
     liberar_memoria(pcb->processID);
     // le cambio el estado
@@ -443,8 +463,10 @@ void evaluar_READY_a_EXIT(t_PCB *pcb)
     cant_procesos_ejecutando--;
     log_debug(logger, "Grado de multiprogramacion actual: %d", cant_procesos_ejecutando);
 }
+
 void evaluar_BLOCKED_a_EXIT(t_PCB *pcb)
 {
+    log_trace(logger, "Voy a mover el proceso %d de BLOCKED a EXIT.", pcb->processID);
     // libero la memoria
     liberar_memoria(pcb->processID);
     // le cambio el estado
@@ -465,8 +487,10 @@ void evaluar_BLOCKED_a_EXIT(t_PCB *pcb)
     cant_procesos_ejecutando--;
     log_debug(logger, "Grado de multiprogramacion actual: %d", cant_procesos_ejecutando);
 }
+
 void evaluar_EXEC_a_BLOCKED(char *recurso)
 {
+    log_trace(logger, "Voy a evaluar si puedo mover un proceso de la cola EXEC a BLOCKED.");
     if (!queue_is_empty(cola_RUNNING))
     {
         t_PCB *pcb = devolver_pcb_desde_lista(lista_de_pcbs, (uint32_t)queue_pop(cola_RUNNING));
@@ -476,7 +500,7 @@ void evaluar_EXEC_a_BLOCKED(char *recurso)
         t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos, recurso); // no valido q el recurso exista xq ya lo valide antes
         queue_push(tmb->cola_bloqueados, pcb->processID);
 
-        log_trace(logger, "Se movio el proceso %d de EXEC a READY.", pcb->processID);
+        log_trace(logger, "Se movio el proceso %d de EXEC a BLOCKED.", pcb->processID);
     }
     else
     {
@@ -484,8 +508,17 @@ void evaluar_EXEC_a_BLOCKED(char *recurso)
     }
     evaluar_READY_a_EXEC(); // planifico xq se libero la cpu
 }
+
 void evaluar_BLOCKED_a_READY(t_queue *colaRecurso)
 { // desbloqueo por fifo
+    log_trace(logger, "Voy a evaluar si puedo mover a algun proceso de la cola BLOCKED a READY.");
+
+    if (queue_is_empty(colaRecurso))
+    { // no hay nadie q desbloquear
+        log_trace(logger, "No hay procesos bloqueados por el recurso.");
+        return;
+    }
+
     uint32_t id = queue_pop(colaRecurso);
     queue_push(cola_READY, id);
 
@@ -494,19 +527,23 @@ void evaluar_BLOCKED_a_READY(t_queue *colaRecurso)
     // hago las cosas especificas de VRR
     if (debe_ir_a_cola_prioritaria(pcb)) // se fija si estoy en vrr y si tiene q ir a prio
     {
+        log_trace(logger, "El proceso %d va a desbloquearse a la cola de READY PRIORITARIO.", pcb->processID);
         pcb->estado = E_READY_PRIORITARIO;
         queue_push(cola_READY_PRIORITARIA, pcb->processID);
     }
     else
-    {
+    { // entra aca si estoy en FIFO y RR
+        log_trace(logger, "El proceso %d va a desbloquearse a la cola de READY.", pcb->processID);
         pcb->estado = E_READY;
         queue_push(cola_READY, pcb->processID);
     }
 }
+
 void evaluar_EXEC_a_EXIT()
 {
-    // medio falso el nombre este xq no evaluo nada, simplemente hago todo lo necesario para terminar el proceso
     uint32_t id = (uint32_t)queue_pop(cola_RUNNING);
+
+    log_trace(logger, "Voy a mover el proceso %d de EXEC a EXIT.", id);
 
     liberar_memoria(id);
 
@@ -532,15 +569,16 @@ void *atender_respuesta_proceso(void *arg)
 {
 
     uint32_t idProcesoActual = queue_peek(cola_RUNNING); // esto es para el log del final
-    log_trace(logger, "Entre a un hilo para atender la finalizacion del proceso %d.", idProcesoActual);
+    log_trace(logger, "Entre a un hilo para esperar la finalizacion del proceso %d.", idProcesoActual);
 
-    int op = recibir_operacion(cliente_cpu_dispatch, logger); // si, uso el cliente como socket servidor
     // aca tengo q pausar la planificacion si me metieron un DETENER_PLANIFICACION
     // await(esta_planificacion_pausada)
     t_PCB *pcb_en_running;
     bool sigo_esperando_cosas_de_cpu = true;
     while (sigo_esperando_cosas_de_cpu)
     {
+        int op = recibir_operacion(cliente_cpu_dispatch, logger); // si, uso el cliente como socket servidor
+
         if (op == PAQUETE)
         {
             t_list *lista_respuesta_cpu = list_create();
@@ -559,7 +597,7 @@ void *atender_respuesta_proceso(void *arg)
                 sigo_esperando_cosas_de_cpu = false;
                 break;
             case MOTIVO_DESALOJO_WAIT:
-                char *argWait = list_get(lista_respuesta_cpu, 14); // hacer desp esto en una funcion
+                char *argWait = list_get(lista_respuesta_cpu, 13); // hacer desp esto en una funcion
                 log_debug(logger, "Argumento del wait: %s", argWait);
                 t_paquete *respuesta_para_cpu = crear_paquete();
                 // hago la magia de darle los recursos
@@ -568,11 +606,13 @@ void *atender_respuesta_proceso(void *arg)
                 { // 0: te di la instancia
                     log_trace(logger, "Voy a enviarle al CPU que tiene la instancia.");
                     agregar_a_paquete(respuesta_para_cpu, 0, sizeof(uint8_t));
+                    enviar_paquete(respuesta_para_cpu, cliente_cpu_dispatch, logger);
                 }
                 else if (resultado_asignar_recurso == 1)
                 { // 1: no te la di (te bloqueo)
                     log_trace(logger, "Voy a enviarle al CPU que no tiene la instancia, asi q sera bloqueado.");
                     agregar_a_paquete(respuesta_para_cpu, 1, sizeof(uint8_t));
+                    enviar_paquete(respuesta_para_cpu, cliente_cpu_dispatch, logger);
                     evaluar_EXEC_a_BLOCKED(argWait);
                     // termino el ciclo
                     sigo_esperando_cosas_de_cpu = false;
@@ -581,36 +621,30 @@ void *atender_respuesta_proceso(void *arg)
                 { // 2: mato al proceso xq pidio algo nada q ver
                     log_error(logger, "El cpu me pidio un recurso que no existe. Lo tenemos que matar!");
                     agregar_a_paquete(respuesta_para_cpu, 1, sizeof(uint8_t)); // le mando un 1 xq para cpu es lo mismo matar el proceso que bloquearlo
+                    enviar_paquete(respuesta_para_cpu, cliente_cpu_dispatch, logger);
                     evaluar_EXEC_a_EXIT();
                     // termino el ciclo
                     sigo_esperando_cosas_de_cpu = false;
                 }
-                enviar_paquete(respuesta_para_cpu, cliente_cpu_dispatch, logger);
                 break;
             case MOTIVO_DESALOJO_SIGNAL:
-                char *argSignal = list_get(lista_respuesta_cpu, 14); // hacer desp esto en una funcion
-                log_debug(logger, "Argumento del signal: %s", argWait);
+                char *argSignal = list_get(lista_respuesta_cpu, 13); // hacer desp esto en una funcion
+                log_debug(logger, "Argumento del signal: %s", argSignal);
                 t_paquete *respuesta_para_cpu_signal = crear_paquete();
                 // desasigno
                 uint8_t resultado_asignar_recurso_signal = desasignar_recurso(argSignal, pcb_en_running);
                 if (resultado_asignar_recurso_signal == 0)
                 { // hay instancias disponibles, voy a desbloquear a alguien y le respondo a cpu
+                    agregar_a_paquete(respuesta_para_cpu_signal, respuesta_para_cpu_signal, sizeof(uint8_t));
+                    enviar_paquete(respuesta_para_cpu_signal, cliente_cpu_dispatch, logger);
                     evaluar_BLOCKED_a_READY((t_queue *)((t_manejo_bloqueados *)dictionary_get(diccionario_recursos, argSignal))->cola_bloqueados);
                     log_trace(logger, "Voy a enviarle al CPU que salio todo bien.");
-                    agregar_a_paquete(respuesta_para_cpu_signal, 0, sizeof(uint8_t));
                 }
-                else if (resultado_asignar_recurso_signal == 1)
-                { // me pidio que haga signal de un recurso que no era suyo, por lo tanto lo mato
-                    log_error(logger, "El cpu me pidio que libere un recurso que nunca fue pedido. Lo tenemos que matar!");
-                    agregar_a_paquete(respuesta_para_cpu_signal, 1, sizeof(uint8_t));
-                    evaluar_EXEC_a_EXIT();
-                    // termino el ciclo
-                    sigo_esperando_cosas_de_cpu = false;
-                }
-                else if (respuesta_para_cpu_signal == 2)
+                else if (respuesta_para_cpu_signal == 1)
                 { // le digo a cpu q desaloje el proceso y lo mando a exit
                     log_error(logger, "El cpu me pidio un recurso que no existe. Lo tenemos que matar!");
-                    agregar_a_paquete(respuesta_para_cpu_signal, 1, sizeof(uint8_t));
+                    agregar_a_paquete(respuesta_para_cpu_signal, respuesta_para_cpu_signal, sizeof(uint8_t));
+                    enviar_paquete(respuesta_para_cpu_signal, cliente_cpu_dispatch, logger);
                     evaluar_EXEC_a_EXIT();
                     // termino el ciclo
                     sigo_esperando_cosas_de_cpu = false;
@@ -619,6 +653,9 @@ void *atender_respuesta_proceso(void *arg)
             case MOTIVO_DESALOJO_INTERRUPCION:
                 // termino el ciclo
                 sigo_esperando_cosas_de_cpu = false;
+
+                // planifico
+                evaluar_EXEC_a_READY();
                 break;
             case MOTIVO_DESALOJO_IO_GEN_SLEEP:
                 break;
@@ -676,12 +713,10 @@ uint8_t asignar_recurso(char *recurso, t_PCB *pcb)
     uint8_t r;
     if (tmb != NULL)
     { // existe, esta todo piola
-        log_debug(logger, "Valor del recurso %s antes de modificarlo: %d", tmb->instancias_recursos);
+        // hasta aca llegue (los logs de abajo no los hace)
+        log_debug(logger, "Valor del recurso %s antes de modificarlo: %d", recurso, tmb->instancias_recursos);
         tmb->instancias_recursos -= 1;
-        log_debug(logger, "Valor del recurso %s desp de modifiarlo: %d", tmb->instancias_recursos);
-
-        // guardo en el pcb el nombre del recurso q solicite
-        list_add(pcb->recursos_asignados, recurso);
+        log_debug(logger, "Valor del recurso %s desp de modifiarlo: %d", recurso, tmb->instancias_recursos);
 
         if (tmb->instancias_recursos < 0)
             r = 1; // hay q bloquear el proceso
@@ -695,54 +730,22 @@ uint8_t asignar_recurso(char *recurso, t_PCB *pcb)
     return r;
 }
 
-bool pidio_el_recurso(t_PCB *pcb, char *recurso)
-{
-    t_list *l = pcb->recursos_asignados;
-
-    for (uint32_t i = 0; i < list_size(l); i++)
-    {
-        if (string_equals_ignore_case(recurso, list_get(l, i)))
-            return true;
-    }
-    return false;
-}
-
 uint8_t desasignar_recurso(char *recurso, t_PCB *pcb)
 {
     t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos, recurso);
     uint8_t r;
     if (tmb != NULL)
-    {                                        // existe, esta todo piola
-        if (!pidio_el_recurso(pcb, recurso)) // tengo q fijarme si el recurso fue pedido por el proceso anteriormente
-        {
-            r = 1;
-        }
-        else
-        {
-            log_debug(logger, "Valor del recurso %s antes de modificarlo: %d", tmb->instancias_recursos);
-            tmb->instancias_recursos += 1;
-            log_debug(logger, "Valor del recurso %s desp de modifiarlo: %d", tmb->instancias_recursos);
-
-            // saco del pcb el recurso q le di
-            list_remove_element(pcb->recursos_asignados, recurso);
-
-            r = 0;
-        }
+    {
+        log_debug(logger, "Valor del recurso %s antes de modificarlo: %d", recurso, tmb->instancias_recursos);
+        tmb->instancias_recursos += 1;
+        log_debug(logger, "Valor del recurso %s desp de modifiarlo: %d", recurso, tmb->instancias_recursos);
+        r = 0;
     }
     else
     { // cagaste
-        r = 2;
+        r = 1;
     }
     return r;
-}
-
-void liberar_recursos(t_PCB *pcb)
-{
-    t_list *lr = pcb->recursos_asignados;
-    while (!list_is_empty(lr))
-    {
-        desasignar_recurso(list_get(lr, 0), pcb);
-    }
 }
 
 t_manejo_bloqueados *crear_manejo_bloqueados()
@@ -766,17 +769,16 @@ void liberar_memoria(uint32_t id)
     log_trace(logger, "Voy a decirle a memoria q libere lo del proceso %d", id);
 
     t_paquete *p = crear_paquete();
-     agregar_a_paquete(p, 1, sizeof(uint8_t));
+    agregar_a_paquete(p, 1, sizeof(uint8_t)); // 1 es de borrar proceso
     agregar_a_paquete(p, id, sizeof(id));
-    enviar_paquete(p, cliente_memoria, logger);
+    // enviar_paquete(p, cliente_memoria, logger); todavia no esta implementado en memoria
 }
 
 bool crear_proceso_en_memoria(uint32_t id, char *path)
 {
     log_trace(logger, "Voy a enviarle a memoria el path para que cree el proceso.");
     t_paquete *p = crear_paquete();
-    uint8_t motivo = 0;
-    agregar_a_paquete(p, motivo, sizeof(motivo)); // el 0 es de iniciar proceso
+    agregar_a_paquete(p, 0, sizeof(uint8_t)); // el 0 es de iniciar proceso
     agregar_a_paquete(p, path, strlen(path) + 1);
     agregar_a_paquete(p, id, sizeof(id));
     enviar_paquete(p, cliente_memoria, logger);
@@ -813,7 +815,7 @@ void *trigger_interrupcion_quantum(void *args) // escuchar audio q me mande a ws
 
     log_trace(logger, "Termino el quantum del proceso %u.", pcb->processID);
 
-    if (queue_peek(cola_RUNNING) == pcb->processID)
+    if (!queue_is_empty(cola_RUNNING) && queue_peek(cola_RUNNING) == pcb->processID) // lo primero es xq si es el unico proceso en el sistema, voy a tener un sf haciendo el peek
     {
         log_trace(logger, "Voy a mandar la interrupcion a CPU para el proceso %u.", pcb->processID);
         t_paquete *paquete_interrupcion = crear_paquete();
