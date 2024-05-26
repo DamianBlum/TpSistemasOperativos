@@ -9,6 +9,7 @@
 #include <commons/collections/dictionary.h>
 #include <commons/string.h>
 #include <utils/sockets.h>
+#include <commons/bitarray.h>
 
 typedef enum
 {
@@ -26,6 +27,7 @@ typedef struct t_memoria_proceso
 {
     char** lineas_de_codigo;
     char *nombre_archivo;
+    char** tabla_paginas;
 } t_memoria_proceso;
 
 
@@ -37,4 +39,6 @@ int crear_proceso(char* nombre_archivo, uint32_t pid);
 t_memoria_proceso* crear_estructura_proceso(char* nombre_archivo, char** lineas_de_codigo);
 t_memoria_proceso* encontrar_proceso(uint32_t pid);
 void destruir_proceso(uint32_t pid);
+void crear_espacio_memoria();
+uint32_t devolver_marco(uint32_t pid, uint32_t pagina);
 #endif

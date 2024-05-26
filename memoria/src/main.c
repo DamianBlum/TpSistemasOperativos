@@ -21,14 +21,24 @@ t_dictionary *procesos;
 // path de los archivos
 char *path;
 
+//Variable tam de pag
+int tam_pag; 
+//Variable espacio memoria
+void* espacio_memoria;
+//Varibale Marcos Libres
+t_bitarray *marcos_libres;
+//Varibale cantidad marcos
+int cant_marcos;
+
 int main(int argc, char *argv[])
 {
 
     procesos = dictionary_create();
     logger = iniciar_logger("memoria.log", "MEMORIA", argc, argv);
     config = iniciar_config("memoria.config");
+    tam_pag = config_get_int_value(config, "TAM_PAG");
     path = config_get_string_value(config, "PATH_INSTRUCCIONES");
-
+    crear_espacio_memoria();
     // Para mostrar Funcionamiento de crear_proceso
     /*crear_proceso("prueba.txt", 1);
     crear_proceso("prueba2.txt", 2);*/
@@ -244,6 +254,7 @@ int crear_proceso(char *nombre_archivo, uint32_t process_id)
 
     t_memoria_proceso *proceso = crear_estructura_proceso(nombre_archivo, lineas);
 
+    log_info(logger,"PID: <%u> - Tamaño: <0>\n", process_id);
     // lo guardo en mi diccionario de procesos
     //  paso de uint32_t a string
     char *string_pid = string_itoa((int)process_id);
@@ -262,6 +273,7 @@ t_memoria_proceso *crear_estructura_proceso(char *nombre_archivo, char **lineas_
     // Creo un proceso con el nombre del archivo y el vector posiciones
     t_memoria_proceso *proceso = malloc(sizeof(t_memoria_proceso));
     proceso->nombre_archivo = string_duplicate(nombre_archivo);
+    proceso->tabla_paginas = string_array_new();
     proceso->lineas_de_codigo = lineas_de_codigo;
     return proceso;
 }
@@ -289,6 +301,19 @@ void destruir_proceso(uint32_t pid)
     free(string_pid);
 }
 
-char *devolver_linea(t_memoria_proceso *proceso, uint32_t pc, FILE *codigo_proceso_actual)
-{
+void crear_espacio_memoria(){
+    int tam_memoria = config_get_int_value(config,"TAM_MEMORIA");
+    cant_marcos = tam_memoria / tam_pag;
+    espacio_memoria = malloc(tam_memoria);
+    char* char_marcos = string_repeat('0', cant_marcos);
+
+    marcos_libres = bitarray_create_with_mode(char_marcos,cant_marcos,MSB_FIRST);
+}
+
+uint32_t devolver_marco(uint32_t pid, uint32_t pagina){
+
+    t_memoria_proceso *proceso = encontrar_proceso(pid);
+    uint32_t marco = proceso->tabla_paginas [pagina][0];
+    log_info(logger, "PID: <%u> - Pagina: <%u> - Marco: <%u>\n", pid, pagina, marco);
+    return marco;
 }
