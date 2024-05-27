@@ -84,7 +84,7 @@ void *esperar_io(void *arg)
         // con la variable pthread_t *hilos_io, guardo la direccion de memoria de los hilos que voy creando
         cliente_entradasalida = esperar_cliente(socket_servidor, logger);
         pthread_create(&hilos_io[i], NULL, servidor_entradasalida, NULL);
-        i++;
+        cant_hilos_io++;
     }
 }
 
