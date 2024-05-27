@@ -6,9 +6,11 @@
 #include <utils/logUtils.h>
 #include <utils/configUtils.h>
 #include <commons/string.h>
+#include <readline/readline.h>
 #include <utils/sockets.h>
 #include <pthread.h>
 #include <dirent.h>
+#include <utils/operacionMemoriaUtils.h>
 
 typedef enum
 {
