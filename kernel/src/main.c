@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
     // CREACION HILO SERVIDOR I/O
 
     pthread_create(&hilo_servidor_io, NULL, atender_servidor_io, NULL);
-    pthread_join(hilo_servidor_io, NULL);
+    // pthread_join(hilo_servidor_io, NULL);
 
     // PARTE CONSOLA INTERACTIVA
     int seguir = 1;

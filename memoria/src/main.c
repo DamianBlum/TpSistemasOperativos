@@ -59,6 +59,7 @@ int main(int argc, char *argv[])
     cliente_kernel = esperar_cliente(socket_servidor, logger);
     pthread_create(&tid[SOY_KERNEL], NULL, servidor_kernel, NULL);
 
+
     // Recibimos las multiples conexiones de la I/O y creamos los hilo para trabajar 
     pthread_create(&tid[SOY_IO], NULL, esperar_io, NULL);
 
@@ -69,6 +70,7 @@ int main(int argc, char *argv[])
         pthread_join(hilos_io[i], NULL);
     }
     free(hilos_io);
+
     destruir_logger(logger);
     destruir_config(config);
 
@@ -229,7 +231,6 @@ void *servidor_entradasalida(void *arg)
             break;
         default: // recibi algo q no es eso, vamos a suponer q es para terminar
             log_error(logger, "Desde cliente %d: Recibi una operacion rara (%d), termino el servidor.", cliente_entradasalida, operacion);
-            return EXIT_FAILURE;
         }
     }
     return EXIT_SUCCESS;
