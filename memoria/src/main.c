@@ -13,7 +13,7 @@ int cliente_entradasalida;
 
 // hilos
 pthread_t tid[3];
-
+pthread_t *hilos_io;
 FILE *archivo_text_proceso;
 // diccionario de procesos
 t_dictionary *procesos;
@@ -21,14 +21,25 @@ t_dictionary *procesos;
 // path de los archivos
 char *path;
 
+//Variable tam de pag
+int tam_pag; 
+//Variable espacio memoria
+void* espacio_memoria;
+//Varibale Marcos Libres
+t_bitarray *marcos_libres;
+//Varibale cantidad marcos
+int cant_marcos;
+// cantidad de hilos de I/O
+int cant_hilos_io;
 int main(int argc, char *argv[])
 {
 
     procesos = dictionary_create();
     logger = iniciar_logger("memoria.log", "MEMORIA", argc, argv);
     config = iniciar_config("memoria.config");
+    tam_pag = config_get_int_value(config, "TAM_PAG");
     path = config_get_string_value(config, "PATH_INSTRUCCIONES");
-
+    crear_espacio_memoria();
     // Para mostrar Funcionamiento de crear_proceso
     /*crear_proceso("prueba.txt", 1);
     crear_proceso("prueba2.txt", 2);*/
@@ -48,18 +59,35 @@ int main(int argc, char *argv[])
     cliente_kernel = esperar_cliente(socket_servidor, logger);
     pthread_create(&tid[SOY_KERNEL], NULL, servidor_kernel, NULL);
 
-    // Recibimos la conexion de la I/O y creamos un hilo para trabajarlo
-    cliente_entradasalida = esperar_cliente(socket_servidor, logger);
-    pthread_create(&tid[SOY_IO], NULL, servidor_entradasalida, NULL);
+
+    // Recibimos las multiples conexiones de la I/O y creamos los hilo para trabajar 
+    pthread_create(&tid[SOY_IO], NULL, esperar_io, NULL);
 
     pthread_join(tid[SOY_CPU], NULL);
     pthread_join(tid[SOY_KERNEL], NULL);
-    pthread_join(tid[SOY_IO], NULL);
+    for (int i = 0; i < cant_hilos_io; i++)
+    {
+        pthread_join(hilos_io[i], NULL);
+    }
+    free(hilos_io);
 
     destruir_logger(logger);
     destruir_config(config);
 
     return EXIT_SUCCESS;
+}
+
+void *esperar_io(void *arg)
+{
+    hilos_io = malloc(sizeof(pthread_t) * 100); // por ahora lo dejo en 100?
+    cant_hilos_io = 0;
+    while (1)
+    {
+        // con la variable pthread_t *hilos_io, guardo la direccion de memoria de los hilos que voy creando
+        cliente_entradasalida = esperar_cliente(socket_servidor, logger);
+        pthread_create(&hilos_io[i], NULL, servidor_entradasalida, NULL);
+        cant_hilos_io++;
+    }
 }
 
 void *servidor_kernel(void *arg)
@@ -243,6 +271,7 @@ int crear_proceso(char *nombre_archivo, uint32_t process_id)
 
     t_memoria_proceso *proceso = crear_estructura_proceso(nombre_archivo, lineas);
 
+    log_info(logger,"PID: <%u> - Tamaño: <0>\n", process_id);
     // lo guardo en mi diccionario de procesos
     //  paso de uint32_t a string
     char *string_pid = string_itoa((int)process_id);
@@ -261,6 +290,7 @@ t_memoria_proceso *crear_estructura_proceso(char *nombre_archivo, char **lineas_
     // Creo un proceso con el nombre del archivo y el vector posiciones
     t_memoria_proceso *proceso = malloc(sizeof(t_memoria_proceso));
     proceso->nombre_archivo = string_duplicate(nombre_archivo);
+    proceso->tabla_paginas = string_array_new();
     proceso->lineas_de_codigo = lineas_de_codigo;
     return proceso;
 }
@@ -288,6 +318,19 @@ void destruir_proceso(uint32_t pid)
     free(string_pid);
 }
 
-char *devolver_linea(t_memoria_proceso *proceso, uint32_t pc, FILE *codigo_proceso_actual)
-{
+void crear_espacio_memoria(){
+    int tam_memoria = config_get_int_value(config,"TAM_MEMORIA");
+    cant_marcos = tam_memoria / tam_pag;
+    espacio_memoria = malloc(tam_memoria);
+    char* char_marcos = string_repeat('0', cant_marcos);
+
+    marcos_libres = bitarray_create_with_mode(char_marcos,cant_marcos,MSB_FIRST);
+}
+
+uint32_t devolver_marco(uint32_t pid, uint32_t pagina){
+
+    t_memoria_proceso *proceso = encontrar_proceso(pid);
+    uint32_t marco = proceso->tabla_paginas [pagina][0];
+    log_info(logger, "PID: <%u> - Pagina: <%u> - Marco: <%u>\n", pid, pagina, marco);
+    return marco;
 }
