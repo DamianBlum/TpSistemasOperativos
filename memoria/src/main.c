@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
     {
         pthread_join(hilos_io[i], NULL);
     }
-
+    free(hilos_io);
     destruir_logger(logger);
     destruir_config(config);
 
