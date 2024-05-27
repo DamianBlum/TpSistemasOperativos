@@ -13,7 +13,7 @@ int cliente_entradasalida;
 
 // hilos
 pthread_t tid[3];
-
+pthread_t *hilos_io;
 FILE *archivo_text_proceso;
 // diccionario de procesos
 t_dictionary *procesos;
@@ -29,7 +29,8 @@ void* espacio_memoria;
 t_bitarray *marcos_libres;
 //Varibale cantidad marcos
 int cant_marcos;
-
+// cantidad de hilos de I/O
+int cant_hilos_io;
 int main(int argc, char *argv[])
 {
 
@@ -58,18 +59,33 @@ int main(int argc, char *argv[])
     cliente_kernel = esperar_cliente(socket_servidor, logger);
     pthread_create(&tid[SOY_KERNEL], NULL, servidor_kernel, NULL);
 
-    // Recibimos la conexion de la I/O y creamos un hilo para trabajarlo
-    /*cliente_entradasalida = esperar_cliente(socket_servidor, logger);
-    pthread_create(&tid[SOY_IO], NULL, servidor_entradasalida, NULL);*/
+    // Recibimos las multiples conexiones de la I/O y creamos los hilo para trabajar 
+    pthread_create(&tid[SOY_IO], NULL, esperar_io, NULL);
 
     pthread_join(tid[SOY_CPU], NULL);
     pthread_join(tid[SOY_KERNEL], NULL);
-    // pthread_join(tid[SOY_IO], NULL);
+    for (int i = 0; i < cant_hilos_io; i++)
+    {
+        pthread_join(hilos_io[i], NULL);
+    }
 
     destruir_logger(logger);
     destruir_config(config);
 
     return EXIT_SUCCESS;
+}
+
+void *esperar_io(void *arg)
+{
+    hilos_io = malloc(sizeof(pthread_t) * 100); // por ahora lo dejo en 100?
+    cant_hilos_io = 0;
+    while (1)
+    {
+        // con la variable pthread_t *hilos_io, guardo la direccion de memoria de los hilos que voy creando
+        cliente_entradasalida = esperar_cliente(socket_servidor, logger);
+        pthread_create(&hilos_io[i], NULL, servidor_entradasalida, NULL);
+        i++;
+    }
 }
 
 void *servidor_kernel(void *arg)
