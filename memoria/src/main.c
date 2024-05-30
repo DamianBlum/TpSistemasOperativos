@@ -30,16 +30,23 @@ int cant_marcos;
 
 int main(int argc, char *argv[])
 {
-
+    // hago prueba de los calculos de la direccion fisica
+    tam_pag = 1024;
+    uint32_t dl = 2045;
+    uint32_t nro_pagina = dl / tam_pag;
+    uint32_t offset = (dl % tam_pag) ;
+    printf("Direccion logica: %d\n", dl);
+    printf("Numero de pagina: %d\n", nro_pagina);
+    printf("Offset: %d\n", offset);
+    uint32_t direccion_fisica = 6 * tam_pag + offset;
+    printf("Direccion fisica: %d\n", direccion_fisica);
+    /*
     procesos = dictionary_create();
     logger = iniciar_logger("memoria.log", "MEMORIA", argc, argv);
     config = iniciar_config("memoria.config");
     tam_pag = config_get_int_value(config, "TAM_PAGINA");
     path = config_get_string_value(config, "PATH_INSTRUCCIONES");
     crear_espacio_memoria();
-    // Para mostrar Funcionamiento de crear_proceso
-    /*crear_proceso("prueba.txt", 1);
-    crear_proceso("prueba2.txt", 2);*/
 
     socket_servidor = iniciar_servidor(config, "PUERTO_ESCUCHA");
 
@@ -61,15 +68,10 @@ int main(int argc, char *argv[])
 
     pthread_join(tid[SOY_CPU], NULL);
     pthread_join(tid[SOY_KERNEL], NULL);
-    /*
-    for (int i = 0; i < cant_hilos_io; i++)
-    {
-        pthread_join(hilos_io[i], NULL);
-    }*/
 
     destruir_logger(logger);
     destruir_config(config);
-
+    */
     return EXIT_SUCCESS;
 }
 
@@ -218,7 +220,16 @@ void *servidor_entradasalida(void *arg)
             t_list *lista = list_create();
             lista = recibir_paquete(cliente_entradasalida, logger);
             log_info(logger, "Desde cliente %d: Recibi un paquete.", cliente_entradasalida);
-            // hago algo con el mensaje
+            e_operacion operacion_io = (e_operacion)list_get(lista, 0);
+            switch (operacion_io)
+            {
+            case PEDIDO_ESCRITURA:
+                // en 1 esta la direccion fisica, en 2 esta el tamanio, en el 3 esta el pid, en el 4 el texto a insertar
+                hacer_pedido_escritura(lista);
+                // aplico el retardo de la respuesta
+                sleep(config_get_int_value(config, "RETARDO_RESPUESTA"));
+                break;
+            }
             break;
         case EXIT: // indica desconeccion
             log_error(logger, "Se desconecto el cliente %d.", cliente_entradasalida, cliente_entradasalida);
@@ -229,6 +240,17 @@ void *servidor_entradasalida(void *arg)
         }
     }
     return EXIT_SUCCESS;
+}
+
+void hacer_pedido_escritura(t_list* lista){
+        if
+        uint32_t df = (uint32_t)list_get(lista, 1);
+        uint32_t size = (uint32_t)list_get(lista, 2);
+        uint32_t pid = (uint32_t)list_get(lista, 3);
+        char* texto = list_get(lista, 4);
+        log_info(logger,"PID: <%u> - Accion: <ESCRIBIR> - Direccion fisica: %u - Tamaño <%u>", pid, df, size);
+        // copio el texto en la direccion fisica
+        memcpy(espacio_memoria + df, texto, size); //creo que es asi
 }
 
 int crear_proceso(char *nombre_archivo, uint32_t process_id)
@@ -330,4 +352,18 @@ uint32_t devolver_marco(uint32_t pid, uint32_t pagina)
     uint32_t marco = proceso->tabla_paginas[pagina][0];
     log_info(logger, "PID: <%u> - Pagina: <%u> - Marco: <%u>\n", pid, pagina, marco);
     return marco;
+}
+
+uint32_t moverme_a_marco(uint32_t marco)
+{
+    uint32_t inicio_marco = marco * tam_pag ;
+    return inicio_marco;
+}
+
+uint32_t pasar_a_siguiente_pagina(uint32_t pid, uint32_t pagina)
+{
+    t_memoria_proceso *proceso = encontrar_proceso(pid);
+    uint32_t siguiente_pagina = proceso->tabla_paginas[pagina+1][1];
+    log_info(logger, "PID: <%u> - Pagina: <%u> - Siguiente Pagina: <%u>\n", pid, pagina, siguiente_pagina);
+    return siguiente_pagina;
 }

@@ -21,7 +21,9 @@ typedef enum
 typedef enum
 {
     INICIAR_PROCESO = 0,
-    BORRAR_PROCESO
+    BORRAR_PROCESO,
+    PEDIDO_LECTURA,
+    PEDIDO_ESCRITURA
 } e_operacion;
 
 typedef struct t_memoria_proceso
