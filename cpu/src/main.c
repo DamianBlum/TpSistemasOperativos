@@ -13,8 +13,10 @@ t_log *logger;
 t_config *config;
 
 // hilos
-pthread_t tid[2];
+pthread_t tid[3];
 
+// tamanio de pagina, lo necesito para la MMU
+int tam_pag;
 // registros
 t_registros *registros;
 
@@ -42,6 +44,10 @@ bool mandar_pcb;
 
 int main(int argc, char *argv[])
 {
+    tam_pag = conseguir_tam_pag();
+
+
+    // MMU va a ser otro hilo aparte
     // Inicializo las variables
     interrupcion = false;
     interrupcion_init = pthread_mutex_init(&mutex_interrupcion, NULL);
@@ -57,12 +63,14 @@ int main(int argc, char *argv[])
     cliente_memoria = crear_conexion(config, "IP_MEMORIA", "PUERTO_MEMORIA", logger);
 
     // PARTE SERVIDOR
-
     pthread_create(&tid[DISPATCH], NULL, servidor_dispatch, NULL);
     pthread_create(&tid[INTERRUPT], NULL, servidor_interrupt, NULL);
 
+
+
     pthread_join(tid[DISPATCH], NULL);
     pthread_join(tid[INTERRUPT], NULL);
+    pthread_join(tid[MMU], NULL);
 
     liberar_conexion(cliente_memoria, logger);
 
@@ -286,6 +294,34 @@ void decode()
     linea_de_instruccion_separada = string_split(linea_de_instruccion, " ");
     instruccion = parsear_instruccion(linea_de_instruccion_separada[0]);
 
+    // para saber si hay que hacer un uso de la MMU 
+    switch (instruccion)
+    {
+        case MOV_IN:
+            // hay que hacer uso de la MMU
+            linea_de_instruccion_separada[2]=componente_mmu(linea_de_instruccion_separada[2], registros->PID);
+            break;
+        case MOV_OUT:
+            linea_de_instruccion_separada[2]=componente_mmu(linea_de_instruccion_separada[2], registros->PID);
+            break;
+        case COPY_STRING:
+            string_array_push(&linea_de_instruccion_separada,componente_mmu("DI", registros->PID));
+            string_array_push(&linea_de_instruccion_separada,componente_mmu("SI", registros->PID));
+            break;
+        case IO_STDIN_READ:
+            linea_de_instruccion_separada[2]=componente_mmu(linea_de_instruccion_separada[2], registros->PID);
+            break;
+        case IO_STDOUT_WRITE:
+            linea_de_instruccion_separada[2]=componente_mmu(linea_de_instruccion_separada[2], registros->PID);
+            break;
+        case IO_FS_WRITE:
+            linea_de_instruccion_separada[2]=componente_mmu(linea_de_instruccion_separada[2], registros->PID);
+            break;
+        case IO_FS_READ:
+            linea_de_instruccion_separada[2]=componente_mmu(linea_de_instruccion_separada[2], registros->PID);
+            break;
+    }
+    
     return EXIT_SUCCESS;
 }
 
@@ -322,6 +358,7 @@ void execute()
         instruccion_signal();
         break;
     case IO_GEN_SLEEP:
+        instruccion_io_gen_sleep();
         break;
     case IO_STDIN_READ:
         break;
@@ -676,4 +713,50 @@ void agregar_datos_tiempo(t_paquete *paquete, void *datos)
 void no_agregar_datos(t_paquete *paquete, void *datos)
 {
     log_debug(logger, "Estoy en la funcion no_agregar_datos");
+}
+
+// MMU 
+char* componente_mmu(char* registro, uint32_t pid)
+{
+    // conseguimos lo que esta dentro del registro
+    uint32_t dl = (uint32_t)obtenerValorRegistros(registro);
+    uint32_t nro_pagina = floor(dl / tam_pag);
+    uint32_t desplazamiento = dl - (nro_pagina * tam_pag);
+    //int marco=conseguir_marco(pid, nro_pagina);
+    // harcodea que el marco es igual a la pagina
+    int marco = (int) nro_pagina;
+    uint32_t direccion_fisica = (marco * tam_pag) + desplazamiento;
+    return (string_itoa(direccion_fisica));
+}
+
+// Hacemos chanchadas para conseguir el tam_pag
+int conseguir_tam_pag(){
+    config = iniciar_config("../memoria/memoria.config");
+    int tam_pag = config_get_int_value(config, "TAMANIO_PAGINA");
+    destruir_config(config);
+    return tam_pag;
+}
+
+int conseguir_marco(uint32_t pid, uint32_t nro_pagina){
+
+    int marco = conseguir_marco_en_la_tlb(pid, nro_pagina); 
+    if (marco == -1){
+        // si no esta en la tlb, tengo que pedirlo a memoria
+        t_paquete* paquete = crear_paquete();
+        // hay que hacer un agregar_a_paquete mas con un enum que indica que la operacion es CONSEGUIR_MARCO
+        // agregar_a_paquete(paquete, CONSEGUIR_MARCO, sizeof(enum_operacion_memoria));
+        agregar_a_paquete(paquete, pid, sizeof(uint32_t));
+        agregar_a_paquete(paquete, nro_pagina, sizeof(uint32_t));
+        enviar_paquete(paquete,cliente_memoria,logger);
+        eliminar_paquete(paquete);
+        // recibir el marco
+        recibir_operacion(cliente_memoria, logger);
+        paquete = crear_paquete();
+        paquete = recibir_paquete(cliente_memoria, logger);
+        int marco = (int)list_get(paquete, 0);
+        eliminar_paquete(paquete);
+        agregar_a_tlb(pid, nro_pagina, marco);
+    }
+    log_info(logger,"Valor de Marco obtenido: %d ", marco);
+    return marco;
 }

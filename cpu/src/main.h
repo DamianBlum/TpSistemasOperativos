@@ -1,6 +1,7 @@
 #ifndef CPU_H_
 #define CPU_H_
 
+#include <math.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -16,8 +17,9 @@
 typedef enum
 {
     DISPATCH = 0,
-    INTERRUPT
-} e_conexiones_kernel;
+    INTERRUPT,
+    MMU
+} e_hilos_kernel;
 
 typedef enum {
     SET = 0,
@@ -52,7 +54,7 @@ void fetch();
 void decode();
 void execute();
 void check_interrupt(); 
-void enviar_pcb();
+void enviar_pcb(e_motivo_desalojo motivo_desalojo, Agregar_datos_paquete agregar_datos_paquete, void *datos);
 void no_agregar_datos(t_paquete* paquete, void* datos);
 void agregar_datos_tiempo(t_paquete* paquete, void* datos);
 void agregar_datos_recurso(t_paquete* paquete, void* nombre_recurso);
