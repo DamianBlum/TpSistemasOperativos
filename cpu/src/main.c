@@ -12,6 +12,11 @@ int cliente_memoria;
 t_log *logger;
 t_config *config;
 
+// tabla TLB
+t_TLB *TLB;
+int tlb_size = 0;
+int ultima_fila_modificada = 0;
+
 // hilos
 pthread_t tid[3];
 
@@ -46,7 +51,6 @@ int main(int argc, char *argv[])
 {
     tam_pag = conseguir_tam_pag();
 
-
     // MMU va a ser otro hilo aparte
     // Inicializo las variables
     interrupcion = false;
@@ -54,6 +58,8 @@ int main(int argc, char *argv[])
     registros = crear_registros();
     logger = iniciar_logger("cpu.log", "CPU", argc, argv);
     config = iniciar_config("cpu.config");
+    
+    inicializar_TLB();
 
     linea_de_instruccion = string_new();
     linea_de_instruccion_separada = string_array_new();
@@ -741,6 +747,7 @@ int conseguir_marco(uint32_t pid, uint32_t nro_pagina){
 
     int marco = conseguir_marco_en_la_tlb(pid, nro_pagina); 
     if (marco == -1){
+        
         // si no esta en la tlb, tengo que pedirlo a memoria
         t_paquete* paquete = crear_paquete();
         // hay que hacer un agregar_a_paquete mas con un enum que indica que la operacion es CONSEGUIR_MARCO
@@ -753,10 +760,67 @@ int conseguir_marco(uint32_t pid, uint32_t nro_pagina){
         recibir_operacion(cliente_memoria, logger);
         paquete = crear_paquete();
         paquete = recibir_paquete(cliente_memoria, logger);
-        int marco = (int)list_get(paquete, 0);
+        marco = (int)list_get(paquete, 0);
         eliminar_paquete(paquete);
         agregar_a_tlb(pid, nro_pagina, marco);
     }
-    log_info(logger,"Valor de Marco obtenido: %d ", marco);
+    log_info(logger,"PID: < %u > - OBTENER MARCO - Página: < %u > - Marco: < %u > ", pid, nro_pagina, marco);
     return marco;
+}
+
+void inicializar_TLB(){
+    tlb_size = config_get_int_value(config, "CANTIDAD_ENTRADAS_TLB");
+    TLB = malloc(tlb_size * sizeof(t_TLB));
+    for (int i = 0; i < tlb_size; i++)
+    {
+        TLB[i].PID = 0; //preguntar al pepo si hace que el pid de alguno sea 0, si es asi, pedirle que lo cambie
+    }
+    return EXIT_SUCCESS;
+}
+
+int conseguir_marco_en_la_tlb(uint32_t pid, uint32_t nro_pagina)
+{
+    for (int i = 0; i < tlb_size; i++)
+    {
+        if (TLB[i].PID == pid && TLB[i].nro_pag == nro_pagina)
+        {
+            log_info(logger, "PID: < %u > - TLB HIT - Pagina: < %u > ", pid, nro_pagina);
+            return ((int) TLB[i].nro_marco);
+        }
+    }
+    log_info(logger,"PID: < %u > - TLB MISS - Pagina: < %u > ", pid, nro_pagina);
+    return -1;
+} 
+
+int agregar_a_tlb(uint32_t pid, uint32_t nro_pagina, uint32_t nro_marco)
+{
+    
+    for (int i = 0; i < tlb_size; i++)
+    {
+        //si encuentra un hueco libre, lo agrega ahi
+        if (TLB[i].PID == 0)
+        {
+            TLB[i].PID = pid;
+            TLB[i].nro_pag = nro_pagina;
+            TLB[i].nro_marco = nro_marco;
+            return EXIT_SUCCESS;
+        }
+    }
+    //si no hay hueco libre, lo agrega en la primera posicion que se uso
+    char* algortimo_tlb = config_get_string_value(config, "ALGORITMO_TLB");
+    if (string_equals_ignore_case(algortimo_tlb, "FIFO"))
+    {
+        if (ultima_fila_modificada == tlb_size){
+            ultima_fila_modificada = 0;
+        }
+        TLB[ultima_fila_modificada].PID = pid;
+        TLB[ultima_fila_modificada].nro_pag = nro_pagina;
+        TLB[ultima_fila_modificada].nro_marco = nro_marco;
+        ultima_fila_modificada++;
+    }
+    else
+    {
+        // Hay que hacer el LRU, despues ver bien 
+    }
+    return EXIT_FAILURE;
 }

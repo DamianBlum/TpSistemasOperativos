@@ -43,6 +43,12 @@ typedef enum {
     INSTRUCTION_EXIT
 } e_instruccion;
 
+typedef struct {
+    uint32_t PID;
+    uint32_t nro_pag;
+    uint32_t nro_marco;
+} t_TLB;
+
 typedef void (*Agregar_datos_paquete)(t_paquete*, void*);
 
 
