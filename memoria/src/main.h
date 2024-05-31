@@ -1,6 +1,7 @@
 #ifndef MEMORIA_H_
 #define MEMORIA_H_
 
+#include <math.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -23,14 +24,24 @@ typedef enum
     INICIAR_PROCESO = 0,
     BORRAR_PROCESO,
     PEDIDO_LECTURA,
-    PEDIDO_ESCRITURA
+    PEDIDO_ESCRITURA,
+    OBTENER_MARCO,
+    OBTENER_INSTRUCCION,
+    MODIFICAR_TAMANIO_PROCESO
 } e_operacion;
+
+/*
+typedef struct t_tabla_paginas {
+    int bit_validez;
+    uint32_t marco;
+} t_tabla_paginas;
+*/
 
 typedef struct t_memoria_proceso
 {
     char **lineas_de_codigo;
     char *nombre_archivo;
-    char **tabla_paginas;
+    uint32_t **tabla_paginas;
 } t_memoria_proceso;
 
 int main(int argc, char *argv[]);
@@ -44,4 +55,7 @@ void destruir_proceso(uint32_t pid);
 void crear_espacio_memoria();
 uint32_t devolver_marco(uint32_t pid, uint32_t pagina);
 void *esperar_io(void *arg);
+uint32_t obtener_direccion_fisica_inicio_sig_pagina(uint32_t pid,uint32_t NroPag);
+uint32_t pasar_a_siguiente_pagina(uint32_t pid, uint32_t pagina);
+void hacer_pedido_lectura(t_list* lista);
 #endif
