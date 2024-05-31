@@ -19,12 +19,6 @@ int main(int argc, char *argv[])
     logger = iniciar_logger("e-s.log", "ENTRADA-SALIDA", argc, argv);
     lista_de_hilos = list_create();
 
-    t_list *asd = list_create();
-    list_add(asd, 12);
-    list_add(asd, 12);
-    list_add(asd, 12);
-    hacer_io_stdin_read(asd);
-    return 0;
     DIR *d;
     struct dirent *directorio;
     d = opendir("./configs");
@@ -161,22 +155,27 @@ int ejecutar_instruccion(char *nombre_instruccion, e_tipo_interfaz tipo_interfaz
         if (string_equals_ignore_case(nombre_instruccion, "IO_FS_CREATE"))
         {
             hacer_io_fs_create(lista);
+            ejecuto_correctamente = 1;
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_DELETE"))
         {
             hacer_io_fs_delete(lista);
+            ejecuto_correctamente = 1;
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_TRUNCATE"))
         {
             hacer_io_fs_truncate(lista);
+            ejecuto_correctamente = 1;
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_WRITE"))
         {
             hacer_io_fs_write(lista);
+            ejecuto_correctamente = 1;
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_READ"))
         {
             hacer_io_fs_read(lista);
+            ejecuto_correctamente = 1;
         }
         else
         {
@@ -201,15 +200,20 @@ void hacer_io_stdin_read(t_list *lista)
 
     t_paquete *paquete_para_mem = crear_paquete();
     agregar_a_paquete(paquete_para_mem, PEDIDO_ESCRITURA, sizeof(uint8_t));
-    agregar_a_paquete(paquete_para_mem, list_get(lista, 1), sizeof(uint32_t)); // Reg direc logica
+    agregar_a_paquete(paquete_para_mem, list_get(lista, 1), sizeof(uint32_t)); // Reg direc logica (en realidad aca mepa q recivo la fisica)
     agregar_a_paquete(paquete_para_mem, list_get(lista, 2), sizeof(uint32_t)); // Reg tam
     agregar_a_paquete(paquete_para_mem, list_get(lista, 3), sizeof(uint8_t));  // PID
     agregar_a_paquete(paquete_para_mem, texto_chiquito, strlen(texto_chiquito));
     enviar_paquete(paquete_para_mem, cliente_memoria, logger);
+
+    // aca podria esperar a ver q me dice memoria sobre esto
 }
 
 void hacer_io_stdout_write(t_list *lista)
 {
+    // consumir una unidad de trabajo
+
+    // leer de memoria
 }
 
 void hacer_io_sleep(t_list *lista)
