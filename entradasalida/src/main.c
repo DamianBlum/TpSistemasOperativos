@@ -157,90 +157,73 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
             ejecuto_correctamente = 1;
         }
         else
-        {
             log_error(logger, "ERROR: la instruccion pedida (%s) no corresponde a una interfaz generica.", nombre_instruccion);
-            ejecuto_correctamente = 0;
-        }
         break;
     case STDIN:
         if (string_equals_ignore_case(nombre_instruccion, "IO_STDIN_READ"))
         {
-            hacer_io_stdin_read(lista);
+            char *texto_ingresado;
+            texto_ingresado = readline(">");
+
+            uint32_t dir = list_get(datos_desde_kernel, 1);
+            uint32_t tamanio_registro = list_get(datos_desde_kernel, 2);
+            uint32_t pid = list_get(datos_desde_kernel, 3);
+
+            // ahora q lo lei, lo voy a acortar si es necesario
+            char *texto_chiquito = string_substring_until(texto_ingresado, (int)tamanio_registro / 4);
+
+            t_paquete *paquete_para_mem = crear_paquete();
+            agregar_a_paquete(paquete_para_mem, PEDIDO_ESCRITURA, sizeof(uint8_t));
+            agregar_a_paquete(paquete_para_mem, dir, sizeof(uint32_t));              // Reg direc logica (en realidad aca mepa q recivo la fisica)
+            agregar_a_paquete(paquete_para_mem, tamanio_registro, sizeof(uint32_t)); // Reg tam
+            agregar_a_paquete(paquete_para_mem, pid, sizeof(uint32_t));              // PID
+            agregar_a_paquete(paquete_para_mem, texto_chiquito, strlen(texto_chiquito));
+            enviar_paquete(paquete_para_mem, (int)((t_interfaz_stdin *)interfaz->configs_especificas)->conexion_memoria, logger);
+
+            // aca podria esperar a ver q me dice memoria sobre esto
+
             ejecuto_correctamente = 1;
         }
         else
-        {
-            log_error(logger, "ERROR: la instruccion pedida (%s) no corresponde a una interfaz STDIN.", nombre_instruccion);
-            ejecuto_correctamente = 0;
-        }
+            log_error(logger, "ERROR: la instruccion pedida (%s) no corresponde a una interfaz generica.", nombre_instruccion);
         break;
     case STDOUT:
         if (string_equals_ignore_case(nombre_instruccion, "IO_STDOUT_WRITE"))
         {
-            hacer_io_stdout_write(lista);
+            ejecuto_correctamente = 1;
         }
         else
-        {
-            log_error(logger, "ERROR: la instruccion pedida (%s) no corresponde a una interfaz STDOUT.", nombre_instruccion);
-            ejecuto_correctamente = 0;
-        }
+            log_error(logger, "ERROR: la instruccion pedida (%s) no corresponde a una interfaz generica.", nombre_instruccion);
         break;
     case DIALFS:
         if (string_equals_ignore_case(nombre_instruccion, "IO_FS_CREATE"))
         {
-            hacer_io_fs_create(lista);
             ejecuto_correctamente = 1;
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_DELETE"))
         {
-            hacer_io_fs_delete(lista);
             ejecuto_correctamente = 1;
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_TRUNCATE"))
         {
-            hacer_io_fs_truncate(lista);
             ejecuto_correctamente = 1;
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_WRITE"))
         {
-            hacer_io_fs_write(lista);
             ejecuto_correctamente = 1;
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_READ"))
         {
-            hacer_io_fs_read(lista);
             ejecuto_correctamente = 1;
         }
         else
-        {
-            log_error(logger, "ERROR: la instruccion pedida (%s) no corresponde a una interfaz DIALFS.", nombre_instruccion);
-            ejecuto_correctamente = 0;
-        }
+            log_error(logger, "ERROR: la instruccion pedida (%s) no corresponde a una interfaz generica.", nombre_instruccion);
         break;
 
     default:
         break;
     }
     return ejecuto_correctamente;
-}
-
-void hacer_io_stdin_read(t_list *lista)
-{
-    char *texto_ingresado;
-    texto_ingresado = readline(">");
-    // ahora q lo lei, lo voy a acortar si es necesario
-
-    char *texto_chiquito = string_substring_until(texto_ingresado, (int)list_get(lista, 2) / 4);
-
-    t_paquete *paquete_para_mem = crear_paquete();
-    agregar_a_paquete(paquete_para_mem, PEDIDO_ESCRITURA, sizeof(uint8_t));
-    agregar_a_paquete(paquete_para_mem, list_get(lista, 1), sizeof(uint32_t)); // Reg direc logica (en realidad aca mepa q recivo la fisica)
-    agregar_a_paquete(paquete_para_mem, list_get(lista, 2), sizeof(uint32_t)); // Reg tam
-    agregar_a_paquete(paquete_para_mem, list_get(lista, 3), sizeof(uint8_t));  // PID
-    agregar_a_paquete(paquete_para_mem, texto_chiquito, strlen(texto_chiquito));
-    enviar_paquete(paquete_para_mem, cliente_memoria, logger);
-
-    // aca podria esperar a ver q me dice memoria sobre esto
 }
 
 void hacer_io_stdout_write(t_list *lista)
@@ -292,7 +275,7 @@ void manejo_de_interfaz(void *args)
             lista = recibir_paquete(interfaz->conexion_kernel, logger);
             log_info(logger, "Desde cliente %d: Recibi un paquete.", interfaz->conexion_kernel);
             char *nombre_instruccion = list_get(lista, 0);
-            int resultado = ejecutar_instruccion(nombre_instruccion, interfaz->tipo_interfaz, lista);
+            int resultado = ejecutar_instruccion(nombre_instruccion, interfaz, lista);
             enviar_mensaje(string_itoa(resultado), interfaz->conexion_kernel, logger);
             break;
         case EXIT: // indica desconeccion
@@ -305,7 +288,7 @@ void manejo_de_interfaz(void *args)
             break;
         }
         liberar_conexion(interfaz->conexion_kernel, logger);
-        liberar_conexion(interfaz->conexion_memoria, logger);
+        // liberar_conexion(interfaz->conexion_memoria, logger);
     }
     return EXIT_SUCCESS;
 }
