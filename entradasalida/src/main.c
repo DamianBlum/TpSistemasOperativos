@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
     return EXIT_SUCCESS;
 }
 
-void *crear_nueva_interfaz(char *nombre_archivo_config)
+t_interfaz_default *crear_nueva_interfaz(char *nombre_archivo_config)
 {
     char *nombre_archivo_con_carpeta = string_duplicate("./configs/");
     string_append(&nombre_archivo_con_carpeta, nombre_archivo_config);
@@ -139,18 +139,18 @@ e_tipo_interfaz convertir_tipo_interfaz_enum(char *tipo_interfaz)
     return e_tipo_interfaz_;
 }
 
-int ejecutar_instruccion(char *nombre_instruccion, e_tipo_interfaz tipo_interfaz, t_list *lista)
+int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz, t_list *datos_desde_kernel)
 {
     int ejecuto_correctamente = 0; // 0 = Incorrecta o No esta asociada a la interfaz que tengo.
                                    // 1 = Ejecuto correctamente.
                                    // 2 = Falla en la ejecucion.
-    switch (tipo_interfaz)
+    switch (interfaz->tipo_interfaz)
     {
     case GENERICA:
         if (string_equals_ignore_case(nombre_instruccion, "IO_GEN_SLEEP"))
         {
-            uint32_t cantidad_de_esperas = list_get(lista, 1);
-            uint32_t tiempo_espera;
+            uint32_t cantidad_de_esperas = list_get(datos_desde_kernel, 1);
+            uint32_t tiempo_espera = (uint32_t)((t_interfaz_generica *)interfaz->configs_especificas)->tiempo_unidad_trabajo;
 
             sleep(tiempo_espera * cantidad_de_esperas);
 
