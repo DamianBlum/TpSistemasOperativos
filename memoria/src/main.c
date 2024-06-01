@@ -40,19 +40,37 @@ int main(int argc, char *argv[])
     path = config_get_string_value(config, "PATH_INSTRUCCIONES");
     crear_espacio_memoria();
     crear_proceso("pk", 1);
-    t_memoria_proceso* proceso = encontrar_proceso(1);
-    agregar_paginas(proceso,0,3);
-    log_debug(logger, "prueba2");
+    crear_proceso("pk", 2);
+    t_memoria_proceso* proceso1 = encontrar_proceso(1);
+    t_memoria_proceso* proceso2 = encontrar_proceso(2);
+    agregar_paginas(proceso1,0,1);
+    agregar_paginas(proceso2,0,1);
+    agregar_paginas(proceso1,1,2);
+    agregar_paginas(proceso2,1,2);
     t_list *lista = list_create();
     list_add(lista, PEDIDO_ESCRITURA);
     list_add(lista, 0);
-    list_add(lista, 5);
+    list_add(lista, 9);
     list_add(lista, 1);
-    list_add(lista, "hola_");
-    log_debug(logger, "prueba");
+    list_add(lista, "proceso1A");
     hacer_pedido_escritura(lista);  
     list_destroy(lista);
-    
+    lista = list_create();
+    list_add(lista, PEDIDO_ESCRITURA);
+    list_add(lista, 8);
+    list_add(lista, 9);
+    list_add(lista, 2);
+    list_add(lista, "proceso2B");    
+    hacer_pedido_escritura(lista);
+    /*list_destroy(lista);
+    lista = list_create();
+    list_add(lista, PEDIDO_ESCRITURA);
+    list_add(lista, 7);
+    list_add(lista, 4);
+    list_add(lista, 1);
+    list_add(lista, "undo");
+    hacer_pedido_escritura(lista);*/
+    // HAy que ver como hacer para pasar a la siguiente pagina ya que no la tenemos y el indice es la pagina en la tabla!
 
     /*
     procesos = dictionary_create();
@@ -274,15 +292,19 @@ void hacer_pedido_escritura(t_list* lista){ // lo unico que hay que ver despues 
         uint32_t size = (uint32_t)list_get(lista, 2);
         uint32_t pid = (uint32_t)list_get(lista, 3);
         void *elemento_a_insertar = list_get(lista, 4);
-        uint32_t NroPag = floor(df / tam_pag);
+        uint32_t marco = floor(df / tam_pag);
+        uint32_t pagina;
+        log_debug(logger, "Marco: %d", marco);
         log_info(logger,"PID: <%u> - Accion: <ESCRIBIR> - Direccion fisica: %u - Tamaño <%u>", pid, df, size);
         
         log_debug(logger, "voy a escribir esto: %s", elemento_a_insertar);
         while (size) {
-            uint32_t memoria_disponible  = ((NroPag + 1) * tam_pag - df);
+            uint32_t memoria_disponible  = ((marco + 1) * tam_pag - df);
+            log_debug(logger, "Memoria disponible: %d", memoria_disponible);
+            log_debug(logger, "Tamaño que tengo que seguir escribiendo: %d", size);
             if (memoria_disponible > size) {
                 memcpy(espacio_memoria + df,elemento_a_insertar, size);
-                log_debug(logger, "se escribio esto: %s", espacio_memoria + df);
+                log_debug(logger, "se escribio esto: %s",espacio_memoria + df);
                 size = 0;
             }
             else {  
@@ -291,11 +313,12 @@ void hacer_pedido_escritura(t_list* lista){ // lo unico que hay que ver despues 
                 size -= memoria_disponible;
                 elemento_a_insertar += memoria_disponible;
                 log_debug(logger, "voy a escribir esto: %s", elemento_a_insertar);
-                NroPag = pasar_a_siguiente_pagina(pid,NroPag);
-                df = obtener_direccion_fisica_inicio_sig_pagina(pid,NroPag);
+                marco = pasar_a_siguiente_pagina(pid,pagina);
+                log_debug(logger, "marco: %d", marco);
+                df = obtener_direccion_fisica_inicio_sig_pagina(pid,marco);
             }
         }
-        log_debug(logger,"Memoria Completa: %u",espacio_memoria);
+        log_debug(logger,"Memoria Completa: %s",espacio_memoria);
 
 }
 
@@ -426,9 +449,9 @@ uint32_t moverme_a_marco(uint32_t marco)
 uint32_t pasar_a_siguiente_pagina(uint32_t pid, uint32_t pagina)
 {
     t_memoria_proceso *proceso = encontrar_proceso(pid);
-    uint32_t siguiente_pagina = proceso->tabla_paginas[pagina+1];
-    log_info(logger, "PID: <%u> - Pagina: <%u> - Siguiente Pagina: <%u>\n", pid, pagina, siguiente_pagina);
-    return siguiente_pagina;
+    uint32_t marco = proceso->tabla_paginas[pagina+1];
+    log_info(logger, "PID: <%u> - Pagina: <%u> - Siguiente Marco: <%u>\n", pid, pagina+1, marco);
+    return marco;
 }
 
 void borrar_paginas(t_memoria_proceso* proceso,uint32_t paginas_necesarias,uint32_t paginas_actuales)
@@ -459,6 +482,7 @@ int agregar_paginas(t_memoria_proceso* proceso,uint32_t paginas_actuales,uint32_
         bitarray_set_bit(marcos, marco_libre);
         // agrego el marco a la tabla de paginas
         proceso->tabla_paginas[i] = marco_libre;
+        log_debug(logger, "Marco agregado: %u en la pagina %u", proceso->tabla_paginas[i], i);
     }
     return EXIT_SUCCESS;
 }
@@ -510,10 +534,10 @@ void modificar_tamanio_proceso(t_list* lista)
     eliminar_paquete(paquete_a_enviar);
 }
 
-uint32_t obtener_direccion_fisica_inicio_sig_pagina(uint32_t pid,uint32_t NroPag)
+uint32_t obtener_direccion_fisica_inicio_sig_pagina(uint32_t pid,uint32_t marco)
 {
-    uint32_t marco=devolver_marco(pid, NroPag);
     uint32_t direccion_fisica = marco* (uint32_t)tam_pag;
+    log_debug(logger, "Direccion fisica: %d", direccion_fisica);
     return direccion_fisica;
 }
 
