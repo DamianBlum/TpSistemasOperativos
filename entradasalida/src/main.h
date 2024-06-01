@@ -12,6 +12,7 @@
 #include <dirent.h>
 #include <utils/operacionMemoriaUtils.h>
 
+// Estructuras para el manejo de interfaces
 typedef enum
 {
     GENERICA = 0,
@@ -19,20 +20,41 @@ typedef enum
     STDOUT,
     DIALFS,
 } e_tipo_interfaz;
+
 typedef struct
 {
     char *nombre;
-    // char* tipo_interfaz;
+    e_tipo_interfaz tipo_interfaz;
+    uint32_t conexion_kernel;
+    uint32_t accesos;
+    void *configs_especificas;
+} t_interfaz_default;
+
+typedef struct
+{
     uint32_t tiempo_unidad_trabajo;
-    char *ip_kernel;
-    int conexion_kernel;
-    int conexion_memoria;
+} t_interfaz_generica;
+
+typedef struct
+{
+    uint32_t conexion_memoria;
+} t_interfaz_stdin;
+
+typedef struct
+{
+    uint32_t tiempo_unidad_trabajo;
+    uint32_t conexion_memoria;
+} t_interfaz_stdout;
+
+typedef struct
+{
+    uint32_t tiempo_unidad_trabajo;
+    uint32_t conexion_memoria;
     char *path_base_dialfs;
     uint32_t block_size;
     uint32_t block_count;
     uint32_t retraso_compactacion;
-    e_tipo_interfaz tipo_interfaz;
-} t_interfaz;
+} t_interfaz_dialfs;
 
 int main(int argc, char *argv[]);
 void hacer_io_stdin_read(t_list *lista);

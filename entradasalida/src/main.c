@@ -32,9 +32,9 @@ int main(int argc, char *argv[])
     {
         if (string_ends_with(directorio->d_name, ".config"))
         {
-            t_interfaz *interfaz_generica = crear_nueva_interfaz(directorio->d_name);
+            t_interfaz_default *interfaz = crear_nueva_interfaz(directorio->d_name);
             pthread_t hilo_para_atender_interfaz;
-            pthread_create(&hilo_para_atender_interfaz, NULL, manejo_de_interfaz, interfaz_generica);
+            pthread_create(&hilo_para_atender_interfaz, NULL, manejo_de_interfaz, interfaz);
             list_add(lista_de_hilos, hilo_para_atender_interfaz);
             i++;
         }
@@ -53,22 +53,52 @@ int main(int argc, char *argv[])
     return EXIT_SUCCESS;
 }
 
-t_interfaz *crear_nueva_interfaz(char *nombre_archivo_config)
+void *crear_nueva_interfaz(char *nombre_archivo_config)
 {
     char *nombre_archivo_con_carpeta = string_duplicate("./configs/");
     string_append(&nombre_archivo_con_carpeta, nombre_archivo_config);
+
+    // creo cosas
     t_config *config = iniciar_config(nombre_archivo_con_carpeta);
-    t_interfaz *interfaz = malloc(sizeof(t_interfaz));
+    t_interfaz_default *interfaz = malloc(sizeof(t_interfaz_default));
+
+    // agrego los datos de la interfaz default
     interfaz->nombre = string_split(nombre_archivo_config, ".")[0];
-    log_info(logger, "%s", nombre_archivo_config);
     interfaz->tipo_interfaz = convertir_tipo_interfaz_enum(config_get_string_value(config, "TIPO_INTERFAZ"));
-    interfaz->path_base_dialfs = config_get_string_value(config, "PATH_BASE_DIALFS");
-    interfaz->tiempo_unidad_trabajo = (uint32_t)config_get_int_value(config, "TIEMPO_UNIDAD_TRABAJO");
-    interfaz->block_size = (uint32_t)config_get_int_value(config, "BLOCK_SIZE");
-    interfaz->block_count = (uint32_t)config_get_int_value(config, "BLOCK_COUNT");
-    interfaz->retraso_compactacion = (uint32_t)config_get_int_value(config, "RETRASO_COMPACTACION");
     interfaz->conexion_kernel = crear_conexion(config, "IP_KERNEL", "PUERTO_KERNEL", logger);
-    interfaz->conexion_memoria = crear_conexion(config, "IP_MEMORIA", "PUERTO_MEMORIA", logger);
+    interfaz->accesos = 0;
+
+    // agrego los datos de la interfaz especifica segun corresponda
+    switch (interfaz->tipo_interfaz)
+    {
+    case GENERICA:
+        t_interfaz_generica *tig = malloc(sizeof(t_interfaz_generica));
+        tig->tiempo_unidad_trabajo = (uint32_t)config_get_long_value(config, "TIEMPO_UNIDAD_TRABAJO");
+        interfaz->configs_especificas = tig;
+        break;
+    case STDIN:
+        t_interfaz_stdin *tisin = malloc(sizeof(t_interfaz_stdin));
+        tisin->conexion_memoria = crear_conexion(config, "IP_MEMORIA", "IP_MEMORIA", logger);
+        interfaz->configs_especificas = tisin;
+        break;
+    case STDOUT:
+        t_interfaz_stdout *tisout = malloc(sizeof(t_interfaz_stdout));
+        tisout->tiempo_unidad_trabajo = (uint32_t)config_get_long_value(config, "TIEMPO_UNIDAD_TRABAJO");
+        tisout->conexion_memoria = crear_conexion(config, "IP_MEMORIA", "IP_MEMORIA", logger);
+        interfaz->configs_especificas = tisout;
+        break;
+    case DIALFS:
+        t_interfaz_dialfs *tid = malloc(sizeof(t_interfaz_dialfs));
+        tid->tiempo_unidad_trabajo = (uint32_t)config_get_long_value(config, "TIEMPO_UNIDAD_TRABAJO");
+        tid->conexion_memoria = crear_conexion(config, "IP_MEMORIA", "IP_MEMORIA", logger);
+        tid->path_base_dialfs = (uint32_t)config_get_long_value(config, "PATH_BASE_DIALFS");
+        tid->block_size = (uint32_t)config_get_long_value(config, "BLOCK_SIZE");
+        tid->block_count = (uint32_t)config_get_long_value(config, "BLOCK_COUNT");
+        tid->retraso_compactacion = (uint32_t)config_get_long_value(config, "RETRASO_COMPACTACION");
+        break;
+    default:
+        break;
+    }
 
     enviar_mensaje(interfaz->nombre, interfaz->conexion_kernel, logger);
     recibir_operacion(interfaz->conexion_kernel, logger);
@@ -119,7 +149,11 @@ int ejecutar_instruccion(char *nombre_instruccion, e_tipo_interfaz tipo_interfaz
     case GENERICA:
         if (string_equals_ignore_case(nombre_instruccion, "IO_GEN_SLEEP"))
         {
-            hacer_io_sleep(lista);
+            uint32_t cantidad_de_esperas = list_get(lista, 1);
+            uint32_t tiempo_espera;
+
+            sleep(tiempo_espera * cantidad_de_esperas);
+
             ejecuto_correctamente = 1;
         }
         else
@@ -210,15 +244,11 @@ void hacer_io_stdin_read(t_list *lista)
 }
 
 void hacer_io_stdout_write(t_list *lista)
-{
+{ // lista = [nombre_instruccion, reg_dir_logica, reg_tam, PID]
+
     // consumir una unidad de trabajo
 
     // leer de memoria
-}
-
-void hacer_io_sleep(t_list *lista)
-{
-    sleep((uint32_t)list_get(lista, 1));
 }
 
 void hacer_io_fs_read(t_list *lista)
@@ -243,7 +273,7 @@ void hacer_io_fs_write(t_list *lista)
 
 void manejo_de_interfaz(void *args)
 {
-    t_interfaz *interfaz = (t_interfaz *)args;
+    t_interfaz_default *interfaz = (t_interfaz_default *)args;
 
     int sigo_funcionando = 1;
     while (sigo_funcionando)
