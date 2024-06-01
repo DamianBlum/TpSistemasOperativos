@@ -226,34 +226,6 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
     return ejecuto_correctamente;
 }
 
-void hacer_io_stdout_write(t_list *lista)
-{ // lista = [nombre_instruccion, reg_dir_logica, reg_tam, PID]
-
-    // consumir una unidad de trabajo
-
-    // leer de memoria
-}
-
-void hacer_io_fs_read(t_list *lista)
-{
-}
-
-void hacer_io_fs_create(t_list *lista)
-{
-}
-
-void hacer_io_fs_delete(t_list *lista)
-{
-}
-
-void hacer_io_fs_truncate(t_list *lista)
-{
-}
-
-void hacer_io_fs_write(t_list *lista)
-{
-}
-
 void manejo_de_interfaz(void *args)
 {
     t_interfaz_default *interfaz = (t_interfaz_default *)args;
