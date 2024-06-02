@@ -40,7 +40,7 @@ int main(int argc, char *argv[])
     path = config_get_string_value(config, "PATH_INSTRUCCIONES");
     crear_espacio_memoria();
     crear_proceso("pk", 1);
-    crear_proceso("pk", 2);
+    //crear_proceso("pk", 2);
     t_memoria_proceso* proceso1 = encontrar_proceso(1);
     //t_memoria_proceso* proceso2 = encontrar_proceso(2);
     agregar_paginas(proceso1,0,3);
@@ -48,11 +48,19 @@ int main(int argc, char *argv[])
     t_list *lista = list_create();
     list_add(lista, PEDIDO_ESCRITURA);
     list_add(lista, 0);
-    list_add(lista, 22);
+    list_add(lista, 4);
     list_add(lista, 1);
-    list_add(lista, "hola estas como estas?");
-    list_add(lista, 0);
+    list_add(lista, 0xFFFFFFFF);
+    list_add(lista, 1);
     hacer_pedido_escritura(lista);  
+    list_destroy(lista);
+    lista = list_create();
+    list_add(lista, PEDIDO_LECTURA);
+    list_add(lista, 0);
+    list_add(lista, 4);
+    list_add(lista, 1);
+    list_add(lista, 1);
+    hacer_pedido_lectura(lista);
     list_destroy(lista);
 
     // HAy que ver como hacer para pasar a la siguiente pagina ya que no la tenemos y el indice es la pagina en la tabla!
@@ -274,6 +282,69 @@ void *servidor_entradasalida(void *arg)
 
 // escribe en memoria en Little Endian (de derecha a izquierda)
 
+void hacer_pedido_lectura(t_list* lista){
+    // ya viste lo que hize abajo con la diferenciacion entre numeros y palabras, hay que hacer lo mismo pero a la reverza
+    uint32_t df = (uint32_t)list_get(lista, 1);
+    uint32_t size = (uint32_t)list_get(lista, 2);
+    // guardo tamanio el tamanio para tenerlo siempre
+    uint32_t size_original = size;
+    uint32_t pid = (uint32_t)list_get(lista, 3);
+    uint8_t tipo = list_get(lista, 4); // 1 si es un numero, 0 si es un char*
+    void * elemento_a_guardar = malloc(size);
+    uint32_t marco = floor(df / tam_pag);
+    uint32_t cuanto_voy_guardando = 0;
+    while (size) {
+        uint32_t memoria_disponible  = ((marco + 1) * tam_pag - df);
+        if (memoria_disponible >= size) {
+            if (tipo)
+            {
+                memcpy(&elemento_a_guardar+cuanto_voy_guardando, espacio_memoria + df, size);
+            }
+            else
+            {
+                memcpy(elemento_a_guardar+cuanto_voy_guardando, espacio_memoria + df, size);
+            }
+            size = 0;
+        }
+        else {  
+            if (tipo)
+            {
+                memcpy(&elemento_a_guardar, espacio_memoria + df, memoria_disponible);
+                size -= memoria_disponible;
+                cuanto_voy_guardando += memoria_disponible; 
+            }
+            else
+            {
+                memcpy(elemento_a_guardar+cuanto_voy_guardando, espacio_memoria + df, memoria_disponible);
+                size -= memoria_disponible;
+                cuanto_voy_guardando += memoria_disponible; 
+
+            }
+            marco = conseguir_siguiente_marco(pid,marco);
+            df = marco * tam_pag;
+        }
+    }
+    if (tipo)
+    {
+        // pasar mi variable a un uint32_t pero antes capear el tamaño hasta size
+        uint32_t numero = 0;
+        uint32_t cosa_a_sumar = 0;
+        size_t mascara = 0xFF;
+        for (int i = 0; i < size_original; i++)
+        {
+            // tengo que hacer que la primera vez sea con 0xFF, la segunda con 0xFFFF, la tercera con 0xFFFFFF y la cuarta con 0xFFFFFFFF y asi
+            cosa_a_sumar = (( (uint32_t) elemento_a_guardar << (i * 8) ) & mascara);
+            numero += cosa_a_sumar;
+            mascara = mascara << 8;
+        }
+        log_info(logger,"Lo que lei fue este numero: %u",numero);
+    }
+    else {
+        log_info(logger,"Lo que lei fue este texto: %s",elemento_a_guardar);
+    }
+    
+}
+
 void hacer_pedido_escritura(t_list* lista){ // lo unico que hay que ver despues es el tema de lectura y como saber que es
         uint32_t df = (uint32_t)list_get(lista, 1); 
         uint32_t size = (uint32_t)list_get(lista, 2);
@@ -296,6 +367,7 @@ void hacer_pedido_escritura(t_list* lista){ // lo unico que hay que ver despues 
                 }
                 else
                 {
+                    log_debug(logger, "Elemento a insertar: %s", elemento_a_insertar);
                     memcpy(espacio_memoria + df, elemento_a_insertar, size);
                 }
                 size = 0;
@@ -566,6 +638,3 @@ void modificar_tamanio_proceso(t_list* lista)
 }
 
 
-void hacer_pedido_lectura(t_list* lista){
-    
-}
