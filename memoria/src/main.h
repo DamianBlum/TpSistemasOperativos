@@ -11,6 +11,7 @@
 #include <commons/string.h>
 #include <utils/sockets.h>
 #include <commons/bitarray.h>
+#include <commons/memory.h>
 
 typedef enum
 {

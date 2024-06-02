@@ -43,13 +43,15 @@ int main(int argc, char *argv[])
     crear_proceso("pk", 2);
     t_memoria_proceso* proceso1 = encontrar_proceso(1);
     //t_memoria_proceso* proceso2 = encontrar_proceso(2);
-    agregar_paginas(proceso1,0,1);
+    agregar_paginas(proceso1,0,3);
+    
     t_list *lista = list_create();
     list_add(lista, PEDIDO_ESCRITURA);
     list_add(lista, 0);
+    list_add(lista, 22);
     list_add(lista, 1);
-    list_add(lista, 1);
-    list_add(lista, 12);
+    list_add(lista, "hola estas como estas?");
+    list_add(lista, 0);
     hacer_pedido_escritura(lista);  
     list_destroy(lista);
 
@@ -189,7 +191,7 @@ void *servidor_cpu(void *arg)
             log_info(logger, "Desde cliente: %d Recibi un paquete.", cliente_cpu);
 
             // aplico el retardo de la respuesta
-            sleep(config_get_int_value(config, "RETARDO_RESPUESTA"));
+            sleep(config_get_int_value(config, "RETARDO_RESPUESTA") / 1000);
 
             e_operacion operacion_memoria = (e_operacion)list_get(lista,0);
             switch (operacion_memoria)
@@ -270,38 +272,54 @@ void *servidor_entradasalida(void *arg)
     return EXIT_SUCCESS;
 }
 
+// escribe en memoria en Little Endian (de derecha a izquierda)
+
 void hacer_pedido_escritura(t_list* lista){ // lo unico que hay que ver despues es el tema de lectura y como saber que es
         uint32_t df = (uint32_t)list_get(lista, 1); 
         uint32_t size = (uint32_t)list_get(lista, 2);
         uint32_t pid = (uint32_t)list_get(lista, 3);
-        // como se cuando es una string o cuando es un uint32_t?
-        char* elemento_a_insertar = uint32_to_bytes((uint32_t)list_get(lista, 4),size);
+        uint8_t tipo = list_get(lista, 5); // 1 si es un numero, 0 si es un char*
+        void * elemento_a_insertar = malloc(size);
+        elemento_a_insertar = list_get(lista, 4);
         uint32_t marco = floor(df / tam_pag);
         log_debug(logger, "Marco: %d", marco);
         log_info(logger,"PID: <%u> - Accion: <ESCRIBIR> - Direccion fisica: %u - Tamaño <%u>", pid, df, size);
         
-        log_debug(logger, "voy a escribir esto: %s", elemento_a_insertar);
         while (size) {
             uint32_t memoria_disponible  = ((marco + 1) * tam_pag - df);
             log_debug(logger, "Memoria disponible: %d", memoria_disponible);
             log_debug(logger, "Tamaño que tengo que seguir escribiendo: %d", size);
-            if (memoria_disponible > size) {
-                memcpy(espacio_memoria + df,elemento_a_insertar, size);
-                log_debug(logger, "se escribio esto: %s",espacio_memoria + df);
+            if (memoria_disponible >= size) {
+                if (tipo)
+                {
+                    memcpy(espacio_memoria + df, &elemento_a_insertar, size);
+                }
+                else
+                {
+                    memcpy(espacio_memoria + df, elemento_a_insertar, size);
+                }
                 size = 0;
             }
             else {  
-                memcpy(espacio_memoria + df,elemento_a_insertar, memoria_disponible);
-                log_debug(logger, "se escribio esto: %s", espacio_memoria + df);
-                size -= memoria_disponible;
-                elemento_a_insertar += memoria_disponible;
-                log_debug(logger, "voy a escribir esto: %s", elemento_a_insertar);
+                if (tipo)
+                {
+                    memcpy(espacio_memoria + df, &elemento_a_insertar, memoria_disponible);
+                    size -= memoria_disponible;
+                    elemento_a_insertar = ((uint32_t) elemento_a_insertar >> 8*memoria_disponible) & 0xFFFFFFFF;
+                }
+                else
+                {
+                    memcpy(espacio_memoria + df, elemento_a_insertar, memoria_disponible);
+                    size -= memoria_disponible;
+                    elemento_a_insertar += memoria_disponible;
+                }
                 marco = conseguir_siguiente_marco(pid,marco);
                 log_debug(logger, "marco: %u", marco);
                 df = marco * tam_pag;
             }
         }
-        log_debug(logger,"Memoria Completa: %s",espacio_memoria);
+        mem_hexdump(espacio_memoria, tam_memoria);
+        //log_debug(logger,"Memoria Completa: %s",espacio_memoria);
 
 }
 
@@ -320,7 +338,7 @@ void obtener_instruccion(t_list* lista){
 char* uint32_to_bytes(uint32_t number, uint32_t size) {
     // Asignamos memoria para los 4 bytes del uint32_t
     log_debug(logger, "numero a convertir: %u", number);
-    char* bytes = (char*)malloc(size+1);
+    char* bytes = (char*)malloc(size);
     if (bytes == NULL) {
         return NULL; // Manejo de error en caso de falla de malloc
     }
@@ -328,10 +346,7 @@ char* uint32_to_bytes(uint32_t number, uint32_t size) {
     // Copiamos cada byte del uint32_t al char*
     for (int i = 0; i < size; i++) {
         bytes[i] = (char)((number >> (i * 8)) & 0xFF);
-        log_debug("Byte %u: (0x%02X)", i, (unsigned char)bytes[i]);
-
     }
-    bytes[size] = '\0';
 
     return bytes;
 }
