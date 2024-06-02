@@ -178,7 +178,7 @@ void *servidor_cpu(void *arg)
             t_memoria_proceso *proceso_actual = encontrar_proceso(pid);
 
             // aplico el retardo de la respuesta
-            sleep(config_get_int_value(config, "RETARDO_RESPUESTA"));
+            sleep(config_get_int_value(config, "RETARDO_RESPUESTA") / 1000);
 
             char *linea_de_instruccion = string_duplicate(proceso_actual->lineas_de_codigo[pc]);
             log_debug(logger, "lineas de codigo: %s", linea_de_instruccion);
