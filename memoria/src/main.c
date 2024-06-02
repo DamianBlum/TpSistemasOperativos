@@ -42,34 +42,17 @@ int main(int argc, char *argv[])
     crear_proceso("pk", 1);
     crear_proceso("pk", 2);
     t_memoria_proceso* proceso1 = encontrar_proceso(1);
-    t_memoria_proceso* proceso2 = encontrar_proceso(2);
+    //t_memoria_proceso* proceso2 = encontrar_proceso(2);
     agregar_paginas(proceso1,0,1);
-    agregar_paginas(proceso2,0,1);
-    agregar_paginas(proceso1,1,2);
-    agregar_paginas(proceso2,1,2);
     t_list *lista = list_create();
     list_add(lista, PEDIDO_ESCRITURA);
     list_add(lista, 0);
-    list_add(lista, 9);
+    list_add(lista, 8);
     list_add(lista, 1);
-    list_add(lista, "proceso1A");
+    list_add(lista, 12);
     hacer_pedido_escritura(lista);  
     list_destroy(lista);
-    lista = list_create();
-    list_add(lista, PEDIDO_ESCRITURA);
-    list_add(lista, 8);
-    list_add(lista, 9);
-    list_add(lista, 2);
-    list_add(lista, "proceso2B");    
-    hacer_pedido_escritura(lista);
-    /*list_destroy(lista);
-    lista = list_create();
-    list_add(lista, PEDIDO_ESCRITURA);
-    list_add(lista, 7);
-    list_add(lista, 4);
-    list_add(lista, 1);
-    list_add(lista, "undo");
-    hacer_pedido_escritura(lista);*/
+
     // HAy que ver como hacer para pasar a la siguiente pagina ya que no la tenemos y el indice es la pagina en la tabla!
 
     /*
@@ -291,9 +274,8 @@ void hacer_pedido_escritura(t_list* lista){ // lo unico que hay que ver despues 
         uint32_t df = (uint32_t)list_get(lista, 1); 
         uint32_t size = (uint32_t)list_get(lista, 2);
         uint32_t pid = (uint32_t)list_get(lista, 3);
-        void *elemento_a_insertar = list_get(lista, 4);
+        char* elemento_a_insertar = mem_hexstring( elemento,(size_t) size);
         uint32_t marco = floor(df / tam_pag);
-        uint32_t pagina;
         log_debug(logger, "Marco: %d", marco);
         log_info(logger,"PID: <%u> - Accion: <ESCRIBIR> - Direccion fisica: %u - Tamaño <%u>", pid, df, size);
         
@@ -313,9 +295,9 @@ void hacer_pedido_escritura(t_list* lista){ // lo unico que hay que ver despues 
                 size -= memoria_disponible;
                 elemento_a_insertar += memoria_disponible;
                 log_debug(logger, "voy a escribir esto: %s", elemento_a_insertar);
-                marco = pasar_a_siguiente_pagina(pid,pagina);
-                log_debug(logger, "marco: %d", marco);
-                df = obtener_direccion_fisica_inicio_sig_pagina(pid,marco);
+                marco = conseguir_siguiente_marco(pid,marco);
+                log_debug(logger, "marco: %u", marco);
+                df = marco * tam_pag;
             }
         }
         log_debug(logger,"Memoria Completa: %s",espacio_memoria);
@@ -389,6 +371,7 @@ t_memoria_proceso *crear_estructura_proceso(char *nombre_archivo, char **lineas_
     proceso->nombre_archivo = string_duplicate(nombre_archivo);
     proceso->tabla_paginas = malloc(sizeof(uint32_t)*(tam_memoria/tam_pag));
     proceso->lineas_de_codigo = lineas_de_codigo;
+    proceso->paginas_actuales = 0;
     return proceso;
 }
 
@@ -446,13 +429,23 @@ uint32_t moverme_a_marco(uint32_t marco)
     return inicio_marco;
 }
 
-uint32_t pasar_a_siguiente_pagina(uint32_t pid, uint32_t pagina)
+
+uint32_t conseguir_siguiente_marco(uint32_t pid,uint32_t marco)
 {
     t_memoria_proceso *proceso = encontrar_proceso(pid);
-    uint32_t marco = proceso->tabla_paginas[pagina+1];
-    log_info(logger, "PID: <%u> - Pagina: <%u> - Siguiente Marco: <%u>\n", pid, pagina+1, marco);
-    return marco;
+    // tengo que recorrer todos los marcos asignados a mi proceso hasta encontrar el que tengo y luego, devolver el siguiente
+    uint32_t sig_marco;
+    for (int i = 0; i < proceso->paginas_actuales; i++)
+    {
+        if (proceso->tabla_paginas[i] == marco)
+        {
+            sig_marco = proceso->tabla_paginas[i + 1];
+            log_info(logger, "PID: <%u> - Marco actual: <%u> - Siguiente Marco: <%u>", pid, marco, sig_marco);
+        }
+    }
+    return sig_marco;
 }
+
 
 void borrar_paginas(t_memoria_proceso* proceso,uint32_t paginas_necesarias,uint32_t paginas_actuales)
 {   
@@ -461,7 +454,8 @@ void borrar_paginas(t_memoria_proceso* proceso,uint32_t paginas_necesarias,uint3
     {
         // modifico el bitmap marcos para que el marco vuelva a estar libre
         bitarray_clean_bit(marcos, proceso->tabla_paginas[i]);
-        proceso->tabla_paginas[i][0]=0;
+        proceso->tabla_paginas[i]=0;
+        proceso->paginas_actuales--;
     }
 }
 
@@ -482,6 +476,7 @@ int agregar_paginas(t_memoria_proceso* proceso,uint32_t paginas_actuales,uint32_
         bitarray_set_bit(marcos, marco_libre);
         // agrego el marco a la tabla de paginas
         proceso->tabla_paginas[i] = marco_libre;
+        proceso->paginas_actuales++;
         log_debug(logger, "Marco agregado: %u en la pagina %u", proceso->tabla_paginas[i], i);
     }
     return EXIT_SUCCESS;
@@ -534,12 +529,6 @@ void modificar_tamanio_proceso(t_list* lista)
     eliminar_paquete(paquete_a_enviar);
 }
 
-uint32_t obtener_direccion_fisica_inicio_sig_pagina(uint32_t pid,uint32_t marco)
-{
-    uint32_t direccion_fisica = marco* (uint32_t)tam_pag;
-    log_debug(logger, "Direccion fisica: %d", direccion_fisica);
-    return direccion_fisica;
-}
 
 void hacer_pedido_lectura(t_list* lista){
     

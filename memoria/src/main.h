@@ -11,6 +11,7 @@
 #include <commons/string.h>
 #include <utils/sockets.h>
 #include <commons/bitarray.h>
+#include <commons/memory.h>
 
 typedef enum
 {
@@ -41,7 +42,8 @@ typedef struct t_memoria_proceso
 {
     char **lineas_de_codigo;
     char *nombre_archivo;
-    uint32_t **tabla_paginas;
+    uint32_t *tabla_paginas;
+    uint32_t paginas_actuales;
 } t_memoria_proceso;
 
 int main(int argc, char *argv[]);
@@ -55,7 +57,6 @@ void destruir_proceso(uint32_t pid);
 void crear_espacio_memoria();
 uint32_t devolver_marco(uint32_t pid, uint32_t pagina);
 void *esperar_io(void *arg);
-uint32_t obtener_direccion_fisica_inicio_sig_pagina(uint32_t pid,uint32_t NroPag);
-uint32_t pasar_a_siguiente_pagina(uint32_t pid, uint32_t pagina);
+uint32_t conseguir_siguiente_marco(uint32_t pid,uint32_t marco);
 void hacer_pedido_lectura(t_list* lista);
 #endif
