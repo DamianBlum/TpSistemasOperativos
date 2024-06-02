@@ -190,6 +190,14 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
     case STDOUT:
         if (string_equals_ignore_case(nombre_instruccion, "IO_STDOUT_WRITE"))
         {
+            // consumo 1 unidad de tiempo
+            sleep((uint32_t)((t_interfaz_stdout *)interfaz->configs_especificas)->tiempo_unidad_trabajo);
+
+            // leo la direccion en memoria
+
+            // printear el valor obtenido
+            log_info(logger, "Print del valor leido en memoria: ");
+
             ejecuto_correctamente = 1;
         }
         else
