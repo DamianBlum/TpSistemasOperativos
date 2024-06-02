@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
     t_list *lista = list_create();
     list_add(lista, PEDIDO_ESCRITURA);
     list_add(lista, 0);
-    list_add(lista, 8);
+    list_add(lista, 1);
     list_add(lista, 1);
     list_add(lista, 12);
     hacer_pedido_escritura(lista);  
@@ -274,7 +274,8 @@ void hacer_pedido_escritura(t_list* lista){ // lo unico que hay que ver despues 
         uint32_t df = (uint32_t)list_get(lista, 1); 
         uint32_t size = (uint32_t)list_get(lista, 2);
         uint32_t pid = (uint32_t)list_get(lista, 3);
-        char* elemento_a_insertar = mem_hexstring( elemento,(size_t) size);
+        // como se cuando es una string o cuando es un uint32_t?
+        char* elemento_a_insertar = uint32_to_bytes((uint32_t)list_get(lista, 4),size);
         uint32_t marco = floor(df / tam_pag);
         log_debug(logger, "Marco: %d", marco);
         log_info(logger,"PID: <%u> - Accion: <ESCRIBIR> - Direccion fisica: %u - Tamaño <%u>", pid, df, size);
@@ -313,6 +314,26 @@ void obtener_instruccion(t_list* lista){
     log_debug(logger, "linea de codigo: %s", linea_de_instruccion);
     enviar_mensaje(linea_de_instruccion, cliente_cpu, logger);
     free(linea_de_instruccion);
+}
+
+// Función para convertir un uint32_t en un char* de bytes
+char* uint32_to_bytes(uint32_t number, uint32_t size) {
+    // Asignamos memoria para los 4 bytes del uint32_t
+    log_debug(logger, "numero a convertir: %u", number);
+    char* bytes = (char*)malloc(size+1);
+    if (bytes == NULL) {
+        return NULL; // Manejo de error en caso de falla de malloc
+    }
+
+    // Copiamos cada byte del uint32_t al char*
+    for (int i = 0; i < size; i++) {
+        bytes[i] = (char)((number >> (i * 8)) & 0xFF);
+        log_debug("Byte %u: (0x%02X)", i, (unsigned char)bytes[i]);
+
+    }
+    bytes[size] = '\0';
+
+    return bytes;
 }
 
 int crear_proceso(char *nombre_archivo, uint32_t process_id)

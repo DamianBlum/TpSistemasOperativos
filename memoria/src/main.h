@@ -11,7 +11,6 @@
 #include <commons/string.h>
 #include <utils/sockets.h>
 #include <commons/bitarray.h>
-#include <commons/memory.h>
 
 typedef enum
 {
@@ -59,4 +58,5 @@ uint32_t devolver_marco(uint32_t pid, uint32_t pagina);
 void *esperar_io(void *arg);
 uint32_t conseguir_siguiente_marco(uint32_t pid,uint32_t marco);
 void hacer_pedido_lectura(t_list* lista);
+char* uint32_to_bytes(uint32_t number, uint32_t size);
 #endif
