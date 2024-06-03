@@ -58,6 +58,7 @@ void crear_espacio_memoria();
 uint32_t devolver_marco(uint32_t pid, uint32_t pagina);
 void *esperar_io(void *arg);
 uint32_t conseguir_siguiente_marco(uint32_t pid,uint32_t marco);
-void hacer_pedido_lectura(t_list* lista);
+void hacer_pedido_escritura(uint32_t df, uint32_t size, uint32_t pid,void* elemento_a_insertar, uint8_t tipo);
+void* hacer_pedido_lectura(uint32_t df, uint32_t size, uint32_t pid, uint8_t tipo);
 char* uint32_to_bytes(uint32_t number, uint32_t size);
 #endif
