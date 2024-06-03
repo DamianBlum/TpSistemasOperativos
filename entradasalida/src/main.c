@@ -190,13 +190,26 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
     case STDOUT:
         if (string_equals_ignore_case(nombre_instruccion, "IO_STDOUT_WRITE"))
         {
+            uint32_t dir_fisica = list_get(datos_desde_kernel, 1);
+            uint32_t tam_dato = list_get(datos_desde_kernel, 2);
+            uint32_t pid = list_get(datos_desde_kernel, 3);
+            int cm = (int)((t_interfaz_stdout *)interfaz->configs_especificas)->conexion_memoria;
+
             // consumo 1 unidad de tiempo
             sleep((uint32_t)((t_interfaz_stdout *)interfaz->configs_especificas)->tiempo_unidad_trabajo);
 
             // leo la direccion en memoria
+            t_paquete *pm = crear_paquete();
+            agregar_a_paquete(pm, PEDIDO_LECTURA, sizeof(PEDIDO_LECTURA));
+            agregar_a_paquete(pm, dir_fisica, sizeof(uint32_t));
+            agregar_a_paquete(pm, tam_dato, sizeof(uint32_t));
+            agregar_a_paquete(pm, pid, sizeof(uint32_t));
+            enviar_paquete(pm, cm, logger);
 
-            // printear el valor obtenido
-            log_info(logger, "Print del valor leido en memoria: ");
+            // esperar y printear el valor obtenido
+            recibir_operacion(cm, logger);
+            char *mensaje_obtenido = recibir_mensaje(cm, logger);
+            log_info(logger, "Print del valor leido en memoria: %s", mensaje_obtenido);
 
             ejecuto_correctamente = 1;
         }
@@ -247,28 +260,32 @@ void manejo_de_interfaz(void *args)
         {
         case MENSAJE:
             char *mensaje = recibir_mensaje(interfaz->conexion_kernel, logger);
-            log_info(logger, "Desde cliente %d: Recibi el mensaje: %s.", interfaz->conexion_kernel, mensaje);
+            log_info(logger, "Desde cliente %d | %s: Recibi el mensaje: %s.", interfaz->conexion_kernel, interfaz->nombre, mensaje);
             // hago algo con el mensaje
             break;
         case PAQUETE:
             t_list *lista = list_create();
             lista = recibir_paquete(interfaz->conexion_kernel, logger);
-            log_info(logger, "Desde cliente %d: Recibi un paquete.", interfaz->conexion_kernel);
+            log_info(logger, "Desde cliente %d | %s: Recibi un paquete.", interfaz->conexion_kernel, interfaz->nombre);
             char *nombre_instruccion = list_get(lista, 0);
             int resultado = ejecutar_instruccion(nombre_instruccion, interfaz, lista);
-            enviar_mensaje(string_itoa(resultado), interfaz->conexion_kernel, logger);
+
+            // le respondo a kernel
+            t_paquete *paquete_resp_kernel = crear_paquete();
+            agregar_a_paquete(paquete_resp_kernel, (uint8_t)resultado, sizeof(uint8_t));
+            enviar_paquete(paquete_resp_kernel, interfaz->conexion_kernel, logger);
             break;
         case EXIT: // indica desconeccion
-            log_error(logger, "Se desconecto el cliente %d.", interfaz->conexion_kernel);
+            log_error(logger, "Se desconecto el cliente %d | %s.", interfaz->conexion_kernel, interfaz->nombre);
             sigo_funcionando = 0;
             break;
         default: // recibi algo q no es eso, vamos a suponer q es para terminar
-            log_error(logger, "Desde cliente %d: Recibi una operacion rara (%d), termino el servidor.", interfaz->conexion_kernel, operacion);
+            log_error(logger, "Desde cliente %d | %s: Recibi una operacion rara (%d), termino el servidor.", interfaz->conexion_kernel, interfaz->nombre, operacion);
             return EXIT_FAILURE;
             break;
         }
-        liberar_conexion(interfaz->conexion_kernel, logger);
-        // liberar_conexion(interfaz->conexion_memoria, logger);
     }
+    liberar_conexion(interfaz->conexion_kernel, logger);
+    // liberar_conexion(interfaz->conexion_memoria, logger);
     return EXIT_SUCCESS;
 }

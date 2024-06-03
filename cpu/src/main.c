@@ -322,6 +322,7 @@ void execute()
         instruccion_signal();
         break;
     case IO_GEN_SLEEP:
+        instruccion_io_gen_sleep();
         break;
     case IO_STDIN_READ:
         break;
@@ -475,7 +476,7 @@ void instruccion_signal()
 
     uint8_t resultado_numero = list_get(resp_kernel_signal, 0);
 
-    if (resultado_numero == 1)
+    if (resultado_numero)
     {
         log_debug(logger, "No existia ese recurso %s", nombre_recurso);
         proceso_actual_ejecutando = false;
@@ -487,7 +488,7 @@ void instruccion_signal()
 
 void instruccion_io_gen_sleep()
 {
-    log_info(logger, "PID: < %d > - Ejecutando: < JNZ > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
+    log_info(logger, "PID: < %d > - Ejecutando: < IO_GEN_SLEEP > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
 
     char *nroInterfaz = string_new();
     nroInterfaz = linea_de_instruccion_separada[1];
@@ -498,27 +499,27 @@ void instruccion_io_gen_sleep()
     int tiempoTrabajo = atoi(tiempoTrabajoString);
 
     char **datos_tiempo = string_array_new();
-    string_array_push(datos_tiempo, nroInterfaz);
-    string_array_push(datos_tiempo, tiempoTrabajoString);
+    string_array_push(&datos_tiempo, nroInterfaz);
+    string_array_push(&datos_tiempo, tiempoTrabajoString);
 
     enviar_pcb(MOTIVO_DESALOJO_IO_GEN_SLEEP, agregar_datos_tiempo, datos_tiempo);
 
     // Espero la respuesta de Kernel
-    char *resultado = string_new();
-    resultado = recibir_mensaje(socket_cliente_dispatch, logger);
+    t_list *resp_kernel_iogensleep = list_create();
+    recibir_operacion(socket_cliente_dispatch, logger);
+    resp_kernel_iogensleep = recibir_paquete(socket_cliente_dispatch, logger);
 
-    int resultado_numero = atoi(resultado);
+    uint8_t resultado_numero = list_get(resp_kernel_iogensleep, 0);
     // Si me devuelve 1 esta todo MAL, si no todo BIEN
-    if (resultado_numero == 1)
+    if (resultado_numero)
     {
         proceso_actual_ejecutando = false;
     }
 
     // LIBERAR LA MEMORIA
-    free(nroInterfaz);
+    /*free(nroInterfaz); ALGUN DIA LOS HARE
     free(tiempoTrabajoString);
-    free(resultado);
-    string_array_destroy(datos_tiempo);
+    string_array_destroy(datos_tiempo);*/
 }
 
 void instruccion_exit()
@@ -648,7 +649,7 @@ void enviar_pcb(e_motivo_desalojo motivo_desalojo, Agregar_datos_paquete agregar
     registros->motivo_desalojo = motivo_desalojo;
     t_paquete *paquete_de_pcb = crear_paquete();
     empaquetar_registros(paquete_de_pcb, registros);
-    agregar_datos_paquete(paquete_de_pcb, datos);
+    agregar_datos_tiempo(paquete_de_pcb, datos);
     enviar_paquete(paquete_de_pcb, socket_cliente_dispatch, logger);
     // eliminar_paquete(paquete_de_pcb);
 }

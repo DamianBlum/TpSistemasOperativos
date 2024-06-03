@@ -11,6 +11,7 @@
 #include <pthread.h>
 #include <dirent.h>
 #include <utils/operacionMemoriaUtils.h>
+#include <commons/collections/list.h>
 
 // Estructuras para el manejo de interfaces
 typedef enum
