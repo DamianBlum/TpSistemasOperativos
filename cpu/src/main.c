@@ -649,7 +649,7 @@ void enviar_pcb(e_motivo_desalojo motivo_desalojo, Agregar_datos_paquete agregar
     registros->motivo_desalojo = motivo_desalojo;
     t_paquete *paquete_de_pcb = crear_paquete();
     empaquetar_registros(paquete_de_pcb, registros);
-    agregar_datos_tiempo(paquete_de_pcb, datos);
+    agregar_datos_paquete(paquete_de_pcb, datos);
     enviar_paquete(paquete_de_pcb, socket_cliente_dispatch, logger);
     // eliminar_paquete(paquete_de_pcb);
 }
