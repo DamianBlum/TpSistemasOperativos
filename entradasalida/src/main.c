@@ -78,19 +78,19 @@ t_interfaz_default *crear_nueva_interfaz(char *nombre_archivo_config)
         break;
     case STDIN:
         t_interfaz_stdin *tisin = malloc(sizeof(t_interfaz_stdin));
-        tisin->conexion_memoria = crear_conexion(config, "IP_MEMORIA", "IP_MEMORIA", logger);
+        tisin->conexion_memoria = crear_conexion(config, "IP_MEMORIA", "PUERTO_MEMORIA", logger);
         interfaz->configs_especificas = tisin;
         break;
     case STDOUT:
         t_interfaz_stdout *tisout = malloc(sizeof(t_interfaz_stdout));
         tisout->tiempo_unidad_trabajo = (uint32_t)config_get_long_value(config, "TIEMPO_UNIDAD_TRABAJO");
-        tisout->conexion_memoria = crear_conexion(config, "IP_MEMORIA", "IP_MEMORIA", logger);
+        tisout->conexion_memoria = crear_conexion(config, "IP_MEMORIA", "PUERTO_MEMORIA", logger);
         interfaz->configs_especificas = tisout;
         break;
     case DIALFS:
         t_interfaz_dialfs *tid = malloc(sizeof(t_interfaz_dialfs));
         tid->tiempo_unidad_trabajo = (uint32_t)config_get_long_value(config, "TIEMPO_UNIDAD_TRABAJO");
-        tid->conexion_memoria = crear_conexion(config, "IP_MEMORIA", "IP_MEMORIA", logger);
+        tid->conexion_memoria = crear_conexion(config, "IP_MEMORIA", "PUERTO_MEMORIA", logger);
         tid->path_base_dialfs = (uint32_t)config_get_long_value(config, "PATH_BASE_DIALFS");
         tid->block_size = (uint32_t)config_get_long_value(config, "BLOCK_SIZE");
         tid->block_count = (uint32_t)config_get_long_value(config, "BLOCK_COUNT");
@@ -156,7 +156,7 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
             uint32_t tiempo_espera = (uint32_t)((t_interfaz_generica *)interfaz->configs_especificas)->tiempo_unidad_trabajo;
             uint32_t espera_total = tiempo_espera * cantidad_de_esperas;
 
-            consumir_tiempo_trabajo(espera_total);
+            consumir_tiempo_trabajo(espera_total, interfaz);
 
             ejecuto_correctamente = 1;
         }
@@ -208,7 +208,7 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
             log_debug(logger, "(%s|%s): Direccion fisica: %u | Size dato: %u | PID: %u.", interfaz->nombre, interfaz->tipo_interfaz, dir_fisica, tam_dato, pid);
 
             // consumo 1 unidad de trabajo
-            consumir_tiempo_trabajo(tisout->tiempo_unidad_trabajo);
+            consumir_tiempo_trabajo(tisout->tiempo_unidad_trabajo, interfaz);
 
             // leo la direccion en memoria
             log_trace(logger, "(%s|%s): Le voy a pedir a memoria la lectura de la direccion fisica %u.", interfaz->nombre, interfaz->tipo_interfaz, dir_fisica);
@@ -266,7 +266,7 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
     return ejecuto_correctamente;
 }
 
-void consumir_tiempo_trabajo(uint32_t tiempo_en_ms)
+void consumir_tiempo_trabajo(uint32_t tiempo_en_ms, t_interfaz_default *interfaz)
 {
     uint32_t tiempo_en_s = tiempo_en_ms / 1000;
     log_debug(logger, "(%s|%s): Tiempo a dormir en ms: %u | en s: %u", interfaz->nombre, interfaz->tipo_interfaz, tiempo_en_ms, tiempo_en_s);

@@ -69,6 +69,6 @@ void hacer_io_fs_write(t_list *lista);
 void manejo_de_interfaz(void *args);
 e_tipo_interfaz convertir_tipo_interfaz_enum(char *tipo_interfaz);
 t_interfaz_default *crear_nueva_interfaz(char *nombre_archivo_config);
-void consumir_tiempo_trabajo(uint32_t tiempo_en_ms);
+void consumir_tiempo_trabajo(uint32_t tiempo_en_ms, t_interfaz_default *interfaz);
 int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz, t_list *datos_desde_kernel);
 #endif
