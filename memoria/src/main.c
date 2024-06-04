@@ -119,6 +119,7 @@ void *servidor_kernel(void *arg)
             lista = recibir_paquete(cliente_kernel, logger);
             log_info(logger, "Desde cliente %d: Recibi un paquete.", cliente_kernel);
             e_operacion operacion_kernel = (e_operacion)list_get(lista, 0);
+            sleep(config_get_int_value(config, "RETARDO_RESPUESTA") / 1000);
             switch (operacion_kernel)
             {
 
@@ -139,12 +140,16 @@ void *servidor_kernel(void *arg)
                 t_paquete *paquete_a_enviar = crear_paquete();
                 agregar_a_paquete(paquete_a_enviar, resultado, sizeof(int));
                 enviar_paquete(paquete_a_enviar, cliente_kernel, logger);
-                // eliminar_paquete(paquete_a_enviar);
+                eliminar_paquete(paquete_a_enviar); //LO TENIA COMENTADO, PROBAR DESPUES CON KERNEL
                 log_debug(logger, "Envie el resultado de la operacion INICIAR_PROCESO al kernel");
                 break;
             case BORRAR_PROCESO:
                 uint32_t pid = (uint32_t)list_get(lista, 1);
                 destruir_proceso(pid);
+                t_paquete *paquete_a_enviar = crear_paquete();
+                agregar_a_paquete(paquete_a_enviar, 0, sizeof(int));
+                enviar_paquete(paquete_a_enviar, cliente_kernel, logger);
+                eliminar_paquete(paquete_a_enviar);
                 break;
             default:
                 break;
@@ -279,18 +284,40 @@ void *servidor_entradasalida(void *arg)
             sleep(config_get_int_value(config, "RETARDO_RESPUESTA")/1000);
             switch (operacion_io)
             {
-            case PEDIDO_ESCRITURA:
-                uint32_t df = (uint32_t)list_get(lista, 1);
-                uint32_t size = (uint32_t)list_get(lista, 2);
-                uint32_t pid = (uint32_t)list_get(lista, 3);
-                void *elemento_a_insertar = list_get(lista, 4);
-                uint8_t tipo = (uint8_t)list_get(lista, 5);
-                int resultado=hacer_pedido_escritura(df, size, pid, elemento_a_insertar, tipo);
-                if (resultado == 0)
-                {
-                    enviar_mensaje("OK", cliente_entradasalida, logger);
-                }
-                break;
+                case PEDIDO_ESCRITURA:
+                    uint32_t df = (uint32_t)list_get(lista, 1);
+                    uint32_t size = (uint32_t)list_get(lista, 2);
+                    uint32_t pid = (uint32_t)list_get(lista, 3);
+                    void *elemento_a_insertar = list_get(lista, 4);
+                    uint8_t tipo = (uint8_t)list_get(lista, 5);
+                    int resultado=hacer_pedido_escritura(df, size, pid, elemento_a_insertar, tipo);
+                    if (resultado == 0)
+                    {
+                        enviar_mensaje("OK", cliente_entradasalida, logger);
+                    }
+                    break;
+                case PEDIDO_LECTURA:
+                    uint32_t df = (uint32_t)list_get(lista, 1);
+                    uint32_t size = (uint32_t)list_get(lista, 2);
+                    uint32_t pid = (uint32_t)list_get(lista, 3);
+                    uint8_t tipo = (uint8_t)list_get(lista, 4);
+
+                    void* resultado=hacer_pedido_lectura(df, size, pid, tipo);
+                    if (tipo){
+                        uint32_t valor = (uint32_t)resultado;
+                        t_paquete *paquete_a_enviar = crear_paquete();
+                        agregar_a_paquete(paquete_a_enviar, valor, size);
+                        enviar_paquete(paquete_a_enviar, cliente_cpu, logger);
+                        eliminar_paquete(paquete_a_enviar);
+                    }
+                    else{
+                        char* texto = (char*)resultado;
+                        t_paquete *paquete_a_enviar = crear_paquete();
+                        agregar_a_paquete(paquete_a_enviar, texto, size);
+                        enviar_paquete(paquete_a_enviar, cliente_cpu, logger);
+                        eliminar_paquete(paquete_a_enviar);
+                    }
+                    break;
             }
             break;
         case EXIT: // indica desconexion
