@@ -6,7 +6,8 @@ typedef enum
     INICIAR_PROCESO = 0,
     BORRAR_PROCESO,
     PEDIDO_LECTURA,
-    PEDIDO_ESCRITURA
+    PEDIDO_ESCRITURA,
+    RESIZE_PROCESO,
 } e_operacion;
 
 #endif

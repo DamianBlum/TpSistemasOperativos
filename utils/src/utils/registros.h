@@ -19,6 +19,7 @@ typedef enum
     MOTIVO_DESALOJO_IO_FS_TRUNCATE,
     MOTIVO_DESALOJO_IO_FS_WRITE,
     MOTIVO_DESALOJO_IO_FS_READ,
+    MOTIVO_DESALOJO_OUT_OF_MEMORY, // esto es cuando hago un resize pero no tengo espacion suficiente
 } e_motivo_desalojo;
 
 // estructura que se va a usar en el modulo CPU
