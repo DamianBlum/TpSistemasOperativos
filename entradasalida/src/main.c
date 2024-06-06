@@ -91,10 +91,23 @@ t_interfaz_default *crear_nueva_interfaz(char *nombre_archivo_config)
         t_interfaz_dialfs *tid = malloc(sizeof(t_interfaz_dialfs));
         tid->tiempo_unidad_trabajo = (uint32_t)config_get_long_value(config, "TIEMPO_UNIDAD_TRABAJO");
         tid->conexion_memoria = crear_conexion(config, "IP_MEMORIA", "PUERTO_MEMORIA", logger);
-        tid->path_base_dialfs = (uint32_t)config_get_long_value(config, "PATH_BASE_DIALFS");
+        tid->path_base_dialfs = config_get_string_value(config, "PATH_BASE_DIALFS");
         tid->block_size = (uint32_t)config_get_long_value(config, "BLOCK_SIZE");
         tid->block_count = (uint32_t)config_get_long_value(config, "BLOCK_COUNT");
         tid->retraso_compactacion = (uint32_t)config_get_long_value(config, "RETRASO_COMPACTACION");
+
+        // creo las estructuras necesarias (si ya estan creadas no pasa nada)
+        // 1- bloques.dat
+        char *path_bloques = string_duplicate(tid->path_base_dialfs);
+        string_append(&path_bloques, "bloques.dat");
+        FILE *fbloques = fopen(path_bloques, "ab");
+        log_debug(logger, "Se creo el archivo de bloques en el path: %s", path_bloques);
+        truncate(path_bloques, tid->block_count * tid->block_size);
+        log_debug(logger, "Se trunco el archivo para que tenga size: %u", tid->block_count * tid->block_size);
+
+        // 2- bitmap.dat
+
+        // 3- metadata (1 por archivo) => nombreArchivo.config
         break;
     default:
         break;
@@ -144,14 +157,14 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
     int ejecuto_correctamente = 0; // 0 = Incorrecta o No esta asociada a la interfaz que tengo.
                                    // 1 = Ejecuto correctamente.
                                    // 2 = Falla en la ejecucion.
-    log_trace(logger, "(%s|%s): me llego la instruccion: %s", interfaz->nombre, interfaz->tipo_interfaz, nombre_instruccion);
+    log_trace(logger, "(%s|%u): me llego la instruccion: %s", interfaz->nombre, interfaz->tipo_interfaz, nombre_instruccion);
 
     switch (interfaz->tipo_interfaz)
     {
     case GENERICA:
         if (string_equals_ignore_case(nombre_instruccion, "IO_GEN_SLEEP"))
         {
-            log_trace(logger, "(%s|%s): Entre a IO_GEN_SLEEP.", interfaz->nombre, interfaz->tipo_interfaz);
+            log_trace(logger, "(%s|%u): Entre a IO_GEN_SLEEP.", interfaz->nombre, interfaz->tipo_interfaz);
             uint32_t cantidad_de_esperas = list_get(datos_desde_kernel, 1);
             uint32_t tiempo_espera = (uint32_t)((t_interfaz_generica *)interfaz->configs_especificas)->tiempo_unidad_trabajo;
             uint32_t espera_total = tiempo_espera * cantidad_de_esperas;
@@ -166,20 +179,20 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
     case STDIN:
         if (string_equals_ignore_case(nombre_instruccion, "IO_STDIN_READ"))
         {
-            log_trace(logger, "(%s|%s): Entre a IO_STDIN_READ.", interfaz->nombre, interfaz->tipo_interfaz);
+            log_trace(logger, "(%s|%u): Entre a IO_STDIN_READ.", interfaz->nombre, interfaz->tipo_interfaz);
             char *texto_ingresado;
             texto_ingresado = readline(">");
 
             uint32_t dir = list_get(datos_desde_kernel, 1);
             uint32_t tamanio_registro = list_get(datos_desde_kernel, 2);
             uint32_t pid = list_get(datos_desde_kernel, 3);
-            log_debug(logger, "(%s|%s): Texto ingresado: %s | Direccion fisica: %u | Size registro: %u | PID: %u.", interfaz->nombre, interfaz->tipo_interfaz, texto_ingresado, dir, tamanio_registro, pid);
+            log_debug(logger, "(%s|%u): Texto ingresado: %s | Direccion fisica: %u | Size registro: %u | PID: %u.", interfaz->nombre, interfaz->tipo_interfaz, texto_ingresado, dir, tamanio_registro, pid);
 
             // ahora q lo lei, lo voy a acortar si es necesario
             char *texto_chiquito = string_substring_until(texto_ingresado, (int)tamanio_registro / 4);
-            log_debug(logger, "(%s|%s): Texto ingresado despues de cortarlo: %s", interfaz->nombre, interfaz->tipo_interfaz, texto_chiquito);
+            log_debug(logger, "(%s|%u): Texto ingresado despues de cortarlo: %s", interfaz->nombre, interfaz->tipo_interfaz, texto_chiquito);
 
-            log_trace(logger, "(%s|%s): Le voy a enviar a memoria el texto para que lo escriba.", interfaz->nombre, interfaz->tipo_interfaz);
+            log_trace(logger, "(%s|%u): Le voy a enviar a memoria el texto para que lo escriba.", interfaz->nombre, interfaz->tipo_interfaz);
             t_paquete *paquete_para_mem = crear_paquete();
             agregar_a_paquete(paquete_para_mem, PEDIDO_ESCRITURA, sizeof(uint8_t));
             agregar_a_paquete(paquete_para_mem, dir, sizeof(uint32_t));              // Reg direc logica (en realidad aca mepa q recivo la fisica)
@@ -198,20 +211,20 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
     case STDOUT:
         if (string_equals_ignore_case(nombre_instruccion, "IO_STDOUT_WRITE"))
         {
-            log_trace(logger, "(%s|%s): Entre a IO_STDOUT_WRITE.", interfaz->nombre, interfaz->tipo_interfaz);
+            log_trace(logger, "(%s|%u): Entre a IO_STDOUT_WRITE.", interfaz->nombre, interfaz->tipo_interfaz);
             uint32_t dir_fisica = list_get(datos_desde_kernel, 1);
             uint32_t tam_dato = list_get(datos_desde_kernel, 2);
             uint32_t pid = list_get(datos_desde_kernel, 3);
             t_interfaz_stdout *tisout = (t_interfaz_stdout *)interfaz->configs_especificas;
             int cm = (int)tisout->conexion_memoria;
 
-            log_debug(logger, "(%s|%s): Direccion fisica: %u | Size dato: %u | PID: %u.", interfaz->nombre, interfaz->tipo_interfaz, dir_fisica, tam_dato, pid);
+            log_debug(logger, "(%s|%u): Direccion fisica: %u | Size dato: %u | PID: %u.", interfaz->nombre, interfaz->tipo_interfaz, dir_fisica, tam_dato, pid);
 
             // consumo 1 unidad de trabajo
             consumir_tiempo_trabajo(tisout->tiempo_unidad_trabajo, interfaz);
 
             // leo la direccion en memoria
-            log_trace(logger, "(%s|%s): Le voy a pedir a memoria la lectura de la direccion fisica %u.", interfaz->nombre, interfaz->tipo_interfaz, dir_fisica);
+            log_trace(logger, "(%s|%u): Le voy a pedir a memoria la lectura de la direccion fisica %u.", interfaz->nombre, interfaz->tipo_interfaz, dir_fisica);
             t_paquete *pm = crear_paquete();
             agregar_a_paquete(pm, PEDIDO_LECTURA, sizeof(PEDIDO_LECTURA));
             agregar_a_paquete(pm, dir_fisica, sizeof(uint32_t));
@@ -222,7 +235,7 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
             // esperar y printear el valor obtenido
             recibir_operacion(cm, logger);
             char *mensaje_obtenido = recibir_mensaje(cm, logger);
-            log_info(logger, "(%s|%s): Resultado de la lectura a memoria: %s", interfaz->nombre, interfaz->tipo_interfaz, mensaje_obtenido);
+            log_info(logger, "(%s|%u): Resultado de la lectura a memoria: %s", interfaz->nombre, interfaz->tipo_interfaz, mensaje_obtenido);
             // log_info(logger, "Print del valor leido en memoria: %s", mensaje_obtenido);
 
             ejecuto_correctamente = 1;
@@ -231,29 +244,33 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
             log_error(logger, "ERROR: la instruccion pedida (%s) no corresponde a una interfaz generica.", nombre_instruccion);
         break;
     case DIALFS:
+        // siempre consumo 1 unidad de trabajo
+        t_interfaz_dialfs *idialfs = (t_interfaz_dialfs *)interfaz->configs_especificas;
+        consumir_tiempo_trabajo(idialfs->tiempo_unidad_trabajo, interfaz);
+
         if (string_equals_ignore_case(nombre_instruccion, "IO_FS_CREATE"))
         {
-            log_trace(logger, "(%s|%s): Entre a IO_FS_CREATE.", interfaz->nombre, interfaz->tipo_interfaz);
+            log_trace(logger, "(%s|%u): Entre a IO_FS_CREATE.", interfaz->nombre, interfaz->tipo_interfaz);
             ejecuto_correctamente = 1;
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_DELETE"))
         {
-            log_trace(logger, "(%s|%s): Entre a IO_FS_DELETE.", interfaz->nombre, interfaz->tipo_interfaz);
+            log_trace(logger, "(%s|%u): Entre a IO_FS_DELETE.", interfaz->nombre, interfaz->tipo_interfaz);
             ejecuto_correctamente = 1;
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_TRUNCATE"))
         {
-            log_trace(logger, "(%s|%s): Entre a IO_FS_TRUNCATE.", interfaz->nombre, interfaz->tipo_interfaz);
+            log_trace(logger, "(%s|%u): Entre a IO_FS_TRUNCATE.", interfaz->nombre, interfaz->tipo_interfaz);
             ejecuto_correctamente = 1;
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_WRITE"))
         {
-            log_trace(logger, "(%s|%s): Entre a IO_FS_WRITE.", interfaz->nombre, interfaz->tipo_interfaz);
+            log_trace(logger, "(%s|%u): Entre a IO_FS_WRITE.", interfaz->nombre, interfaz->tipo_interfaz);
             ejecuto_correctamente = 1;
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_READ"))
         {
-            log_trace(logger, "(%s|%s): Entre a IO_FS_READ.", interfaz->nombre, interfaz->tipo_interfaz);
+            log_trace(logger, "(%s|%u): Entre a IO_FS_READ.", interfaz->nombre, interfaz->tipo_interfaz);
             ejecuto_correctamente = 1;
         }
         else
@@ -269,10 +286,10 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
 void consumir_tiempo_trabajo(uint32_t tiempo_en_ms, t_interfaz_default *interfaz)
 {
     uint32_t tiempo_en_s = tiempo_en_ms / 1000;
-    log_debug(logger, "(%s|%s): Tiempo a dormir en ms: %u | en s: %u", interfaz->nombre, interfaz->tipo_interfaz, tiempo_en_ms, tiempo_en_s);
-    log_trace(logger, "(%s|%s): Voy a hacer sleep por %u segundos.", interfaz->nombre, interfaz->tipo_interfaz, tiempo_en_s);
+    log_debug(logger, "(%s|%u): Tiempo a dormir en ms: %u | en s: %u", interfaz->nombre, interfaz->tipo_interfaz, tiempo_en_ms, tiempo_en_s);
+    log_trace(logger, "(%s|%u): Voy a hacer sleep por %u segundos.", interfaz->nombre, interfaz->tipo_interfaz, tiempo_en_s);
     sleep(tiempo_en_s);
-    log_trace(logger, "(%s|%s): Termino el sleep.", interfaz->nombre, interfaz->tipo_interfaz);
+    log_trace(logger, "(%s|%u): Termino el sleep.", interfaz->nombre, interfaz->tipo_interfaz);
 }
 
 void manejo_de_interfaz(void *args)
@@ -299,7 +316,7 @@ void manejo_de_interfaz(void *args)
             int resultado = ejecutar_instruccion(nombre_instruccion, interfaz, lista);
 
             // le respondo a kernel
-            log_trace(logger, "(%s|%s): Le voy a responder a kernel el resultado de la ejecucion: %u.", interfaz->nombre, interfaz->tipo_interfaz, resultado);
+            log_trace(logger, "(%s|%u): Le voy a responder a kernel el resultado de la ejecucion: %u.", interfaz->nombre, interfaz->tipo_interfaz, resultado);
             t_paquete *paquete_resp_kernel = crear_paquete();
             agregar_a_paquete(paquete_resp_kernel, (uint8_t)resultado, sizeof(uint8_t));
             enviar_paquete(paquete_resp_kernel, interfaz->conexion_kernel, logger);
