@@ -12,6 +12,7 @@
 #include <utils/sockets.h>
 #include <commons/bitarray.h>
 #include <commons/memory.h>
+#include <assert.h>
 
 typedef enum
 {

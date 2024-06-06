@@ -33,70 +33,10 @@ int cant_marcos;
 int main(int argc, char *argv[])
 {
     // hago prueba de creacion de la memoria y de la creacion de un proceso con sus respectivas tablas
-    procesos = dictionary_create();
-    logger = iniciar_logger("memoria.log", "MEMORIA", argc, argv);
-    config = iniciar_config("memoria.config");
-    tam_pag = config_get_int_value(config, "TAM_PAGINA");
-    path = config_get_string_value(config, "PATH_INSTRUCCIONES");
-    crear_espacio_memoria();
-    crear_proceso("pk", 1);
-    //crear_proceso("pk", 2);
-    t_memoria_proceso* proceso1 = encontrar_proceso(1);
-    //t_memoria_proceso* proceso2 = encontrar_proceso(2);
-    t_list* lista = list_create();
-    agregar_paginas(proceso1,0,4);
-    list_add(lista,PEDIDO_ESCRITURA);
-    list_add(lista,0);
-    list_add(lista,14);
-    list_add(lista,1);
-    list_add(lista,"holahijodeputa");
-    list_add(lista,0);
-    hacer_pedido_escritura(lista);  
-    list_destroy(lista);
-    lista = list_create();
-    list_add(lista,PEDIDO_ESCRITURA);
-    list_add(lista,0);
-    list_add(lista,14);
-    list_add(lista,1);
-    list_add(lista,0);
-    char* resultado=(char*)hacer_pedido_lectura(lista);
-    log_info(logger,"Lo que lei fue esta palabra: %s",resultado);
-    destruir_proceso(1);
-    free(espacio_memoria);
-    //list_destroy(lista2);
-    // HAy que ver como hacer para pasar a la siguiente pagina ya que no la tenemos y el indice es la pagina en la tabla!
-    /*
-    procesos = dictionary_create();
-    logger = iniciar_logger("memoria.log", "MEMORIA", argc, argv);
-    config = iniciar_config("memoria.config");
-    tam_pag = config_get_int_value(config, "TAM_PAGINA");
-    path = config_get_string_value(config, "PATH_INSTRUCCIONES");
-    crear_espacio_memoria();
-
-    socket_servidor = iniciar_servidor(config, "PUERTO_ESCUCHA");
-
-    log_info(logger, "Servidor %d creado.", socket_servidor);
-
-    // 3 clientes - CPU - I/O - KERNEL
-    // Sabemos que los 3 clientes se conectan en orden: CPU => KERNEL => I/O
-
-    // Recibimos la conexion de la cpu y creamos un hilo para trabajarlo
-    cliente_cpu = esperar_cliente(socket_servidor, logger);
-    pthread_create(&tid[SOY_CPU], NULL, servidor_cpu, NULL);
-
-    // Recibimos la conexion de la kernel y creamos un hilo para trabajarlo
-    cliente_kernel = esperar_cliente(socket_servidor, logger);
-    pthread_create(&tid[SOY_KERNEL], NULL, servidor_kernel, NULL);
-
-    // Recibimos las multiples conexiones de la I/O y creamos los hilo para trabajar
-    pthread_create(&tid[SOY_IO], NULL, esperar_io, NULL);
-
-    pthread_join(tid[SOY_CPU], NULL);
-    pthread_join(tid[SOY_KERNEL], NULL);
-    */
-    destruir_logger(logger);
-    destruir_config(config);
-    printf("Memoria finalizada\n");
+    inicializar_modulo_memoria(argc, argv);
+    testear_modulo_memoria();
+    //creacion_servidor_y_clientes();
+    //finalizar_modulo_memoria();
     return 0;
 }
 
@@ -242,7 +182,11 @@ void *servidor_cpu(void *arg)
                 obtener_instruccion(lista);
                 break;
             case MODIFICAR_TAMANIO_PROCESO:
-                modificar_tamanio_proceso(lista);
+                int resultado=modificar_tamanio_proceso(lista); // 1 se pudo, 0 no se pudo
+                t_paquete *paquete = crear_paquete();
+                agregar_a_paquete(paquete, resultado, sizeof(int));
+                enviar_paquete(paquete, cliente_cpu, logger);
+                eliminar_paquete(paquete);
                 break;
             default: // recibi algo q no es eso, vamos a suponer q es para terminar
                 log_error(logger, "Desde cliente: %d Recibi una operacion de memoria rara (%d), termino el servidor.", operacion_memoria);
@@ -377,7 +321,7 @@ int hacer_pedido_escritura(t_list* lista){ // escribe en memoria en Little Endia
         uint32_t size = (uint32_t)list_get(lista, 2);
         uint32_t pid = (uint32_t)list_get(lista, 3);
         void *elemento_a_insertar  = list_get(lista, 4);
-        uint8_t tipo = (uint8_t)list_get(lista, 5);
+        uint8_t tipo = (uint8_t)list_get(lista, 5); // 0 si es char* y 1 si es uint32_t
         int resultado = -1; 
         uint32_t marco = floor(df / tam_pag);
         log_debug(logger, "Marco donde arranca la escritura: %d", marco);
@@ -469,7 +413,7 @@ int crear_proceso(char *nombre_archivo, uint32_t process_id)
 
     t_memoria_proceso *proceso = crear_estructura_proceso(nombre_archivo, lineas);
 
-    log_info(logger, "PID: <%u> - Tamaño: <0>\n", process_id);
+    log_info(logger, "PID: <%u> - Tamaño: <0>", process_id);
     // lo guardo en mi diccionario de procesos
     //  paso de uint32_t a string
     char *string_pid = string_itoa((int)process_id);
@@ -570,14 +514,24 @@ uint32_t conseguir_siguiente_marco(uint32_t pid,uint32_t marco)
 
 void borrar_paginas(t_memoria_proceso* proceso,uint32_t paginas_necesarias,uint32_t paginas_actuales)
 {   
-    // Empieza en la ultima tabla y las va popeando, esto permite que se realoque :p
-    for (int i = paginas_actuales-1; i > paginas_necesarias; i--)
+    // hay Segmentacion Fault
+    int i = paginas_actuales-1;
+    while (i >= paginas_necesarias)
     {
         // modifico el bitmap marcos para que el marco vuelva a estar libre
         bitarray_clean_bit(marcos, proceso->tabla_paginas[i]);
         proceso->tabla_paginas[i]=0;
         proceso->paginas_actuales--;
+        i--;
     }
+    // Empieza en la ultima tabla y las va popeando, esto permite que se realoque :p
+    /*for (int i = paginas_actuales; i >= paginas_necesarias; i--)
+    {
+        // modifico el bitmap marcos para que el marco vuelva a estar libre
+        bitarray_clean_bit(marcos, proceso->tabla_paginas[i]);
+        proceso->tabla_paginas[i]=0;
+        proceso->paginas_actuales--;
+    }*/
 }
 
 int agregar_paginas(t_memoria_proceso* proceso,uint32_t paginas_actuales,uint32_t paginas_necesarias)
@@ -585,12 +539,11 @@ int agregar_paginas(t_memoria_proceso* proceso,uint32_t paginas_actuales,uint32_
     for (int i = paginas_actuales; i < paginas_necesarias; i++)
     {
         // busco un marco libre
-        int marco_libre = bitarray_buscar_libre(cant_marcos);
-        log_debug(logger, "Marco libre: %d", marco_libre);
+        int marco_libre = bitarray_buscar_libre();
         if (marco_libre == -1)
         {
             log_error(logger, "Out Of Memory");
-            return -1;
+            return 1;
         }
         
         // modifico el bitmap marcos para que el marco no este libre
@@ -603,8 +556,7 @@ int agregar_paginas(t_memoria_proceso* proceso,uint32_t paginas_actuales,uint32_
     return EXIT_SUCCESS;
 }
 
-
-int bitarray_buscar_libre(int cant_marcos)
+int bitarray_buscar_libre()
 {
     for (int i = 0; i < cant_marcos; i++)
     {
@@ -627,17 +579,20 @@ void obtener_marco(t_list* lista)
     eliminar_paquete(paquete_a_enviar);
 }
 
-void modificar_tamanio_proceso(t_list* lista) 
+int modificar_tamanio_proceso(t_list* lista) 
 {
-    int resultado = 0;
+    //la lista es [MODIFICAR_TAMANIO_PROCESO, nuevo_tam, pid]
+    int resultado = 0; // 1 si no se pudo agregar paginas, 0 si se pudo
+
     // conseguir el nuevo tamaño del proceso
     uint32_t nuevo_tam = (uint32_t)list_get(lista, 1); //es en bytes
+
     // nuevo tam divido tam de pag para saber cuantas paginas necesito
     // si no las tengas voy desde la primera que necesito en adelante
     uint32_t pid = (uint32_t)list_get(lista, 2);
     t_memoria_proceso *proceso = encontrar_proceso(pid);
     uint32_t paginas_necesarias = nuevo_tam / (uint32_t)tam_pag;
-    uint32_t paginas_actuales = (uint32_t)string_length(proceso->tabla_paginas);
+    uint32_t paginas_actuales = proceso->paginas_actuales;
     if (paginas_actuales>paginas_necesarias)
     {
         borrar_paginas(proceso, paginas_necesarias, paginas_actuales);
@@ -646,10 +601,139 @@ void modificar_tamanio_proceso(t_list* lista)
     {
         resultado = agregar_paginas(proceso, paginas_actuales, paginas_necesarias);
     }
-    t_paquete *paquete_a_enviar = crear_paquete();
-    agregar_a_paquete(paquete_a_enviar, resultado, sizeof(int));
-    enviar_paquete(paquete_a_enviar, cliente_cpu, logger);
-    eliminar_paquete(paquete_a_enviar);
+    return resultado;
+}
+
+void inicializar_modulo_memoria(int argc, char *argv[])
+{
+    procesos = dictionary_create();
+    logger = iniciar_logger("memoria.log", "MEMORIA", argc, argv);
+    config = iniciar_config("memoria.config");
+    tam_pag = config_get_int_value(config, "TAM_PAGINA");
+    path = config_get_string_value(config, "PATH_INSTRUCCIONES");
+    crear_espacio_memoria();
+
+}
+
+void testear_modulo_memoria()
+{
+    // por ahora acordarse que la memoria es de 64 bytes y las paginas de 4 bytes -> total de paginas 16
+    crear_proceso("prueba", 1);
+    crear_proceso("prueba2", 2);
+    crear_proceso("pk", 3);
+    // para asegurarnos que anda bien modificar_tamanio_proceso 
+    //vamos a usarlo para asignas bytes a los procesos
+    // la lista de modificar_tamanio_proceso es [MODIFICAR_TAMANIO_PROCESO, nuevo_tam, pid]
+    t_list* listaza = list_create();
+    list_add(listaza, MODIFICAR_TAMANIO_PROCESO); list_add(listaza, 16); list_add(listaza, 1);
+    modificar_tamanio_proceso(listaza);
+    list_clean(listaza); list_add(listaza, MODIFICAR_TAMANIO_PROCESO); list_add(listaza, 8); list_add(listaza, 2);
+    modificar_tamanio_proceso(listaza);
+    list_clean(listaza); list_add(listaza, MODIFICAR_TAMANIO_PROCESO); list_add(listaza, 32); list_add(listaza, 3);
+    modificar_tamanio_proceso(listaza);
+    list_clean(listaza); list_add(listaza, MODIFICAR_TAMANIO_PROCESO); list_add(listaza, 20); list_add(listaza, 1);
+    modificar_tamanio_proceso(listaza); 
+    // la memoria esta llena, probar el error
+    list_clean(listaza); list_add(listaza, MODIFICAR_TAMANIO_PROCESO); list_add(listaza, 16); list_add(listaza, 2);
+    int resultado=modificar_tamanio_proceso(listaza);
+    assert(resultado == 1);
+    // ahora a empezar a escribir y leer
+    // la lista de pedido_escritura es [PEDIDO_ESCRITURA, df, size, pid, elemento_a_insertar, tipo]
+    // ir haciendo tanto de char* como de uint32_t o de uint8_t
+    // todo es dentro de una lista :(
+    
+
+    //haceme todo lo que hice arriba pero que a hacer_pedido_lectura o pedido_escritura le pases una lista
+    t_list* lista = list_create();
+    list_add(lista, PEDIDO_ESCRITURA); list_add(lista, 0); list_add(lista, 4); list_add(lista, 1); list_add(lista, "hola"); list_add(lista, 0);
+    hacer_pedido_escritura(lista);
+    list_clean(lista); list_add(lista, PEDIDO_ESCRITURA); list_add(lista, 4); list_add(lista, 4); list_add(lista, 1); list_add(lista, "chau"); list_add(lista, 0);
+    hacer_pedido_escritura(lista);
+    list_clean(lista); list_add(lista, PEDIDO_ESCRITURA); list_add(lista, 8); list_add(lista, 2); list_add(lista, 1); list_add(lista, 128); list_add(lista, 1);
+    // 128 es en hexa 0x80
+    hacer_pedido_escritura(lista);
+    list_clean(lista); list_add(lista, PEDIDO_ESCRITURA); list_add(lista, 10); list_add(lista, 2); list_add(lista, 1); list_add(lista, 255); list_add(lista, 1);
+    // 254 es en hexa 0xFF
+    hacer_pedido_escritura(lista);
+    list_clean(lista); list_add(lista, PEDIDO_ESCRITURA); list_add(lista, 56); list_add(lista, 4); list_add(lista, 2); list_add(lista, "cera"); list_add(lista, 0);
+    hacer_pedido_escritura(lista);
+    list_clean(lista); list_add(lista, PEDIDO_ESCRITURA); list_add(lista, 60); list_add(lista, 4); list_add(lista, 2); list_add(lista, 12800); list_add(lista, 1);
+    // 12800 es en hexa 0x3200
+    hacer_pedido_escritura(lista);
+    list_clean(lista); list_add(lista, PEDIDO_ESCRITURA); list_add(lista, 26); list_add(lista, 2); list_add(lista, 3); list_add(lista, 0); list_add(lista, 1);
+    // 0 es en hexa 0x00
+    hacer_pedido_escritura(lista);
+    list_clean(lista); list_add(lista, PEDIDO_ESCRITURA); list_add(lista, 28); list_add(lista, 2); list_add(lista, 3); list_add(lista, 244); list_add(lista, 1);
+    // 244 es en hexa 0xF4
+    hacer_pedido_escritura(lista);
+
+    list_clean(lista); list_add(lista, PEDIDO_LECTURA); list_add(lista, 0); list_add(lista, 4); list_add(lista, 1); list_add(lista, 0);
+    char* resultado_palabra = (char*) hacer_pedido_lectura(lista);
+    assert(strcmp(resultado_palabra, "hola") == 0);
+    list_clean(lista); list_add(lista, PEDIDO_LECTURA); list_add(lista, 4); list_add(lista, 4); list_add(lista, 1); list_add(lista, 0);
+    resultado_palabra = (char*) hacer_pedido_lectura(lista);
+    assert(strcmp(resultado_palabra, "chau") == 0);
+    list_clean(lista); list_add(lista, PEDIDO_LECTURA); list_add(lista, 8); list_add(lista, 2); list_add(lista, 1); list_add(lista, 1);
+    uint32_t* resultado_int = (uint32_t*) hacer_pedido_lectura(lista);
+    assert(*resultado_int == 128);
+    list_clean(lista); list_add(lista, PEDIDO_LECTURA); list_add(lista, 10); list_add(lista, 2); list_add(lista, 1); list_add(lista, 1);
+    resultado_int = (uint32_t*) hacer_pedido_lectura(lista);
+    assert(*resultado_int == 255);
+    list_clean(lista); list_add(lista, PEDIDO_LECTURA); list_add(lista, 56); list_add(lista, 4); list_add(lista, 2); list_add(lista, 0);
+    resultado_palabra = (char*) hacer_pedido_lectura(lista);
+    assert(strcmp(resultado_palabra, "cera") == 0);
+    list_clean(lista); list_add(lista, PEDIDO_LECTURA); list_add(lista, 60); list_add(lista, 4); list_add(lista, 2); list_add(lista, 1);
+    resultado_int = (uint32_t*) hacer_pedido_lectura(lista);
+    assert(*resultado_int == 12800);
+    list_clean(lista); list_add(lista, PEDIDO_LECTURA); list_add(lista, 26); list_add(lista, 2); list_add(lista, 3); list_add(lista, 1);
+    resultado_int = (uint32_t*) hacer_pedido_lectura(lista);
+    assert(*resultado_int == 0);
+    list_clean(lista); list_add(lista, PEDIDO_LECTURA); list_add(lista, 28); list_add(lista, 2); list_add(lista, 3); list_add(lista, 1);
+    resultado_int = (uint32_t*) hacer_pedido_lectura(lista);
+    assert(*resultado_int == 244);
+    log_debug(logger, "Testeo de memoria exitoso");
+
+    destruir_proceso(1);
+    destruir_proceso(2);
+    destruir_proceso(3);
+    // tendria que hacer un assert de que el bitmat esta vacio
+    for (int i = 0; i < cant_marcos; i++)
+    {
+        assert(bitarray_test_bit(marcos, i) == 0);
+    }
+    // si llegaste hasta aca, felicidades, pasaste el testeo
+
 }
 
 
+void finalizar_modulo_memoria()
+{
+    pthread_join(tid[SOY_CPU], NULL);
+    pthread_join(tid[SOY_KERNEL], NULL);
+    dictionary_destroy(procesos);
+    free(espacio_memoria);
+    bitarray_destroy(marcos);
+    destruir_logger(logger);
+    destruir_config(config);
+}
+
+void creacion_servidor_y_clientes()
+{
+    socket_servidor = iniciar_servidor(config, "PUERTO_ESCUCHA");
+    log_info(logger, "Servidor %d creado.", socket_servidor);
+
+    // 3 clientes - CPU - I/O - KERNEL
+    // Sabemos que los 3 clientes se conectan en orden: CPU => KERNEL => I/O
+
+    // Recibimos la conexion de la CPU y creamos un hilo para trabajarlo
+    cliente_cpu = esperar_cliente(socket_servidor, logger);
+    pthread_create(&tid[SOY_CPU], NULL, servidor_cpu, NULL);
+
+    // Recibimos la conexion de la kernel y creamos un hilo para trabajarlo
+    cliente_kernel = esperar_cliente(socket_servidor, logger);
+    pthread_create(&tid[SOY_KERNEL], NULL, servidor_kernel, NULL);
+
+    // Recibimos las multiples conexiones de la I/O y creamos los hilo para trabajar
+    pthread_create(&tid[SOY_IO], NULL, esperar_io, NULL);
+
+}
