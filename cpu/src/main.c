@@ -354,6 +354,7 @@ void execute()
         instruccion_jnz();
         break;
     case RESIZE:
+        instruccion_resize();
         break;
     case COPY_STRING:
         break;
@@ -367,18 +368,25 @@ void execute()
         instruccion_io_gen_sleep();
         break;
     case IO_STDIN_READ:
+        instruccion_io_stdin_read();
         break;
     case IO_STDOUT_WRITE:
+        instruccion_io_stdout_write();
         break;
     case IO_FS_CREATE:
+        instruccion_io_fs_create();
         break;
     case IO_FS_DELETE:
+        instruccion_io_fs_delete();
         break;
     case IO_FS_TRUNCATE:
+        instruccion_io_fs_truncate();
         break;
     case IO_FS_WRITE:
+        instruccion_io_fs_write();
         break;
     case IO_FS_READ:
+        instruccion_io_fs_read();
         break;
     case INSTRUCTION_EXIT:
         instruccion_exit();
@@ -387,6 +395,70 @@ void execute()
         log_error(logger, "instruccion incorreta: fatal error :p");
         break;
     }
+}
+
+void instruccion_resize()
+{
+    log_info(logger, "PID: < %d > - Ejecutando: < RESIZE > - < %s >", registros->PID, linea_de_instruccion_separada[1]);
+
+    uint32_t nuevo_size = (uint32_t)atoi(linea_de_instruccion_separada[1]);
+
+    // le pido a memoria que haga el resize
+    log_trace(logger, "Le voy a pedir a memoria que haga un resize de %u al proceso %u.", nuevo_size, registros->PID);
+    t_paquete *solicitud_a_mem = crear_paquete();
+    agregar_a_paquete(solicitud_a_mem, RESIZE_PROCESO, sizeof(RESIZE_PROCESO));
+    agregar_a_paquete(solicitud_a_mem, nuevo_size, sizeof(nuevo_size));
+    enviar_paquete(solicitud_a_mem, cliente_memoria, logger);
+
+    // espero la respuesta de memoria
+    recibir_operacion(cliente_memoria, logger);
+    t_list *l = recibir_paquete(cliente_memoria, logger);
+    uint8_t resultado = list_get(l, 0);
+
+    log_debug(logger, "Resultado del resize: %s", (resultado ? "Out of Memory" : "Ejecutado correctamente"));
+
+    // si hubo un out of memory, le aviso a kernel
+    if (resultado)
+    {
+        enviar_pcb(MOTIVO_DESALOJO_OUT_OF_MEMORY, no_agregar_datos, NULL);
+        proceso_actual_ejecutando = false; // https://github.com/sisoputnfrba/foro/issues/3799
+    }
+    list_destroy(l);
+}
+
+void instruccion_io_fs_create()
+{
+    log_info(logger, "PID: < %d > - Ejecutando: < SET > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
+}
+
+void instruccion_io_fs_delete()
+{
+    log_info(logger, "PID: < %d > - Ejecutando: < SET > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
+}
+
+void instruccion_io_fs_read()
+{
+    log_info(logger, "PID: < %d > - Ejecutando: < SET > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
+}
+
+void instruccion_io_fs_truncate()
+{
+    log_info(logger, "PID: < %d > - Ejecutando: < SET > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
+}
+
+void instruccion_io_fs_write()
+{
+    log_info(logger, "PID: < %d > - Ejecutando: < SET > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
+}
+
+void instruccion_io_stdin_read()
+{
+    log_info(logger, "PID: < %d > - Ejecutando: < SET > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
+}
+
+void instruccion_io_stdout_write()
+{
+    log_info(logger, "PID: < %d > - Ejecutando: < SET > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
 }
 
 void instruction_set()
@@ -518,7 +590,7 @@ void instruccion_signal()
 
     uint8_t resultado_numero = list_get(resp_kernel_signal, 0);
 
-    if (resultado_numero == 1)
+    if (resultado_numero)
     {
         log_debug(logger, "No existia ese recurso %s", nombre_recurso);
         proceso_actual_ejecutando = false;
@@ -530,7 +602,7 @@ void instruccion_signal()
 
 void instruccion_io_gen_sleep()
 {
-    log_info(logger, "PID: < %d > - Ejecutando: < JNZ > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
+    log_info(logger, "PID: < %d > - Ejecutando: < IO_GEN_SLEEP > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
 
     char *nroInterfaz = string_new();
     nroInterfaz = linea_de_instruccion_separada[1];
@@ -541,27 +613,27 @@ void instruccion_io_gen_sleep()
     int tiempoTrabajo = atoi(tiempoTrabajoString);
 
     char **datos_tiempo = string_array_new();
-    string_array_push(datos_tiempo, nroInterfaz);
-    string_array_push(datos_tiempo, tiempoTrabajoString);
+    string_array_push(&datos_tiempo, nroInterfaz);
+    string_array_push(&datos_tiempo, tiempoTrabajoString);
 
     enviar_pcb(MOTIVO_DESALOJO_IO_GEN_SLEEP, agregar_datos_tiempo, datos_tiempo);
 
     // Espero la respuesta de Kernel
-    char *resultado = string_new();
-    resultado = recibir_mensaje(socket_cliente_dispatch, logger);
+    t_list *resp_kernel_iogensleep = list_create();
+    recibir_operacion(socket_cliente_dispatch, logger);
+    resp_kernel_iogensleep = recibir_paquete(socket_cliente_dispatch, logger);
 
-    int resultado_numero = atoi(resultado);
+    uint8_t resultado_numero = list_get(resp_kernel_iogensleep, 0);
     // Si me devuelve 1 esta todo MAL, si no todo BIEN
-    if (resultado_numero == 1)
+    if (resultado_numero)
     {
         proceso_actual_ejecutando = false;
     }
 
     // LIBERAR LA MEMORIA
-    free(nroInterfaz);
+    /*free(nroInterfaz); ALGUN DIA LOS HARE
     free(tiempoTrabajoString);
-    free(resultado);
-    string_array_destroy(datos_tiempo);
+    string_array_destroy(datos_tiempo);*/
 }
 
 void instruccion_exit()

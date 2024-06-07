@@ -1,0 +1,25 @@
+#ifndef OPERACIONMEMORIAUTILS_H_
+#define OPERACIONMEMORIAUTILS_H_
+
+typedef enum
+{
+    INICIAR_PROCESO = 0,
+    BORRAR_PROCESO,
+    PEDIDO_LECTURA,
+    PEDIDO_ESCRITURA
+} e_operacion;
+
+#endif
+#ifndef OPERACIONMEMORIAUTILS_H_
+#define OPERACIONMEMORIAUTILS_H_
+
+typedef enum
+{
+    INICIAR_PROCESO = 0,
+    BORRAR_PROCESO,
+    PEDIDO_LECTURA,
+    PEDIDO_ESCRITURA,
+    RESIZE_PROCESO,
+} e_operacion;
+
+#endif

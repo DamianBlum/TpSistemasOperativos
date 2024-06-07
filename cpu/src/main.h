@@ -13,6 +13,7 @@
 #include <utils/sockets.h>
 #include <utils/pcb.h>
 #include <utils/registros.h>
+#include <utils/operacionMemoriaUtils.h>
 
 typedef enum
 {
@@ -21,7 +22,8 @@ typedef enum
     MMU
 } e_hilos_kernel;
 
-typedef enum {
+typedef enum
+{
     SET = 0,
     MOV_IN,
     MOV_OUT,
@@ -49,8 +51,7 @@ typedef struct {
     uint32_t nro_marco;
 } t_TLB;
 
-typedef void (*Agregar_datos_paquete)(t_paquete*, void*);
-
+typedef void (*Agregar_datos_paquete)(t_paquete *, void *);
 
 int main(int argc, char *argv[]);
 void *servidor_dispatch(void *arg);
@@ -59,9 +60,9 @@ void *servidor_interrupt(void *arg);
 void fetch();
 void decode();
 void execute();
-void check_interrupt(); 
+void check_interrupt();
 void enviar_pcb(e_motivo_desalojo motivo_desalojo, Agregar_datos_paquete agregar_datos_paquete, void *datos);
-void no_agregar_datos(t_paquete* paquete, void* datos);
-void agregar_datos_tiempo(t_paquete* paquete, void* datos);
-void agregar_datos_recurso(t_paquete* paquete, void* nombre_recurso);
+void no_agregar_datos(t_paquete *paquete, void *datos);
+void agregar_datos_tiempo(t_paquete *paquete, void *datos);
+void agregar_datos_recurso(t_paquete *paquete, void *nombre_recurso);
 #endif

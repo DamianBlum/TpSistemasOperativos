@@ -28,6 +28,13 @@ typedef enum
     VRR,
 } e_algoritmo_planificacion;
 
+typedef struct
+{
+    char *nombre_interfaz;
+    int cliente;
+    pthread_mutex_t mutex;
+} t_entrada_salida;
+
 int main(int argc, char *argv[]);
 int generar_clientes();
 void *atender_servidor_io(void *arg);
@@ -79,4 +86,10 @@ void cosas_vrr_cuando_se_desaloja_un_proceso(t_PCB *pcb);
 bool debe_ir_a_cola_prioritaria(t_PCB *pcb);
 
 void asd(t_manejo_bloqueados *tmb);
+
+t_entrada_salida *obtener_entrada_salida(char *nombre_interfaz);
+t_entrada_salida *crear_interfaz(char *nombre_interfaz, int cliente);
+void wait_interfaz(t_entrada_salida *tes);
+void signal_interfaz(t_entrada_salida *tes);
+
 #endif
