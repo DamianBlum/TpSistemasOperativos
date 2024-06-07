@@ -1,7 +1,7 @@
 include settings.mk
 
 # Set compiler options
-CC=gcc
+CC=gcc 
 
 # Set prerrequisites
 SRCS_C += $(shell find src/ -iname "*.c")
