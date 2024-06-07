@@ -56,7 +56,7 @@ typedef void (*Agregar_datos_paquete)(t_paquete *, void *);
 int main(int argc, char *argv[]);
 void *servidor_dispatch(void *arg);
 void *servidor_interrupt(void *arg);
-
+char* componente_mmu(char* registro, uint32_t pid);
 void fetch();
 void decode();
 void execute();

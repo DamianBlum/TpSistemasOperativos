@@ -99,16 +99,14 @@ void *servidor_kernel(void *arg)
                 t_paquete *paquete_a_enviar = crear_paquete();
                 agregar_a_paquete(paquete_a_enviar, resultado, sizeof(int));
                 enviar_paquete(paquete_a_enviar, cliente_kernel, logger);
-                eliminar_paquete(paquete_a_enviar); //LO TENIA COMENTADO, PROBAR DESPUES CON KERNEL
                 log_debug(logger, "Envie el resultado de la operacion INICIAR_PROCESO al kernel");
                 break;
             case BORRAR_PROCESO:
                 uint32_t pid = (uint32_t)list_get(lista, 1);
                 destruir_proceso(pid);
                 t_paquete *paquete = crear_paquete();
-                agregar_a_paquete(paquete_a_enviar, 0, sizeof(int));
-                enviar_paquete(paquete_a_enviar, cliente_kernel, logger);
-                eliminar_paquete(paquete_a_enviar);
+                agregar_a_paquete(paquete, 0, sizeof(int));
+                enviar_paquete(paquete, cliente_kernel, logger);
                 break;
             default:
                 break;
@@ -156,22 +154,20 @@ void *servidor_cpu(void *arg)
             switch (operacion_memoria)
             {
             case PEDIDO_LECTURA:
-                uint32_t tipo = (uint32_t)list_get(lista, 4);
+                uint8_t tipo = (uint8_t)list_get(lista, 4);
                 uint32_t size = (uint32_t)list_get(lista, 2);
                 void* resultado_lectura=hacer_pedido_lectura(lista);
                 if (tipo){
-                    uint32_t valor = (uint32_t)resultado_lectura; //revisar esto
+                    uint32_t valor = *(uint32_t*)resultado_lectura; 
                     t_paquete *paquete_a_enviar = crear_paquete();
                     agregar_a_paquete(paquete_a_enviar, valor, size);
                     enviar_paquete(paquete_a_enviar, cliente_cpu, logger);
-                    eliminar_paquete(paquete_a_enviar);
                 }
                 else{
                     char* texto = string_duplicate((char*)resultado_lectura);
                     t_paquete *paquete_a_enviar = crear_paquete();
                     agregar_a_paquete(paquete_a_enviar, texto, size);
                     enviar_paquete(paquete_a_enviar, cliente_cpu, logger);
-                    eliminar_paquete(paquete_a_enviar);
                     free(texto);
                 }
                 free(resultado_lectura);
@@ -188,20 +184,19 @@ void *servidor_cpu(void *arg)
                 t_paquete *paquete_a_enviar = crear_paquete();
                 agregar_a_paquete(paquete_a_enviar, marco, sizeof(uint32_t));
                 enviar_paquete(paquete_a_enviar, cliente_cpu, logger);
-                eliminar_paquete(paquete_a_enviar);
                 break;
             case OBTENER_INSTRUCCION:
+                log_debug(logger, "Voy a obtener la instruccion");
                 char* linea_de_instruccion= obtener_instruccion(lista);
                 log_debug(logger, "La linea de codigo: %s", linea_de_instruccion);
                 enviar_mensaje(linea_de_instruccion, cliente_cpu, logger);
                 free(linea_de_instruccion);
                 break;
-            case MODIFICAR_TAMANIO_PROCESO:
+            case RESIZE_PROCESO:
                 int resultado=modificar_tamanio_proceso(lista); // 1 se pudo, 0 no se pudo
                 t_paquete *paquete = crear_paquete();
                 agregar_a_paquete(paquete, resultado, sizeof(int));
                 enviar_paquete(paquete, cliente_cpu, logger);
-                eliminar_paquete(paquete);
                 break;
             default: // recibi algo q no es eso, vamos a suponer q es para terminar
                 log_error(logger, "Desde cliente: %d Recibi una operacion de memoria rara (%d), termino el servidor.", operacion_memoria);
@@ -255,22 +250,21 @@ void *servidor_entradasalida(void *arg)
                     }
                     break;
                 case PEDIDO_LECTURA:
-                    uint32_t tipo = (uint32_t)list_get(lista, 4);
+                    uint8_t tipo = (uint8_t)list_get(lista, 4);
                     uint32_t size = (uint32_t)list_get(lista, 2);
+                    log_debug(logger,"prueba");
                     void* resultado_lectura=hacer_pedido_lectura(lista);
                     if (tipo){
-                        uint32_t valor = (uint32_t)resultado_lectura; //revisar esto
+                        uint32_t valor = *(uint32_t*)resultado_lectura;
                         t_paquete *paquete_a_enviar = crear_paquete();
                         agregar_a_paquete(paquete_a_enviar, valor, size);
                         enviar_paquete(paquete_a_enviar, cliente_cpu, logger);
-                        eliminar_paquete(paquete_a_enviar);
                     }
                     else{
                         char* texto = string_duplicate((char*)resultado_lectura);
                         t_paquete *paquete_a_enviar = crear_paquete();
                         agregar_a_paquete(paquete_a_enviar, texto, size);
                         enviar_paquete(paquete_a_enviar, cliente_cpu, logger);
-                        eliminar_paquete(paquete_a_enviar);
                         free(texto);
                     }
                     free(resultado_lectura);
@@ -288,11 +282,12 @@ void *servidor_entradasalida(void *arg)
     return EXIT_SUCCESS;
 }
 
-void* hacer_pedido_lectura(t_list* lista){
+void* hacer_pedido_lectura(t_list* lista){ 
     uint32_t df = (uint32_t)list_get(lista, 1);
     uint32_t size = (uint32_t)list_get(lista, 2);
     uint32_t pid = (uint32_t)list_get(lista, 3);
     uint8_t tipo = (uint8_t)list_get(lista, 4);
+    log_debug(logger,"PID: <%u> - size: <%u> - df: <%u> - tipo: <%u>", pid, size, df, tipo);
     uint32_t size_original = size;
     char * elemento_a_guardar = malloc(size_original);
     void * resultado;

@@ -13,24 +13,13 @@
 #include <commons/bitarray.h>
 #include <commons/memory.h>
 #include <assert.h>
-
+#include <utils/operacionMemoriaUtils.h>
 typedef enum
 {
     SOY_CPU = 0,
     SOY_KERNEL,
     SOY_IO
 } e_quien_soy;
-
-typedef enum
-{
-    INICIAR_PROCESO = 0,
-    BORRAR_PROCESO,
-    PEDIDO_LECTURA,
-    PEDIDO_ESCRITURA,
-    OBTENER_MARCO,
-    OBTENER_INSTRUCCION,
-    MODIFICAR_TAMANIO_PROCESO
-} e_operacion;
 
 
 typedef struct t_memoria_proceso
