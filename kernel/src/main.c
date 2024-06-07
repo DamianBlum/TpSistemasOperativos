@@ -180,7 +180,7 @@ void *atender_cliente_io(void *arg)
         enviar_paquete(resp, cliente_io, logger);
         return EXIT_FAILURE;
     }
-    list_add(lista_de_entradas_salidas, nombreInterfaz);
+    list_add(lista_de_entradas_salidas, crear_interfaz(nombreInterfaz, cliente_io));
     agregar_a_paquete(resp, 0, sizeof(uint8_t)); // interfaz creada en kernel con exito
     enviar_paquete(resp, cliente_io, logger);
 
@@ -191,7 +191,7 @@ bool ya_existe_la_interfaz(char *ni)
 {
     for (uint8_t i = 0; i < list_size(lista_de_entradas_salidas); i++)
     {
-        if (string_equals_ignore_case(ni, (char *)list_get(lista_de_entradas_salidas, i)))
+        if (string_equals_ignore_case(ni, (char *)((t_entrada_salida *)list_get(lista_de_entradas_salidas, i))->nombre_interfaz))
             return true;
     }
     return false;
@@ -659,6 +659,39 @@ void *atender_respuesta_proceso(void *arg)
                 evaluar_EXEC_a_READY();
                 break;
             case MOTIVO_DESALOJO_IO_GEN_SLEEP:
+                char *nombre_interfaz = list_get(lista_respuesta_cpu, 13);
+                uint32_t cant = list_get(lista_respuesta_cpu, 14);
+                log_debug(logger, "Argumentos del IO_GEN_SLEEP: %s | %u", nombre_interfaz, cant);
+
+                t_entrada_salida *tes = obtener_entrada_salida(nombre_interfaz);
+                int cliente_io = tes->cliente;
+
+                // armo el paquete para io
+                t_paquete *p_iogensleep = crear_paquete();
+                agregar_a_paquete(p_iogensleep, "IO_GEN_SLEEP", strlen("IO_GEN_SLEEP") + 1);
+                agregar_a_paquete(p_iogensleep, cant, sizeof(uint32_t));
+                agregar_a_paquete(p_iogensleep, nombre_interfaz, strlen(nombre_interfaz) + 1);
+                enviar_paquete(p_iogensleep, cliente_io, logger);
+
+                // espero la respuesta de IO
+                recibir_operacion(cliente_io, logger);
+                t_list *resp = recibir_paquete(cliente_io, logger);
+                uint8_t resultado = (uint8_t)list_get(resp, 0);
+                if (resultado)
+                {
+                    log_info(logger, "La interfaz %s ejecuto correctamente la instruccion.", nombre_interfaz);
+                }
+                else
+                    log_error(logger, "La interfaz %s ejecuto erroneamente la instruccion.", nombre_interfaz);
+
+                // le respondo a cpu q se ejecuto bien
+                log_trace(logger, "Voy a enviarle al CPU que salio todo bien.");
+                t_paquete *p_respcpu = crear_paquete();
+                // hago !resultado xq cpu espera un 0 como OK y 1 como MAL
+                agregar_a_paquete(p_respcpu, (uint8_t)!resultado, sizeof(uint8_t));
+                enviar_paquete(p_respcpu, cliente_cpu_dispatch, logger);
+                // evaluar_BLOCKED_a_READY((t_queue *)((t_manejo_bloqueados *)dictionary_get(diccionario_recursos, argSignal))->cola_bloqueados);
+
                 break;
             case MOTIVO_DESALOJO_IO_STDIN_READ:
                 break;
@@ -856,4 +889,40 @@ void cosas_vrr_cuando_se_desaloja_un_proceso(t_PCB *pcb)
 bool debe_ir_a_cola_prioritaria(t_PCB *pcb)
 {
     return pcb->quantum < quantum && algoritmo_planificacion == VRR;
+}
+
+t_entrada_salida *obtener_entrada_salida(char *nombre_interfaz)
+{
+    for (uint8_t i = 0; i < list_size(lista_de_entradas_salidas); i++)
+    {
+        t_entrada_salida *tes = (t_entrada_salida *)list_get(lista_de_entradas_salidas, i);
+        if (string_equals_ignore_case(nombre_interfaz, (char *)tes->nombre_interfaz))
+            return tes;
+    }
+    return NULL; // convengamos que esto nunca va a pasar
+}
+
+t_entrada_salida *crear_interfaz(char *nombre_interfaz, int cliente)
+{
+    t_entrada_salida *tes = malloc(sizeof(t_entrada_salida));
+
+    tes->nombre_interfaz = nombre_interfaz;
+    tes->cliente = cliente;
+    pthread_mutex_init(&(tes->mutex), NULL);
+
+    return tes;
+}
+
+void wait_interfaz(t_entrada_salida *tes)
+{
+    log_debug(logger, "Voy a pedir hacer wait de la interfaz %s", tes->nombre_interfaz);
+    pthread_mutex_lock(&(tes->mutex));
+    log_debug(logger, "Pude hacer wait de la interfaz %s", tes->nombre_interfaz);
+}
+
+void signal_interfaz(t_entrada_salida *tes)
+{
+    log_debug(logger, "Voy a pedir hacer signal de la interfaz %s", tes->nombre_interfaz);
+    pthread_mutex_unlock(&(tes->mutex));
+    log_debug(logger, "Pude hacer signal de la interfaz %s", tes->nombre_interfaz);
 }
