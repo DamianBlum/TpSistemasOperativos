@@ -169,6 +169,9 @@ int iniciar_servidor(t_config *config, char *key_puerto)
 							 servinfo->ai_socktype,
 							 servinfo->ai_protocol);
 
+	if (setsockopt(socket_servidor, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0)
+		error("setsockopt(SO_REUSEADDR) failed");
+
 	// bind socket to the server's addrinfo
 	bind(socket_servidor, servinfo->ai_addr, servinfo->ai_addrlen);
 

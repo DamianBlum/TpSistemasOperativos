@@ -118,6 +118,21 @@ t_interfaz_default *crear_nueva_interfaz(char *nombre_archivo_config)
         r = esta_bloque_ocupado(tid->bitmap, 0);
         log_debug(logger, "Estado bloque 0: %u", r);
 
+        r = esta_bloque_ocupado(tid->bitmap, 122);
+        log_debug(logger, "Estado bloque 0: %u", r);
+        r = ocupar_bloque(tid->bitmap, 122);
+        log_debug(logger, "Modifico el bloque 0, resultado: %u", r);
+        r = esta_bloque_ocupado(tid->bitmap, 122);
+        log_debug(logger, "Estado bloque 0: %u", r);
+
+        r = esta_bloque_ocupado(tid->bitmap, 777);
+        log_debug(logger, "Estado bloque 0: %u", r);
+        r = ocupar_bloque(tid->bitmap, 777);
+        log_debug(logger, "Modifico el bloque 0, resultado: %u", r);
+        r = esta_bloque_ocupado(tid->bitmap, 777);
+        log_debug(logger, "Estado bloque 0: %u", r);
+
+        sleep(1000);
         // 3- metadata (1 por archivo) => nombreArchivo.config
         break;
     default:
