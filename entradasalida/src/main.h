@@ -14,6 +14,8 @@
 #include <commons/collections/list.h>
 #include <utils/bitmap.h>
 #include <utils/bloques.h>
+#include <math.h> // lo uso para redondear hacia arriba al calcular la cantidad de bloques de un archivo
+#include <commons/txt.h>
 
 // Estructuras para el manejo de interfaces
 typedef enum
@@ -58,6 +60,7 @@ typedef struct
     uint32_t block_count;
     uint32_t retraso_compactacion;
     t_bitmap *bitmap;
+    t_bloques *bloques;
 } t_interfaz_dialfs;
 
 int main(int argc, char *argv[]);

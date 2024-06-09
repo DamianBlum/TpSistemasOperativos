@@ -100,40 +100,12 @@ t_interfaz_default *crear_nueva_interfaz(char *nombre_archivo_config)
         // 1- bloques.dat
         char *path_bloques = string_duplicate(tid->path_base_dialfs);
         string_append(&path_bloques, "bloques.dat");
-        FILE *fbloques = fopen(path_bloques, "ab");
-        log_debug(logger, "Se creo el archivo de bloques en el path: %s", path_bloques);
-        truncate(path_bloques, tid->block_count * tid->block_size);
-        log_debug(logger, "Se trunco el archivo para que tenga size: %u", tid->block_count * tid->block_size);
+        tid->bloques = crear_bloques(path_bloques, tid->block_count, tid->block_size, logger);
 
         // 2- bitmap.dat
         char *path_bitmap = string_duplicate(tid->path_base_dialfs);
         string_append(&path_bitmap, "bitmap.dat");
         tid->bitmap = crear_bitmap(path_bitmap, tid->block_count, logger);
-
-        // pruebas bitmap
-        uint8_t r = esta_bloque_ocupado(tid->bitmap, 0);
-        log_debug(logger, "Estado bloque 0: %u", r);
-        r = ocupar_bloque(tid->bitmap, 0);
-        log_debug(logger, "Modifico el bloque 0, resultado: %u", r);
-        r = esta_bloque_ocupado(tid->bitmap, 0);
-        log_debug(logger, "Estado bloque 0: %u", r);
-
-        r = esta_bloque_ocupado(tid->bitmap, 122);
-        log_debug(logger, "Estado bloque 0: %u", r);
-        r = ocupar_bloque(tid->bitmap, 122);
-        log_debug(logger, "Modifico el bloque 0, resultado: %u", r);
-        r = esta_bloque_ocupado(tid->bitmap, 122);
-        log_debug(logger, "Estado bloque 0: %u", r);
-
-        r = esta_bloque_ocupado(tid->bitmap, 777);
-        log_debug(logger, "Estado bloque 0: %u", r);
-        r = ocupar_bloque(tid->bitmap, 777);
-        log_debug(logger, "Modifico el bloque 0, resultado: %u", r);
-        r = esta_bloque_ocupado(tid->bitmap, 777);
-        log_debug(logger, "Estado bloque 0: %u", r);
-
-        sleep(1000);
-        // 3- metadata (1 por archivo) => nombreArchivo.config
         break;
     default:
         break;
@@ -281,7 +253,9 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
         if (string_equals_ignore_case(nombre_instruccion, "IO_FS_CREATE"))
         {
             log_trace(logger, "(%s|%u): Entre a IO_FS_CREATE.", interfaz->nombre, interfaz->tipo_interfaz);
-            ejecuto_correctamente = 1;
+
+            char *nombre_archivo = list_get(datos_desde_kernel, 1);
+            ejecuto_correctamente = crear_archivo(idialfs, datos_desde_kernel);
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_DELETE"))
         {
@@ -365,3 +339,53 @@ void manejo_de_interfaz(void *args)
     // liberar_conexion(interfaz->conexion_memoria, logger);
     return EXIT_SUCCESS;
 }
+
+uint8_t crear_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
+{ // solamente le asigno 1 bloque al crear un archivo
+    // me fijo donde lo puedo ubicar
+
+    for (uint32_t i = 0; i < idial->block_count; i++)
+    {
+        uint8_t hay_espacio = 1;
+        if (esta_bloque_ocupado(idial->bitmap, i))
+        {
+            log_debug(logger, "Bloque %u ocupado, me quedan %u.", i, idial->block_count - i);
+            hay_espacio = 0;
+        }
+
+        log_debug(logger, "Bloque %u libre, voy a asignar el archivo ahi.", i);
+
+        if (hay_espacio)
+        { // si existe un lugar donde guardar el dato, lo escribo en el bitmap
+            log_trace(logger, "Se encontro un espacio (bloque: %u) para guardar el archivo %s.", i, nombre_archivo);
+
+            if (!ocupar_bloque(idial->bitmap, i))
+                log_error(logger, "Error al intentar ocupar el bloque %u para el archivo %s", i, nombre_archivo);
+            else
+                log_debug(logger, "Se ocupo el bloque %u para el archivo %s", i, nombre_archivo);
+
+            log_trace(logger, "Se reservaron el bloque %u para el archivo %s.", i, nombre_archivo);
+
+            // creo el archivo de metadata
+            char *path = string_duplicate(idial->path_base_dialfs);
+            string_append(path, nombre_archivo); // /dialfs/algo/nombre_archivo
+            string_append(path, ".metadata");    // /dialfs/algo/nombre_archivo.txt
+            FILE *fmd = txt_open_for_append(path);
+            char *datos = string_duplicate("BLOQUE_INICIAL=%u\nTAMANIO_ARCHIVO=%u");
+            string_append_with_format(&datos, i, 0); // el size inicia siempre en 0 al crear el archivo
+            log_debug(logger, "Texto a escribir en el archivo de metadata: %s", datos);
+            txt_write_in_file(fmd, datos);
+            txt_close_file(fmd);
+        }
+        else
+        {
+            log_error(logger, "No se encontro un espacio donde pueda guardar el archivo %s.", nombre_archivo);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// asigno los bloques elegidos
+
+//  creo el arvhivo de metadata

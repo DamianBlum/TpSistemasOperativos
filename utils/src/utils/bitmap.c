@@ -22,7 +22,7 @@ t_bitmap *crear_bitmap(char *path, uint32_t cant_bits, t_log *logger)
 
     if (dump_bitmap == MAP_FAILED)
     {
-        printf("Fallo el mmap.");
+        log_error(logger, "Fallo el mmap.");
         return 0;
     }
 
