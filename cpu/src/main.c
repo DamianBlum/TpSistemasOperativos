@@ -16,7 +16,7 @@ t_config *config;
 t_TLB *TLB;
 int tlb_size = 0;
 int ultima_fila_modificada = 0;
-
+int instante_referencia = 0;
 // hilos
 pthread_t tid[3];
 
@@ -130,7 +130,7 @@ void *servidor_dispatch(void *arg)
             // ciclo de la instruccion en la cpu
             fetch();
             decode();
-            execute();
+            execute(); 
             check_interrupt();
             registros->PC++;
         }
@@ -275,8 +275,8 @@ void fetch()
     // creacion del paquete a enviar
     t_paquete *envioMemoria = crear_paquete();
     agregar_a_paquete(envioMemoria, OBTENER_INSTRUCCION, sizeof(OBTENER_INSTRUCCION));
-    agregar_a_paquete(envioMemoria, registros->PID, sizeof(uint32_t));
-    agregar_a_paquete(envioMemoria, registros->PC, sizeof(uint32_t));
+    agregar_a_paquete(envioMemoria, registros->PID, sizeof(registros->PID));
+    agregar_a_paquete(envioMemoria, registros->PC, sizeof(registros->PC));
     enviar_paquete(envioMemoria, cliente_memoria, logger);
 
     log_debug(logger, "Se envio el PID < %d > y el PC < %d > a memoria", registros->PID, registros->PC);
@@ -456,11 +456,59 @@ void instruccion_io_fs_write()
 void instruccion_io_stdin_read()
 {
     log_info(logger, "PID: < %d > - Ejecutando: < SET > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
+    char* df = linea_de_instruccion_separada[2];
+    char *nombreInterfaz = linea_de_instruccion_separada[1];
+    char* tamanio = string_itoa(obtenerValorRegistros(linea_de_instruccion_separada[3]));
+
+    char **datos_interfaz_stdin_read = string_array_new();
+    string_array_push(&datos_interfaz_stdin_read, df);
+    string_array_push(&datos_interfaz_stdin_read, nombreInterfaz);
+    string_array_push(&datos_interfaz_stdin_read, tamanio);
+
+    enviar_pcb(MOTIVO_DESALOJO_IO_STDIN_READ, agregar_datos_interfaz_std, datos_interfaz_stdin_read);
+
+    // Espero la respuesta de Kernel
+    t_list *resp_kernel = list_create();
+    recibir_operacion(socket_cliente_dispatch, logger);
+    resp_kernel = recibir_paquete(socket_cliente_dispatch, logger);
+
+    uint8_t resultado_numero = list_get(resp_kernel, 0);
+    // Si me devuelve 1 esta todo MAL, si no todo BIEN
+    if (resultado_numero)
+    {
+        proceso_actual_ejecutando = false;
+    }
+
+    string_array_destroy(datos_interfaz_stdin_read);
 }
 
 void instruccion_io_stdout_write()
 {
     log_info(logger, "PID: < %d > - Ejecutando: < SET > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
+    char* df = (linea_de_instruccion_separada[2]);
+    char *nombreInterfaz = linea_de_instruccion_separada[1];
+    char* tamanio = string_itoa(obtenerValorRegistros(linea_de_instruccion_separada[3]));
+
+    char **datos_interfaz_std = string_array_new();
+    string_array_push(&datos_interfaz_std, df);
+    string_array_push(&datos_interfaz_std, nombreInterfaz);
+    string_array_push(&datos_interfaz_std, tamanio);
+
+    enviar_pcb(MOTIVO_DESALOJO_IO_STDOUT_WRITE, agregar_datos_interfaz_std, datos_interfaz_std);
+
+    // Espero la respuesta de Kernel
+    t_list *resp_kernel = list_create();
+    recibir_operacion(socket_cliente_dispatch, logger);
+    resp_kernel = recibir_paquete(socket_cliente_dispatch, logger);
+
+    uint8_t resultado_numero = list_get(resp_kernel, 0);
+    // Si me devuelve 1 esta todo MAL, si no todo BIEN
+    if (resultado_numero)
+    {
+        proceso_actual_ejecutando = false;
+    }
+
+    string_array_destroy(datos_interfaz_std);
 }
 
 void instruction_set()
@@ -611,8 +659,6 @@ void instruccion_io_gen_sleep()
 
     char *tiempoTrabajoString = string_new();
     tiempoTrabajoString = linea_de_instruccion_separada[2];
-
-    int tiempoTrabajo = atoi(tiempoTrabajoString);
 
     char **datos_tiempo = string_array_new();
     string_array_push(&datos_tiempo, nroInterfaz);
@@ -906,6 +952,17 @@ void agregar_datos_recurso(t_paquete *paquete, void *nombre_recurso)
     agregar_a_paquete(paquete, nombre_recurso, strlen(nombre_recurso) + 1);
 }
 
+void agregar_datos_interfaz_std(t_paquete* paquete, void* datos){
+    char** datos_interfaz_stdin_read = (char**)datos;
+    // convierto el tamanio y el df a uint32_t
+    uint32_t tamanio = (uint32_t)atoi(datos_interfaz_stdin_read[2]);
+    uint32_t df = (uint32_t)atoi(datos_interfaz_stdin_read[0]);
+    char* nombreInterfaz = datos_interfaz_stdin_read[1];
+    agregar_a_paquete(paquete, nombreInterfaz, strlen(nombreInterfaz) + 1);
+    agregar_a_paquete(paquete, df, sizeof(df));
+    agregar_a_paquete(paquete, tamanio, sizeof(tamanio));
+}
+
 void agregar_datos_tiempo(t_paquete *paquete, void *datos)
 {
     // en este caso datos tiene dos cosas el numero de interfaz y el tiempo de trabajo
@@ -915,9 +972,9 @@ void agregar_datos_tiempo(t_paquete *paquete, void *datos)
 
     agregar_a_paquete(paquete, datos_tiempo[0], strlen(datos_tiempo[0]) + 1); // Agregas al paquete el nroInterfaz
 
-    int timeClock = atoi(datos_tiempo[1]);
+    uint32_t timeClock = (uint32_t)atoi(datos_tiempo[1]);
 
-    agregar_a_paquete(paquete, (uint32_t)timeClock, sizeof(uint32_t)); // Agregas al paquete el tiempo
+    agregar_a_paquete(paquete, timeClock, sizeof(timeClock)); // Agregas al paquete el tiempo
 }
 
 void no_agregar_datos(t_paquete *paquete, void *datos)
@@ -933,10 +990,10 @@ char* componente_mmu(char* registro, uint32_t pid)
     uint32_t nro_pagina = floor(dl / tam_pag);
     uint32_t desplazamiento = dl - (nro_pagina * tam_pag);
     log_debug(logger, "PID: < %u > - Direccion Logica: < %u > - Nro Pagina: < %u > - Desplazamiento: < %u >", pid, dl, nro_pagina, desplazamiento);
-    //int marco=conseguir_marco(pid, nro_pagina);
+    int marco=conseguir_marco(pid, nro_pagina);
     // harcodea que el marco es igual a la pagina
-    int marco = (int) nro_pagina;
-    uint32_t direccion_fisica = (marco * tam_pag) + desplazamiento;
+    // int marco = (int) nro_pagina;
+    uint32_t direccion_fisica = (uint32_t)(marco * tam_pag) + desplazamiento;
     log_debug(logger,"Direccion Fisica: %d", direccion_fisica);
     return (string_itoa(direccion_fisica));
 }
@@ -956,17 +1013,19 @@ int conseguir_marco(uint32_t pid, uint32_t nro_pagina){
         
         // si no esta en la tlb, tengo que pedirlo a memoria
         t_paquete* paquete = crear_paquete();
-        // hay que hacer un agregar_a_paquete mas con un enum que indica que la operacion es CONSEGUIR_MARCO
-        // agregar_a_paquete(paquete, CONSEGUIR_MARCO, sizeof(enum_operacion_memoria));
-        agregar_a_paquete(paquete, pid, sizeof(uint32_t));
-        agregar_a_paquete(paquete, nro_pagina, sizeof(uint32_t));
+        agregar_a_paquete(paquete, OBTENER_MARCO, sizeof(OBTENER_MARCO));
+        agregar_a_paquete(paquete, pid, sizeof(pid));
+        agregar_a_paquete(paquete, nro_pagina, sizeof(nro_pagina));
         enviar_paquete(paquete,cliente_memoria,logger);
+
         // recibir el marco
         recibir_operacion(cliente_memoria, logger);
-        paquete = crear_paquete();
-        paquete = recibir_paquete(cliente_memoria, logger);
-        marco = (int)list_get(paquete, 0);
+        t_list* lista_de_memoria = list_create();
+        lista_de_memoria = recibir_paquete(cliente_memoria, logger);
+        marco = (int)list_get(lista_de_memoria, 0);
         agregar_a_tlb(pid, nro_pagina, marco);
+        instante_referencia++;
+        list_destroy(lista_de_memoria);
     }
     log_info(logger,"PID: < %u > - OBTENER MARCO - Página: < %u > - Marco: < %u > ", pid, nro_pagina, marco);
     return marco;
@@ -977,18 +1036,19 @@ void inicializar_TLB(){
     TLB = malloc(tlb_size * sizeof(t_TLB));
     for (int i = 0; i < tlb_size; i++)
     {
-        TLB[i].PID = 0; //preguntar al pepo si hace que el pid de alguno sea 0, si es asi, pedirle que lo cambie
+        TLB[i].PID = -1; 
     }
-    return EXIT_SUCCESS;
 }
 
 int conseguir_marco_en_la_tlb(uint32_t pid, uint32_t nro_pagina)
 {
     for (int i = 0; i < tlb_size; i++)
     {
-        if (TLB[i].PID == pid && TLB[i].nro_pag == nro_pagina)
+        if (TLB[i].PID == (int)pid && TLB[i].nro_pag == nro_pagina)
         {
             log_info(logger, "PID: < %u > - TLB HIT - Pagina: < %u > ", pid, nro_pagina);
+            TLB[i].instante_refencia = instante_referencia;
+            instante_referencia++;
             return ((int) TLB[i].nro_marco);
         }
     }
@@ -1002,29 +1062,54 @@ int agregar_a_tlb(uint32_t pid, uint32_t nro_pagina, uint32_t nro_marco)
     for (int i = 0; i < tlb_size; i++)
     {
         //si encuentra un hueco libre, lo agrega ahi
-        if (TLB[i].PID == 0)
+        if (TLB[i].PID == -1)
         {
-            TLB[i].PID = pid;
+            TLB[i].PID = (int) pid;
             TLB[i].nro_pag = nro_pagina;
             TLB[i].nro_marco = nro_marco;
+            TLB[i].instante_refencia = instante_referencia;
             return EXIT_SUCCESS;
         }
     }
     //si no hay hueco libre, lo agrega en la primera posicion que se uso
+    log_debug(logger, "TLB LLENA - Se va a reemplazar una entrada");
     char* algortimo_tlb = config_get_string_value(config, "ALGORITMO_TLB");
     if (string_equals_ignore_case(algortimo_tlb, "FIFO"))
     {
         if (ultima_fila_modificada == tlb_size){
             ultima_fila_modificada = 0;
         }
-        TLB[ultima_fila_modificada].PID = pid;
+        log_debug(logger, "TLB - Se remplaza una entrada en el indice %d",ultima_fila_modificada);
+        TLB[ultima_fila_modificada].PID = (int) pid;
         TLB[ultima_fila_modificada].nro_pag = nro_pagina;
         TLB[ultima_fila_modificada].nro_marco = nro_marco;
+        TLB[ultima_fila_modificada].instante_refencia = instante_referencia;
         ultima_fila_modificada++;
     }
     else
     {
-        // Hay que hacer el LRU, despues ver bien 
+        // LRU
+        int indice = buscar_tlb_con_menor_referencia();
+        log_debug(logger, "TLB - Se remplaza una entrada en el indice %d",indice);
+        TLB[indice].PID = (int) pid;
+        TLB[indice].nro_pag = nro_pagina;
+        TLB[indice].nro_marco = nro_marco;
+        TLB[indice].instante_refencia = instante_referencia;
     }
     return EXIT_FAILURE;
+}
+
+int buscar_tlb_con_menor_referencia()
+{
+    int menor = TLB[0].instante_refencia;
+    int indice = 0;
+    for (int i = 1; i < tlb_size; i++)
+    {
+        if (TLB[i].instante_refencia < menor)
+        {
+            menor = TLB[i].instante_refencia;
+            indice = i;
+        }
+    }
+    return indice;
 }

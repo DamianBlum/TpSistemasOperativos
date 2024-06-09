@@ -46,9 +46,10 @@ typedef enum
 } e_instruccion;
 
 typedef struct {
-    uint32_t PID;
+    int PID;
     uint32_t nro_pag;
     uint32_t nro_marco;
+    uint32_t instante_refencia;
 } t_TLB;
 
 typedef void (*Agregar_datos_paquete)(t_paquete *, void *);
@@ -65,4 +66,5 @@ void enviar_pcb(e_motivo_desalojo motivo_desalojo, Agregar_datos_paquete agregar
 void no_agregar_datos(t_paquete *paquete, void *datos);
 void agregar_datos_tiempo(t_paquete *paquete, void *datos);
 void agregar_datos_recurso(t_paquete *paquete, void *nombre_recurso);
+void agregar_datos_interfaz_std(t_paquete *paquete, void *datos);
 #endif
