@@ -664,6 +664,7 @@ void *atender_respuesta_proceso(void *arg)
                 log_debug(logger, "Argumentos del IO_GEN_SLEEP: %s | %u", nombre_interfaz, cant);
 
                 t_entrada_salida *tes = obtener_entrada_salida(nombre_interfaz);
+                // chequear si hay o no un cliente utilizandola
                 int cliente_io = tes->cliente;
 
                 // armo el paquete para io
@@ -694,8 +695,72 @@ void *atender_respuesta_proceso(void *arg)
 
                 break;
             case MOTIVO_DESALOJO_IO_STDIN_READ:
+                char *nombre_interfaz_stdin = list_get(lista_respuesta_cpu, 13);
+                uint32_t df_stdin = list_get(lista_respuesta_cpu, 15);
+                uint32_t tamanio_stdin = list_get(lista_respuesta_cpu, 16);
+                log_debug(logger, "Argumentos del IO_STDIN_READ: %s | %u | %u", nombre_interfaz_stdin, df_stdin, tamanio_stdin);
+                
+                t_entrada_salida *tes_stdin = obtener_entrada_salida(nombre_interfaz_stdin);
+                // chequear si hay o no un cliente utilizandola
+                int cliente_io_stdin = tes_stdin->cliente;
+
+                // armo el paquete para io
+                t_paquete *p_io_stdin_read = crear_paquete();
+                agregar_a_paquete(p_io_stdin_read, "IO_STDIN_READ", strlen("IO_STDIN_READ") + 1);
+                agregar_a_paquete(p_io_stdin_read, df_stdin, sizeof(df_stdin));
+                agregar_a_paquete(p_io_stdin_read, tamanio_stdin, sizeof(tamanio_stdin));
+                agregar_a_paquete(p_io_stdin_read, pcb_en_running->processID, sizeof(pcb_en_running->processID));
+                enviar_paquete(p_io_stdin_read, cliente_io_stdin, logger);
+
+                // espero la respuesta de IO
+                recibir_operacion(cliente_io, logger);
+                t_list *resp_stdin = recibir_paquete(cliente_io, logger);
+                uint8_t resultado_stdin = (uint8_t)list_get(resp_stdin, 0);
+                if (resultado_stdin)
+                {
+                    log_info(logger, "La interfaz %s ejecuto correctamente la instruccion.", nombre_interfaz_stdin);
+                }
+                else
+                    log_error(logger, "La interfaz %s ejecuto erroneamente la instruccion.", nombre_interfaz_stdin);
+
+                // le respondo a cpu q se ejecuto bien
+                log_trace(logger, "Voy a enviarle al CPU que salio todo bien.");
+                t_paquete *p_respcpu_stdin = crear_paquete();
+                // hago !resultado xq cpu espera un 0 como OK y 1 como MAL
+                agregar_a_paquete(p_respcpu_stdin, (uint8_t)!resultado_stdin, sizeof(uint8_t));
+                enviar_paquete(p_respcpu_stdin, cliente_cpu_dispatch, logger);
+                
+
                 break;
             case MOTIVO_DESALOJO_IO_STDOUT_WRITE:
+                char *nombre_interfaz_write = list_get(lista_respuesta_cpu, 13);
+                uint32_t df_write = list_get(lista_respuesta_cpu, 15);
+                uint32_t tamanio_write = list_get(lista_respuesta_cpu, 16);
+                log_debug(logger, "Argumentos del IO_STDOUT_WRITE: %s | %u | %u", nombre_interfaz_write, df_write, tamanio_write);
+              
+                t_entrada_salida *tes_stdout_write = obtener_entrada_salida(nombre_interfaz_write);
+                // chequear si hay o no un cliente utilizandola
+                int cliente_io_stdout = tes_stdout_write->cliente;
+
+                // armo el paquete para io
+                t_paquete *p_io_stdout_write = crear_paquete();
+                agregar_a_paquete(p_io_stdout_write, "IO_STDOUT_WRITE", strlen("IO_STDOUT_WRITE") + 1);
+                agregar_a_paquete(p_io_stdout_write, df_write, sizeof(df_write));
+                agregar_a_paquete(p_io_stdout_write, tamanio_write, sizeof(tamanio_write));
+                agregar_a_paquete(p_io_stdout_write, pcb_en_running->processID, sizeof(pcb_en_running->processID));
+                enviar_paquete(p_io_stdout_write, cliente_io_stdout, logger);
+                // espero la respuesta de IO
+                recibir_operacion(cliente_io_stdout, logger);
+                t_list *resp_stdout = recibir_paquete(cliente_io_stdout, logger);
+                void* resultado_write = list_get(resp, 0);
+                mem_hexdump(resultado_write, tamanio_write);
+                // le respondo a cpu q se ejecuto bien
+                log_trace(logger, "Voy a enviarle al CPU que salio todo bien.");
+                t_paquete *p_respcpu_write = crear_paquete();
+                // hago !resultado xq cpu espera un 0 como OK y 1 como MAL
+                agregar_a_paquete(p_respcpu_write, 0, sizeof(uint8_t));
+                enviar_paquete(p_respcpu_write, cliente_cpu_dispatch, logger);
+                
                 break;
             case MOTIVO_DESALOJO_IO_FS_CREATE:
                 break;

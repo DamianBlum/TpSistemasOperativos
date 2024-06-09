@@ -14,6 +14,7 @@
 #include <commons/temporal.h>
 #include <math.h> // lo uso para redondear los tiempos de ejecucion
 #include <utils/interfazUtils.h>
+#include <commons/memory.h>
 
 typedef struct
 {

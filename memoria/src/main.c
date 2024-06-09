@@ -322,7 +322,6 @@ void* hacer_pedido_lectura(t_list* lista){
         resultado=(void*)string_substring_until(elemento_a_guardar,size_original);
         log_info(logger,"Lo que lei fue este texto: %s",resultado);
     }
-    
     free(elemento_a_guardar);
     return resultado;
 }

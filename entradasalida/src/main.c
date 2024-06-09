@@ -199,7 +199,6 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
             uint32_t dir = list_get(datos_desde_kernel, 1);
             uint32_t tamanio_registro = list_get(datos_desde_kernel, 2);
             uint32_t pid = list_get(datos_desde_kernel, 3);
-            uint8_t tipo_de_dato = list_get(datos_desde_kernel, 4);
             log_debug(logger, "(%s|%u): Texto ingresado: %s | Direccion fisica: %u | Size registro: %u | PID: %u.", interfaz->nombre, interfaz->tipo_interfaz, texto_ingresado, dir, tamanio_registro, pid);
 
             // ahora q lo lei, lo voy a acortar si es necesario
@@ -213,7 +212,7 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
             agregar_a_paquete(paquete_para_mem, tamanio_registro, sizeof(uint32_t)); // Reg tam
             agregar_a_paquete(paquete_para_mem, pid, sizeof(uint32_t));              // PID
             agregar_a_paquete(paquete_para_mem, texto_chiquito, strlen(texto_chiquito));
-            agregar_a_paquete(paquete_para_mem, tipo_de_dato, sizeof(uint8_t));
+            agregar_a_paquete(paquete_para_mem, 0, sizeof(uint8_t));
             enviar_paquete(paquete_para_mem, (int)((t_interfaz_stdin *)interfaz->configs_especificas)->conexion_memoria, logger);
 
             // aca podria esperar a ver q me dice memoria sobre esto
@@ -230,7 +229,6 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
             uint32_t dir_fisica = list_get(datos_desde_kernel, 1);
             uint32_t tam_dato = list_get(datos_desde_kernel, 2);
             uint32_t pid = list_get(datos_desde_kernel, 3);
-            uint8_t tipo_de_dato = list_get(datos_desde_kernel, 4);
             t_interfaz_stdout *tisout = (t_interfaz_stdout *)interfaz->configs_especificas;
             int cm = (int)tisout->conexion_memoria;
 
@@ -246,7 +244,7 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
             agregar_a_paquete(pm, dir_fisica, sizeof(uint32_t));
             agregar_a_paquete(pm, tam_dato, sizeof(uint32_t));
             agregar_a_paquete(pm, pid, sizeof(uint32_t));
-            agregar_a_paquete(pm, tipo_de_dato, sizeof(uint8_t));
+            agregar_a_paquete(pm, 0, sizeof(uint8_t));
             enviar_paquete(pm, cm, logger);
 
             // esperar y printear el valor obtenido
