@@ -20,5 +20,6 @@ typedef struct
 t_bitmap *crear_bitmap(char *path, uint32_t cant_bits, t_log *logger);
 uint8_t esta_bloque_ocupado(t_bitmap *bitmap, uint32_t pos_bloque);
 uint8_t ocupar_bloque(t_bitmap *bitmap, uint32_t pos_bloque);
+uint8_t liberar_bloque(t_bitmap *bitmap, uint32_t pos_bloque);
 
 #endif

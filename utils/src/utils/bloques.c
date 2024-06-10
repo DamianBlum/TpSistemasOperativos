@@ -31,3 +31,8 @@ void *leer_bloque(t_bloques *bloques, uint32_t pos_bloque, uint32_t offset)
 }
 
 uint8_t escribir_bloque(t_bloques *bloques, uint32_t pos_bloque, uint32_t offset) { return 0; }
+
+uint8_t limpiar_bloque(t_bloques *bloques, uint32_t pos_bloque)
+{ // cuando asigno un bloque nuevo a un archivo, le pongo todo ceros para que no haya problemas de lectura desp
+    return 0;
+}

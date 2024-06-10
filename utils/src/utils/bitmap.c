@@ -74,6 +74,22 @@ uint8_t ocupar_bloque(t_bitmap *bitmap, uint32_t pos_bloque)
     return resultado;
 }
 
-void printear_bitmap()
+uint8_t liberar_bloque(t_bitmap *bitmap, uint32_t pos_bloque)
 {
+    uint8_t resultado;
+
+    // verifico el estado del bloque
+    if (!bitarray_test_bit(bitmap->bitarray, pos_bloque))
+    { // ya esta liberador
+        resultado = 0;
+    }
+    // clereo el bit y guardo el bitarray en el archivo
+    else
+    {
+        bitarray_clean_bit(bitmap->bitarray, pos_bloque);
+        resultado = 1;
+    }
+
+    // cierro todo y retorno
+    return resultado;
 }

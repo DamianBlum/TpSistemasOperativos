@@ -80,4 +80,5 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
 uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t nuevo_size);
 uint8_t borrar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo);
 uint8_t crear_archivo(t_interfaz_dialfs *idial, char *nombre_archivo);
+char *armar_path_metadata(char *nombre_archivo, char *path);
 #endif

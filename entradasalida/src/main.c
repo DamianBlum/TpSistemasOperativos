@@ -348,9 +348,7 @@ uint8_t crear_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
 { // solamente le asigno 1 bloque al crear un archivo
 
     // valido que el archivo ya no exista
-    char *path_metadata = string_duplicate(idial->path_base_dialfs);
-    string_append(&path_metadata, nombre_archivo); // /dialfs/algo/nombre_archivo
-    string_append(&path_metadata, ".metadata");    // /dialfs/algo/nombre_archivo.txt
+    char *path_metadata = armar_path_metadata(nombre_archivo, idial->path_base_dialfs);
 
     if (access(path_metadata, F_OK) == 0)
     {
@@ -381,6 +379,9 @@ uint8_t crear_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
 
             log_trace(logger, "Se reservo el bloque %u para el archivo %s.", i, nombre_archivo);
 
+            // limpio el bloque del archivo
+            limpiar_bloque(idial->bloques, i);
+
             // creo el archivo de metadata
             FILE *fmd = txt_open_for_append(path_metadata);
             txt_close_file(fmd);
@@ -407,16 +408,53 @@ uint8_t crear_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
 
 uint8_t borrar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
 {
-    return 1;
+    // armo el path
+    char *path_metadata = armar_path_metadata(nombre_archivo, idial->path_base_dialfs);
+
+    // consigo el config
+    t_config *c = config_create(c);
+    uint32_t bloque_inicial = (uint32_t)config_get_int_value(c, "BLOQUE_INICIAL");
+    uint32_t tamanio_archivo = (uint32_t)config_get_int_value(c, "TAMANIO_ARCHIVO");
+
+    // limpio el bitmap
+    for (uint32_t i = bloque_inicial; i < bloque_inicial + tamanio_archivo; i++)
+    {
+        if (!liberar_bloque(idial->bitmap, i)) // solamente lo printeo xq en si no es algo que me pueda dar un error
+            log_warning(logger, "El bloque ya se encontraba liberado");
+    }
+
+    // borro el .metadata
+    uint8_t r = 1;
+
+    if (remove(path_metadata))
+        r = 0; // error al borrar el archivo
+
+    return r;
 }
 
 uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t nuevo_size)
 {
     // consigo la info del archivo
+    char *path_metadata = armar_path_metadata();
+    t_config *config = config_create(path_metadata);
+    uint32_t bloque_inicial = (uint32_t)config_get_int_value(config, "BLOQUE_INICIAL");
+    uint32_t size_archivo = (uint32_t)config_get_int_value(config, "TAMANIO_ARCHIVO");
 
     // valido si lo puedo truncar
+    if (nuevo_size > size_archivo)
+    { // en este caso me tengo q fijar que exista el espacio
+
+    } // si es menor no valido nada, interpreto que es valido perder informacion al truncar
 
     // trunco
 
     return 1;
+}
+
+char *armar_path_metadata(char *nombre_archivo, char *path)
+{
+    char *path_metadata = string_duplicate(path);
+    string_append(&path_metadata, nombre_archivo); // /dialfs/algo/nombre_archivo
+    string_append(&path_metadata, ".metadata");    // /dialfs/algo/nombre_archivo.txt
+    return path_metadata;
 }
