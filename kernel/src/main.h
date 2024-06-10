@@ -16,11 +16,29 @@
 #include <utils/interfazUtils.h>
 #include <commons/memory.h>
 
+typedef enum{
+    RECURSO = 0,
+    INTERFAZ
+} e_tipo_bloqueado;
+
 typedef struct
 {
     t_queue *cola_bloqueados;
-    int instancias_recursos;
+    //t_manejo_recursos* instancias_recursos; // si es de un recurso
+    //t_entrada_salida *interfaz; // si es de una interfaz
+    void * datos_bloqueados;
+    e_tipo_bloqueado identificador; 
 } t_manejo_bloqueados;
+
+typedef void (*Enviar_a_io)(t_manejo_bloqueados*, void*);
+
+typedef struct
+{
+    uint32_t pid;
+    void* datos;
+} t_pid_con_datos; // esto va en cola de bloqueados
+
+
 
 typedef enum
 {
@@ -33,15 +51,34 @@ typedef struct
 {
     char *nombre_interfaz;
     int cliente;
-    pthread_mutex_t mutex;
+    pthread_mutex_t mutex; // mutex para el manejo de la interfaz de forma segura
 } t_entrada_salida;
+typedef struct
+{
+    uint32_t tamanio;
+    uint32_t df;
+} t_io_stdin;
+
+typedef struct
+{
+    uint32_t tamanio;
+    uint32_t df;
+} t_io_stdout;
+typedef struct
+{
+    int instancias_recursos;
+} t_manejo_recursos;
+
+typedef struct {
+    Enviar_a_io enviar_a_io_sleep;
+    t_manejo_bloqueados* tmb;
+} t_hilo_args;
 
 int main(int argc, char *argv[]);
 int generar_clientes();
 void *atender_servidor_io(void *arg);
 void *atender_cliente_io(void *arg);
 void *atender_respuesta_proceso(void *arg);
-bool ya_existe_la_interfaz(char *ni);
 void mostrar_menu();
 e_algoritmo_planificacion obtener_algoritmo_planificacion(char *algo);
 void instanciar_colas();
@@ -69,8 +106,8 @@ void evaluar_READY_a_EXEC();
 void evaluar_EXEC_a_READY();
 void evaluar_READY_a_EXIT(t_PCB *pcb);
 void evaluar_BLOCKED_a_EXIT(t_PCB *pcb);
-void evaluar_EXEC_a_BLOCKED(char *recurso);
-void evaluar_BLOCKED_a_READY(t_queue *colaRecurso);
+void evaluar_EXEC_a_BLOCKED(char *recurso, void * datos);
+void evaluar_BLOCKED_a_READY(t_manejo_bloqueados *tmb);
 void evaluar_EXEC_a_EXIT();
 
 void cambiar_estado_proceso(uint32_t id, e_estado_proceso estadoActual, e_estado_proceso nuevoEstado);
@@ -89,8 +126,10 @@ bool debe_ir_a_cola_prioritaria(t_PCB *pcb);
 void asd(t_manejo_bloqueados *tmb);
 
 t_entrada_salida *obtener_entrada_salida(char *nombre_interfaz);
-t_entrada_salida *crear_interfaz(char *nombre_interfaz, int cliente);
+void crear_interfaz(char *nombre_interfaz, int cliente);
 void wait_interfaz(t_entrada_salida *tes);
 void signal_interfaz(t_entrada_salida *tes);
+void enviar_a_io_sleep(t_manejo_bloqueados* tmb, void* datos);
+void* mandar_a_io_al_siguiente(void* args);
 
 #endif
