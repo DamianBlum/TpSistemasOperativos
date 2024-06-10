@@ -346,8 +346,19 @@ void manejo_de_interfaz(void *args)
 
 uint8_t crear_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
 { // solamente le asigno 1 bloque al crear un archivo
-    // me fijo donde lo puedo ubicar
 
+    // valido que el archivo ya no exista
+    char *path_metadata = string_duplicate(idial->path_base_dialfs);
+    string_append(&path_metadata, nombre_archivo); // /dialfs/algo/nombre_archivo
+    string_append(&path_metadata, ".metadata");    // /dialfs/algo/nombre_archivo.txt
+
+    if (access(path_metadata, F_OK) == 0)
+    {
+        log_error(logger, "Ya existe el archivo %s, se cancela la creacion.", nombre_archivo);
+        return 0;
+    }
+
+    // me fijo donde lo puedo ubicar
     for (uint32_t i = 0; i < idial->block_count; i++)
     {
         uint8_t hay_espacio = 1;
@@ -371,14 +382,11 @@ uint8_t crear_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
             log_trace(logger, "Se reservo el bloque %u para el archivo %s.", i, nombre_archivo);
 
             // creo el archivo de metadata
-            char *path = string_duplicate(idial->path_base_dialfs);
-            string_append(&path, nombre_archivo); // /dialfs/algo/nombre_archivo
-            string_append(&path, ".metadata");    // /dialfs/algo/nombre_archivo.txt
-            FILE *fmd = txt_open_for_append(path);
+            FILE *fmd = txt_open_for_append(path_metadata);
             txt_close_file(fmd);
 
             // creo un config con el archivo y le asigno las keys con sus valores
-            t_config *c = config_create(path);
+            t_config *c = config_create(path_metadata);
             config_set_value(c, "BLOQUE_INICIAL", string_itoa(i));
             config_set_value(c, "TAMANIO_ARCHIVO", string_itoa(0));
             config_save(c);
@@ -390,15 +398,16 @@ uint8_t crear_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
         else if (i == idial->block_count - 1) // recorri todo el bitmap
         {
             log_error(logger, "No se encontro un espacio donde pueda guardar el archivo %s.", nombre_archivo);
-            return 1;
+            return 0;
         }
     }
-    return 0;
+    free(path_metadata);
+    return 1;
 }
 
 uint8_t borrar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
 {
-    return 0;
+    return 1;
 }
 
 uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t nuevo_size)
@@ -409,5 +418,5 @@ uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t
 
     // trunco
 
-    return 0;
+    return 1;
 }
