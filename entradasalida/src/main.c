@@ -95,6 +95,7 @@ t_interfaz_default *crear_nueva_interfaz(char *nombre_archivo_config)
         tid->block_size = (uint32_t)config_get_long_value(config, "BLOCK_SIZE");
         tid->block_count = (uint32_t)config_get_long_value(config, "BLOCK_COUNT");
         tid->retraso_compactacion = (uint32_t)config_get_long_value(config, "RETRASO_COMPACTACION");
+        interfaz->configs_especificas = tid; // casi me olvido de esto je
 
         // creo las estructuras necesarias (si ya estan creadas no pasa nada)
         // 1- bloques.dat
@@ -255,20 +256,23 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
             log_trace(logger, "(%s|%u): Entre a IO_FS_CREATE.", interfaz->nombre, interfaz->tipo_interfaz);
 
             char *nombre_archivo = list_get(datos_desde_kernel, 1);
-            ejecuto_correctamente = crear_archivo(idialfs, datos_desde_kernel);
+            ejecuto_correctamente = crear_archivo(idialfs, nombre_archivo);
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_DELETE"))
         {
             log_trace(logger, "(%s|%u): Entre a IO_FS_DELETE.", interfaz->nombre, interfaz->tipo_interfaz);
-            ejecuto_correctamente = 1;
+            char *nombre_archivo = list_get(datos_desde_kernel, 1);
+            ejecuto_correctamente = borrar_archivo(idialfs, nombre_archivo);
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_TRUNCATE"))
         {
             log_trace(logger, "(%s|%u): Entre a IO_FS_TRUNCATE.", interfaz->nombre, interfaz->tipo_interfaz);
-            ejecuto_correctamente = 1;
+            char *nombre_archivo = list_get(datos_desde_kernel, 1);
+            uint32_t nuevo_size = list_get(datos_desde_kernel, 2);
+            ejecuto_correctamente = truncar_archivo(idialfs, nombre_archivo, nuevo_size);
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_WRITE"))
-        {
+        { // IO_FS_WRITE Int4 notas.txt AX ECX EDX
             log_trace(logger, "(%s|%u): Entre a IO_FS_WRITE.", interfaz->nombre, interfaz->tipo_interfaz);
             ejecuto_correctamente = 1;
         }
@@ -349,11 +353,11 @@ uint8_t crear_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
         uint8_t hay_espacio = 1;
         if (esta_bloque_ocupado(idial->bitmap, i))
         {
-            log_debug(logger, "Bloque %u ocupado, me quedan %u.", i, idial->block_count - i);
+            log_debug(logger, "Bloque %u ocupado, me quedan %u.", i, idial->block_count - (i + 1));
             hay_espacio = 0;
         }
 
-        log_debug(logger, "Bloque %u libre, voy a asignar el archivo ahi.", i);
+        // log_debug(logger, "Bloque %u libre, voy a asignar el archivo ahi.", i);
 
         if (hay_espacio)
         { // si existe un lugar donde guardar el dato, lo escribo en el bitmap
@@ -364,20 +368,26 @@ uint8_t crear_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
             else
                 log_debug(logger, "Se ocupo el bloque %u para el archivo %s", i, nombre_archivo);
 
-            log_trace(logger, "Se reservaron el bloque %u para el archivo %s.", i, nombre_archivo);
+            log_trace(logger, "Se reservo el bloque %u para el archivo %s.", i, nombre_archivo);
 
             // creo el archivo de metadata
             char *path = string_duplicate(idial->path_base_dialfs);
-            string_append(path, nombre_archivo); // /dialfs/algo/nombre_archivo
-            string_append(path, ".metadata");    // /dialfs/algo/nombre_archivo.txt
+            string_append(&path, nombre_archivo); // /dialfs/algo/nombre_archivo
+            string_append(&path, ".metadata");    // /dialfs/algo/nombre_archivo.txt
             FILE *fmd = txt_open_for_append(path);
-            char *datos = string_duplicate("BLOQUE_INICIAL=%u\nTAMANIO_ARCHIVO=%u");
-            string_append_with_format(&datos, i, 0); // el size inicia siempre en 0 al crear el archivo
-            log_debug(logger, "Texto a escribir en el archivo de metadata: %s", datos);
-            txt_write_in_file(fmd, datos);
             txt_close_file(fmd);
+
+            // creo un config con el archivo y le asigno las keys con sus valores
+            t_config *c = config_create(path);
+            config_set_value(c, "BLOQUE_INICIAL", string_itoa(i));
+            config_set_value(c, "TAMANIO_ARCHIVO", string_itoa(0));
+            config_save(c);
+            destruir_config(c);
+
+            // salgo del for
+            break;
         }
-        else
+        else if (i == idial->block_count - 1) // recorri todo el bitmap
         {
             log_error(logger, "No se encontro un espacio donde pueda guardar el archivo %s.", nombre_archivo);
             return 1;
@@ -386,6 +396,18 @@ uint8_t crear_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
     return 0;
 }
 
-// asigno los bloques elegidos
+uint8_t borrar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
+{
+    return 0;
+}
 
-//  creo el arvhivo de metadata
+uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t nuevo_size)
+{
+    // consigo la info del archivo
+
+    // valido si lo puedo truncar
+
+    // trunco
+
+    return 0;
+}

@@ -77,4 +77,7 @@ e_tipo_interfaz convertir_tipo_interfaz_enum(char *tipo_interfaz);
 t_interfaz_default *crear_nueva_interfaz(char *nombre_archivo_config);
 void consumir_tiempo_trabajo(uint32_t tiempo_en_ms, t_interfaz_default *interfaz);
 int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz, t_list *datos_desde_kernel);
+uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t nuevo_size);
+uint8_t borrar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo);
+uint8_t crear_archivo(t_interfaz_dialfs *idial, char *nombre_archivo);
 #endif
