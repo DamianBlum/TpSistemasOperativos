@@ -415,9 +415,10 @@ uint8_t borrar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
     t_config *c = config_create(c);
     uint32_t bloque_inicial = (uint32_t)config_get_int_value(c, "BLOQUE_INICIAL");
     uint32_t tamanio_archivo = (uint32_t)config_get_int_value(c, "TAMANIO_ARCHIVO");
+    uint32_t cant_bloques = (uint32_t)ceil(tamanio_archivo / idial->block_size); // ceil redondea para arriba
 
     // limpio el bitmap
-    for (uint32_t i = bloque_inicial; i < bloque_inicial + tamanio_archivo; i++)
+    for (uint32_t i = bloque_inicial; i < bloque_inicial + cant_bloques; i++)
     {
         if (!liberar_bloque(idial->bitmap, i)) // solamente lo printeo xq en si no es algo que me pueda dar un error
             log_warning(logger, "El bloque ya se encontraba liberado");
@@ -434,21 +435,59 @@ uint8_t borrar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
 
 uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t nuevo_size)
 {
+    uint8_t resultado = 0;
     // consigo la info del archivo
     char *path_metadata = armar_path_metadata();
     t_config *config = config_create(path_metadata);
     uint32_t bloque_inicial = (uint32_t)config_get_int_value(config, "BLOQUE_INICIAL");
     uint32_t size_archivo = (uint32_t)config_get_int_value(config, "TAMANIO_ARCHIVO");
 
-    // valido si lo puedo truncar
     if (nuevo_size > size_archivo)
     { // en este caso me tengo q fijar que exista el espacio
+        uint32_t bloques_a_agregar = (uint32_t)ceil((nuevo_size - size_archivo) / idial->block_size);
+        uint32_t pos_arranque = bloque_inicial + size_archivo; // esto es el primer bloque que le sigue al ultimo que ya tiene asignado el archivo
+        uint8_t puedo_truncar = 1;
+
+        for (uint32_t i = pos_arranque; i < bloques_a_agregar; i++)
+        { // se pueden dar 2 situacion por las cuales no pueda truncar:
+            // 1- pido mas de lo que le queda al filesystem de espacio (desde mi pos actual, ej: hay 1024, estoy en la 700 y pido 500)
+            // 2- hay bloques ocupados que necesitaria tomar para poder hacer el trunque (ej: estoy en 200, pido 50 y desde la 230 esta ocupado por otro archivo)
+            if (i >= idial->block_count || esta_bloque_ocupado(idial->bitmap, i))
+            {
+                log_error(logger, "No se puede truncar porque el bloque %u esta ocupado por otro proceso (me faltaron %u bloques).", i, bloques_a_agregar - i);
+                puedo_truncar = 0;
+                break;
+            }
+        }
+        // trunco si se puede
+        if (puedo_truncar)
+        {
+            // seteo el bitmap
+            for (uint32_t i = pos_arranque; i < bloques_a_agregar; i++)
+            {
+                if (!ocupar_bloque(idial->bitmap, i))
+                    log_warning(logger, "Se intento truncar el bloque %u pero ya se encontraba ocupado.");
+                // limpio el bloque del archivo asi no tiene basura
+                limpiar_bloque(idial->bitmap, i);
+            }
+
+            // seteo la metadata (solamente varia el size)
+            config_set_value(config, "TAMANIO_ARCHIVO", nuevo_size);
+            config_save(config);
+            resultado = 1;
+        }
 
     } // si es menor no valido nada, interpreto que es valido perder informacion al truncar
+    else
+    {
+        uint32_t bloques_a_sacar = (uint32_t)ceil((size_archivo - nuevo_size) / idial->block_size);
+    }
 
-    // trunco
+    // cierro todo
+    config_destroy(config);
+    free(path_metadata);
 
-    return 1;
+    return resultado;
 }
 
 char *armar_path_metadata(char *nombre_archivo, char *path)
