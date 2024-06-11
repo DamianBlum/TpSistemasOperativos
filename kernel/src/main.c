@@ -21,7 +21,7 @@ bool esta_planificacion_pausada = true;
 // lista de pcbs
 t_list *lista_de_pcbs;
 // lista de i/os
-//t_list *lista_de_entradas_salidas;
+// t_list *lista_de_entradas_salidas;
 // diccionario de recursos
 t_dictionary *diccionario_recursos_e_interfaces;
 // Queues de estados
@@ -44,12 +44,12 @@ int main(int argc, char *argv[])
     grado_multiprogramacion = config_get_int_value(config, "GRADO_MULTIPROGRAMACION");
     algoritmo_planificacion = obtener_algoritmo_planificacion(config_get_string_value(config, "ALGORITMO_PLANIFICACION"));
     lista_de_pcbs = list_create();
-    //lista_de_entradas_salidas = list_create();
+    // lista_de_entradas_salidas = list_create();
     instanciar_colas();
     obtener_valores_de_recursos();
-    //obtener_valores_de_recursos();
-    //diccionario_interfaz = dictionary_create(); tengo que ver si hay que crear o no esto, ver donde van las e-s :/
-    // PARTE CLIENTE
+    // obtener_valores_de_recursos();
+    // diccionario_interfaz = dictionary_create(); tengo que ver si hay que crear o no esto, ver donde van las e-s :/
+    //  PARTE CLIENTE
     if (generar_clientes()) // error al crear los clientes de cpu
         return EXIT_FAILURE;
 
@@ -180,11 +180,91 @@ void *atender_cliente_io(void *arg)
         enviar_paquete(resp, cliente_io, logger);
         return EXIT_FAILURE;
     }
-    //list_add(lista_de_entradas_salidas, crear_interfaz(nombreInterfaz, cliente_io));
+    // list_add(lista_de_entradas_salidas, crear_interfaz(nombreInterfaz, cliente_io));
     crear_interfaz(nombreInterfaz, cliente_io);
     agregar_a_paquete(resp, 0, sizeof(uint8_t)); // interfaz creada en kernel con exito
     enviar_paquete(resp, cliente_io, logger);
 
+    // una vez creada la interfaz, uso este hilo para manejar la comunicacion con IO
+    t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos_e_interfaces, nombreInterfaz);
+    t_entrada_salida *tes = (t_entrada_salida *)tmb->datos_bloqueados;
+    while (1)
+    {
+        wait_interfaz(tes);
+        uint8_t hay_algo = !queue_is_empty(tmb->cola_bloqueados);
+        signal_interfaz(tes);
+
+        if (string_equals_ignore_case("impresora", nombreInterfaz))
+            log_trace(logger, "AAAAAAAAAAAAA");
+
+        if (hay_algo)
+        {
+            log_debug(logger, "asd");
+            wait_interfaz(tes);
+            t_pid_con_datos *pid_con_datos = queue_peek(tmb->cola_bloqueados);
+            signal_interfaz(tes);
+
+            // saco los datos
+            t_list *lista_de_parametros = (t_list *)pid_con_datos->datos;
+
+            t_paquete *paquete_para_io = crear_paquete();
+
+            // armo la lista de datos q le voy a enviar a la interfaz
+            switch (pid_con_datos->tipo_parametros_io)
+            {
+            case GENERICA:
+                uint32_t cant = list_get(lista_de_parametros, 0);
+
+                agregar_a_paquete(paquete_para_io, "IO_GEN_SLEEP", strlen("IO_GEN_SLEEP") + 1);
+                agregar_a_paquete(paquete_para_io, cant, sizeof(uint32_t));
+                // agregar_a_paquete(paquete_para_io, tes->nombre_interfaz, strlen(tes->nombre_interfaz) + 1);
+                break;
+            case STDIN:
+                uint32_t dir_stdin = list_get(lista_de_parametros, 0);
+                uint32_t size_reg_stdin = list_get(lista_de_parametros, 1);
+
+                agregar_a_paquete(paquete_para_io, "IO_STDIN_READ", strlen("IO_STDIN_READ") + 1);
+                agregar_a_paquete(paquete_para_io, dir_stdin, sizeof(uint32_t));
+                agregar_a_paquete(paquete_para_io, size_reg_stdin, sizeof(uint32_t));
+                break;
+            case STDOUT:
+                uint32_t dir_stdout = list_get(lista_de_parametros, 0);
+                uint32_t size_reg_stdout = list_get(lista_de_parametros, 1);
+
+                agregar_a_paquete(paquete_para_io, "IO_STDOUT_WRITE", strlen("IO_STDOUT_WRITE") + 1);
+                agregar_a_paquete(paquete_para_io, dir_stdout, sizeof(uint32_t));
+                agregar_a_paquete(paquete_para_io, size_reg_stdout, sizeof(uint32_t));
+
+                break;
+            case DIALFS:
+                log_warning(logger, "Todavia no implementado");
+                break;
+            }
+
+            // siempre al final envio el PID
+            agregar_a_paquete(paquete_para_io, pid_con_datos->pid, sizeof(uint32_t));
+
+            enviar_paquete(paquete_para_io, tes->cliente, logger);
+
+            // espero la respuesta de IO
+            recibir_operacion(tes->cliente, logger);
+            t_list *resp = recibir_paquete(tes->cliente, logger);
+            uint8_t resultado = (uint8_t)list_get(resp, 0);
+            if (resultado)
+            {
+                log_info(logger, "La interfaz %s ejecuto correctamente la instruccion.", tes->nombre_interfaz);
+                evaluar_BLOCKED_a_READY(tmb);
+                // para el caso donde solamente hay 1 proceso, hago RaE
+                evaluar_READY_a_EXEC();
+            }
+            else
+            {
+                log_error(logger, "La interfaz %s ejecuto erroneamente la instruccion.", tes->nombre_interfaz);
+                // consego el pcb
+                evaluar_BLOCKED_a_EXIT(devolver_pcb_desde_lista(lista_de_pcbs, pid_con_datos->pid));
+            }
+        }
+    }
 }
 
 // planificacion de largo plazo
@@ -333,7 +413,7 @@ void evaluar_NEW_a_READY()
     }
 }
 
-void evaluar_READY_a_EXEC() // hilar (me olvide xq xD)
+void evaluar_READY_a_EXEC() // hilar (me olvide xq xD), (me acorde y no lo voy a hacer)
 {
     log_trace(logger, "Voy a evaluar si puedo mover un proceso de READY a EXEC (asignar un proceso al CPU).");
     if (queue_is_empty(cola_RUNNING) && !queue_is_empty(cola_READY) && !esta_planificacion_pausada) // valido q no este nadie corriendo, ready no este vacio y la planificacion no este pausada
@@ -466,19 +546,19 @@ void evaluar_BLOCKED_a_EXIT(t_PCB *pcb)
     for (uint8_t i = 0; i < dictionary_size(diccionario_recursos_e_interfaces); i++) // podria ser un poquito mas lindo esto pero bueno, andar anda
     {
         t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos_e_interfaces, list_get(dictionary_keys(diccionario_recursos_e_interfaces), i));
-        
+
         switch (tmb->identificador)
         {
         case RECURSO:
             if (eliminar_id_de_la_cola(tmb->cola_bloqueados, pcb->processID))
             {
-                t_manejo_recursos* manejo_recurso=(t_manejo_recursos*)tmb->datos_bloqueados;
-                manejo_recurso->instancias_recursos++; // devuelvo la instancia del recurso q se va a matar
+                t_manejo_recursos *manejo_recurso = (t_manejo_recursos *)tmb->datos_bloqueados;
+                manejo_recurso->instancias_recursos++;                  // devuelvo la instancia del recurso q se va a matar
                 i = dictionary_size(diccionario_recursos_e_interfaces); // para salir del for
             }
-            break; 
+            break;
         case INTERFAZ:
-            t_entrada_salida* tes = (t_entrada_salida*)tmb->datos_bloqueados;
+            t_entrada_salida *tes = (t_entrada_salida *)tmb->datos_bloqueados;
             wait_interfaz(tes);
             if (eliminar_id_de_la_cola(tmb->cola_bloqueados, pcb->processID))
             {
@@ -486,7 +566,7 @@ void evaluar_BLOCKED_a_EXIT(t_PCB *pcb)
             }
             signal_interfaz(tes);
             break;
-        }   
+        }
     }
     // lo pusheo en exit
     queue_push(cola_EXIT, pcb->processID);
@@ -495,9 +575,8 @@ void evaluar_BLOCKED_a_EXIT(t_PCB *pcb)
     log_debug(logger, "Grado de multiprogramacion actual: %d", cant_procesos_ejecutando);
 }
 
-void evaluar_EXEC_a_BLOCKED(char *key, void* datos) // antes era recurso, ahora puede ser tanto recurso como nombre interfaz
+void evaluar_EXEC_a_BLOCKED(char *key, t_list *lista) // antes era recurso, ahora puede ser tanto recurso como nombre interfaz
 {
-    
     log_trace(logger, "Voy a evaluar si puedo mover un proceso de la cola EXEC a BLOCKED.");
     if (!queue_is_empty(cola_RUNNING))
     {
@@ -515,16 +594,17 @@ void evaluar_EXEC_a_BLOCKED(char *key, void* datos) // antes era recurso, ahora 
             queue_push(tmb->cola_bloqueados, pid_con_datos);
             break;
         case INTERFAZ:
-            t_entrada_salida *tes = (t_entrada_salida*)tmb->datos_bloqueados;
+            t_entrada_salida *tes = (t_entrada_salida *)tmb->datos_bloqueados;
             pid_con_datos = malloc(sizeof(t_pid_con_datos));
-            pid_con_datos->datos = datos;
             pid_con_datos->pid = pcb->processID;
+            pid_con_datos->tipo_parametros_io = (e_tipo_interfaz)list_get(lista, 0);
+            list_remove_element(lista, 0);
+            pid_con_datos->datos = lista;
             wait_interfaz(tes);
             queue_push(tmb->cola_bloqueados, pid_con_datos);
             signal_interfaz(tes);
             break;
         }
-        
 
         log_trace(logger, "Se movio el proceso %d de EXEC a BLOCKED.", pcb->processID);
     }
@@ -538,8 +618,8 @@ void evaluar_EXEC_a_BLOCKED(char *key, void* datos) // antes era recurso, ahora 
 void evaluar_BLOCKED_a_READY(t_manejo_bloqueados *tmb)
 { // desbloqueo por fifo
     log_trace(logger, "Voy a evaluar si puedo mover a algun proceso de la cola BLOCKED a READY.");
-    t_queue* colaRecurso= tmb->cola_bloqueados;
-    t_pid_con_datos* pid_con_datos;
+    t_queue *colaRecurso = tmb->cola_bloqueados;
+    t_pid_con_datos *pid_con_datos;
     switch (tmb->identificador)
     {
     case RECURSO:
@@ -551,7 +631,7 @@ void evaluar_BLOCKED_a_READY(t_manejo_bloqueados *tmb)
         break;
         pid_con_datos = queue_pop(colaRecurso);
     case INTERFAZ:
-        t_entrada_salida *tes = (t_entrada_salida*)tmb->datos_bloqueados;
+        t_entrada_salida *tes = (t_entrada_salida *)tmb->datos_bloqueados;
         wait_interfaz(tes);
         if (queue_is_empty(colaRecurso))
         { // no hay nadie q desbloquear
@@ -563,7 +643,7 @@ void evaluar_BLOCKED_a_READY(t_manejo_bloqueados *tmb)
         signal_interfaz(tes);
         break;
     }
-    
+
     queue_push(cola_READY, pid_con_datos->pid);
 
     t_PCB *pcb = devolver_pcb_desde_lista(lista_de_pcbs, pid_con_datos->pid);
@@ -633,7 +713,7 @@ void *atender_respuesta_proceso(void *arg)
             // ---------------------------------------------- //
             e_motivo_desalojo motivo_desalojo = conseguir_motivo_desalojo_de_registros_empaquetados(lista_respuesta_cpu);
             log_trace(logger, "Motivo de desalojo de %d: %s", pcb_en_running->processID, motivo_desalojo_texto(motivo_desalojo));
-            
+
             switch (motivo_desalojo)
             {
             case MOTIVO_DESALOJO_EXIT:
@@ -658,7 +738,7 @@ void *atender_respuesta_proceso(void *arg)
                     log_trace(logger, "Voy a enviarle al CPU que no tiene la instancia, asi q sera bloqueado.");
                     agregar_a_paquete(respuesta_para_cpu, 1, sizeof(uint8_t));
                     enviar_paquete(respuesta_para_cpu, cliente_cpu_dispatch, logger);
-                    evaluar_EXEC_a_BLOCKED(argWait,NULL);
+                    evaluar_EXEC_a_BLOCKED(argWait, NULL);
                     // termino el ciclo
                     sigo_esperando_cosas_de_cpu = false;
                 }
@@ -707,109 +787,63 @@ void *atender_respuesta_proceso(void *arg)
                 uint32_t cant = list_get(lista_respuesta_cpu, 14);
                 log_debug(logger, "Argumentos del IO_GEN_SLEEP: %s | %u", nombre_interfaz, cant);
 
-                //t_entrada_salida *tes = obtener_entrada_salida(nombre_interfaz);
-                t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos_e_interfaces, nombre_interfaz);
-                t_entrada_salida *tes = (t_entrada_salida*)tmb->datos_bloqueados;
-                // chequear si hay o no un cliente utilizandola
-                int cliente_io = tes->cliente;
-                
-                wait_interfaz(tes);
-                if (queue_is_empty(tmb->cola_bloqueados)){
-                    signal_interfaz(tes);
-                    evaluar_EXEC_a_BLOCKED(nombre_interfaz,cant);
+                // t_entrada_salida *tes = obtener_entrada_salida(nombre_interfaz);
+                t_manejo_bloqueados *tmb_sleep = dictionary_get(diccionario_recursos_e_interfaces, nombre_interfaz);
+                t_entrada_salida *tes_sleep = (t_entrada_salida *)tmb_sleep->datos_bloqueados;
 
-                    enviar_a_io_sleep(tmb,cant);
-                    evaluar_BLOCKED_a_READY(tmb);
+                // armo los datos
+                t_list *l_io_sleep = list_create();
+                list_add(l_io_sleep, GENERICA);
+                list_add(l_io_sleep, cant);
 
-                    // Creamos un hilo para operar la interfaz io gen sleep hasta que este libre
-                    pthread_t hilo_enviar_a_io;
-                    t_hilo_args *args = malloc(sizeof(t_hilo_args));
-                    args->enviar_a_io_sleep = enviar_a_io_sleep;
-                    args->tmb = tmb;
-                    pthread_create(&hilo_enviar_a_io, NULL, mandar_a_io_al_siguiente, args);
-                    pthread_detach(&hilo_enviar_a_io);
-                    //mandar_a_io_al_siguiente(enviar_a_io_sleep,tmb);
+                // estos wait y signal NO van xq adentro del la funcion hago otros, por lo tanto termino en una especie de deadlock xq hago wait 2 veces y nunca llego al signal
+                // wait_interfaz(tes_sleep);
+                evaluar_EXEC_a_BLOCKED(nombre_interfaz, l_io_sleep);
+                // signal_interfaz(tes_sleep);
 
-                    //chanchadas
-                    if(queue_is_empty(cola_RUNNING)) {
-                        evaluar_READY_a_EXEC();
-                    }
-                    
-                }
-                else {
-                    signal_interfaz(tes);
-                    evaluar_EXEC_a_BLOCKED(nombre_interfaz,cant);
-                    
-                }
                 sigo_esperando_cosas_de_cpu = false;
                 break;
             case MOTIVO_DESALOJO_IO_STDIN_READ:
-                /*char *nombre_interfaz_stdin = list_get(lista_respuesta_cpu, 13);
+                char *nombre_interfaz_stdin = list_get(lista_respuesta_cpu, 13);
                 uint32_t df_stdin = list_get(lista_respuesta_cpu, 15);
                 uint32_t tamanio_stdin = list_get(lista_respuesta_cpu, 16);
                 log_debug(logger, "Argumentos del IO_STDIN_READ: %s | %u | %u", nombre_interfaz_stdin, df_stdin, tamanio_stdin);
-                
-                //t_entrada_salida *tes_stdin = obtener_entrada_salida(nombre_interfaz_stdin);
-                // chequear si hay o no un cliente utilizandola
-                int cliente_io_stdin = tes_stdin->cliente;
 
-                // armo el paquete para io
-                t_paquete *p_io_stdin_read = crear_paquete();
-                agregar_a_paquete(p_io_stdin_read, "IO_STDIN_READ", strlen("IO_STDIN_READ") + 1);
-                agregar_a_paquete(p_io_stdin_read, df_stdin, sizeof(df_stdin));
-                agregar_a_paquete(p_io_stdin_read, tamanio_stdin, sizeof(tamanio_stdin));
-                agregar_a_paquete(p_io_stdin_read, pcb_en_running->processID, sizeof(pcb_en_running->processID));
-                enviar_paquete(p_io_stdin_read, cliente_io_stdin, logger);
+                t_manejo_bloqueados *tmb_stdin = dictionary_get(diccionario_recursos_e_interfaces, nombre_interfaz);
+                t_entrada_salida *tes_stdin = (t_entrada_salida *)tmb_stdin->datos_bloqueados;
 
-                // espero la respuesta de IO
-                recibir_operacion(cliente_io, logger);
-                t_list *resp_stdin = recibir_paquete(cliente_io, logger);
-                uint8_t resultado_stdin = (uint8_t)list_get(resp_stdin, 0);
-                if (resultado_stdin)
-                {
-                    log_info(logger, "La interfaz %s ejecuto correctamente la instruccion.", nombre_interfaz_stdin);
-                }
-                else
-                    log_error(logger, "La interfaz %s ejecuto erroneamente la instruccion.", nombre_interfaz_stdin);
+                // armo los datos
+                t_list *l_io_stdin_read = list_create();
+                list_add(l_io_stdin_read, STDIN);
+                list_add(l_io_stdin_read, df_stdin);
+                list_add(l_io_stdin_read, tamanio_stdin);
 
-                // le respondo a cpu q se ejecuto bien
-                log_trace(logger, "Voy a enviarle al CPU que salio todo bien.");
-                t_paquete *p_respcpu_stdin = crear_paquete();
-                // hago !resultado xq cpu espera un 0 como OK y 1 como MAL
-                agregar_a_paquete(p_respcpu_stdin, (uint8_t)!resultado_stdin, sizeof(uint8_t));
-                enviar_paquete(p_respcpu_stdin, cliente_cpu_dispatch, logger);*/
-                
+                wait_interfaz(tes_stdin);
+                evaluar_EXEC_a_BLOCKED(nombre_interfaz_stdin, l_io_stdin_read);
+                signal_interfaz(tes_stdin);
 
+                sigo_esperando_cosas_de_cpu = false;
                 break;
             case MOTIVO_DESALOJO_IO_STDOUT_WRITE:
-                /*char *nombre_interfaz_write = list_get(lista_respuesta_cpu, 13);
+                char *nombre_interfaz_write = list_get(lista_respuesta_cpu, 13);
                 uint32_t df_write = list_get(lista_respuesta_cpu, 15);
                 uint32_t tamanio_write = list_get(lista_respuesta_cpu, 16);
                 log_debug(logger, "Argumentos del IO_STDOUT_WRITE: %s | %u | %u", nombre_interfaz_write, df_write, tamanio_write);
-              
-                //t_entrada_salida *tes_stdout_write = obtener_entrada_salida(nombre_interfaz_write);
-                // chequear si hay o no un cliente utilizandola
-                int cliente_io_stdout = tes_stdout_write->cliente;
 
-                // armo el paquete para io
-                t_paquete *p_io_stdout_write = crear_paquete();
-                agregar_a_paquete(p_io_stdout_write, "IO_STDOUT_WRITE", strlen("IO_STDOUT_WRITE") + 1);
-                agregar_a_paquete(p_io_stdout_write, df_write, sizeof(df_write));
-                agregar_a_paquete(p_io_stdout_write, tamanio_write, sizeof(tamanio_write));
-                agregar_a_paquete(p_io_stdout_write, pcb_en_running->processID, sizeof(pcb_en_running->processID));
-                enviar_paquete(p_io_stdout_write, cliente_io_stdout, logger);
-                // espero la respuesta de IO
-                recibir_operacion(cliente_io_stdout, logger);
-                t_list *resp_stdout = recibir_paquete(cliente_io_stdout, logger);
-                void* resultado_write = list_get(resp, 0);
-                mem_hexdump(resultado_write, tamanio_write);
-                // le respondo a cpu q se ejecuto bien
-                log_trace(logger, "Voy a enviarle al CPU que salio todo bien.");
-                t_paquete *p_respcpu_write = crear_paquete();
-                // hago !resultado xq cpu espera un 0 como OK y 1 como MAL
-                agregar_a_paquete(p_respcpu_write, 0, sizeof(uint8_t));
-                enviar_paquete(p_respcpu_write, cliente_cpu_dispatch, logger);*/
-                
+                t_manejo_bloqueados *tmb_stdout = dictionary_get(diccionario_recursos_e_interfaces, nombre_interfaz);
+                t_entrada_salida *tes_stdout = (t_entrada_salida *)tmb_stdout->datos_bloqueados;
+
+                // armo los datos
+                t_list *l_io_stdout_write = list_create();
+                list_add(l_io_stdout_write, STDOUT);
+                list_add(l_io_stdout_write, df_write);
+                list_add(l_io_stdout_write, tamanio_write);
+
+                wait_interfaz(tes_stdout);
+                evaluar_EXEC_a_BLOCKED(nombre_interfaz_write, l_io_stdout_write);
+                signal_interfaz(tes_stdout);
+
+                sigo_esperando_cosas_de_cpu = false;
                 break;
             case MOTIVO_DESALOJO_IO_FS_CREATE:
                 break;
@@ -835,9 +869,7 @@ void *atender_respuesta_proceso(void *arg)
     }
     cosas_vrr_cuando_se_desaloja_un_proceso(pcb_en_running); // lo hago aca al final xq es cuando se q el proceso fue desalojado
     log_trace(logger, "Termino el hilo para el proceso %d.", idProcesoActual);
-
 }
-
 
 void obtener_valores_de_recursos()
 {
@@ -851,7 +883,7 @@ void obtener_valores_de_recursos()
         if ((lista1)[i] == NULL)
             break;
         t_manejo_bloqueados *tmb = crear_manejo_bloqueados(RECURSO);
-        ((t_manejo_recursos*)(tmb->datos_bloqueados))->instancias_recursos = atoi(lista2[i]);
+        ((t_manejo_recursos *)(tmb->datos_bloqueados))->instancias_recursos = atoi(lista2[i]);
         dictionary_put(diccionario_recursos_e_interfaces, (lista1)[i], tmb);
         i++;
     }
@@ -910,7 +942,7 @@ t_manejo_bloqueados *crear_manejo_bloqueados(e_tipo_bloqueado identificador)
     case RECURSO:
         tmb->datos_bloqueados = malloc(sizeof(t_manejo_recursos));
         break;
-    
+
     case INTERFAZ:
         tmb->datos_bloqueados = malloc(sizeof(t_entrada_salida));
         break;
@@ -1021,8 +1053,8 @@ bool debe_ir_a_cola_prioritaria(t_PCB *pcb)
 
 void crear_interfaz(char *nombre_interfaz, int cliente)
 {
-    t_manejo_bloqueados* tmb = crear_manejo_bloqueados(INTERFAZ);
-    t_entrada_salida *tes = (t_entrada_salida*)tmb->datos_bloqueados;
+    t_manejo_bloqueados *tmb = crear_manejo_bloqueados(INTERFAZ);
+    t_entrada_salida *tes = (t_entrada_salida *)tmb->datos_bloqueados;
 
     tes->nombre_interfaz = nombre_interfaz;
     tes->cliente = cliente;
@@ -1030,58 +1062,15 @@ void crear_interfaz(char *nombre_interfaz, int cliente)
     wait_interfaz(tes);
     dictionary_put(diccionario_recursos_e_interfaces, nombre_interfaz, tmb);
     signal_interfaz(tes);
-    //return tes;
+    // return tes;
 }
 
 void wait_interfaz(t_entrada_salida *tes)
 {
-    log_debug(logger, "Voy a pedir hacer wait de la interfaz %s", tes->nombre_interfaz);
     pthread_mutex_lock(&(tes->mutex));
-    log_debug(logger, "Pude hacer wait de la interfaz %s", tes->nombre_interfaz);
 }
 
 void signal_interfaz(t_entrada_salida *tes)
 {
-    log_debug(logger, "Voy a pedir hacer signal de la interfaz %s", tes->nombre_interfaz);
     pthread_mutex_unlock(&(tes->mutex));
-    log_debug(logger, "Pude hacer signal de la interfaz %s", tes->nombre_interfaz);
-}
-
-void* mandar_a_io_al_siguiente(void* args)
-{
-    t_hilo_args* hilo_args = (t_hilo_args*)args;
-    Enviar_a_io enviar_a_io = (Enviar_a_io)hilo_args->enviar_a_io_sleep;
-    t_manejo_bloqueados* tmb =(t_manejo_bloqueados*)hilo_args->tmb;
-    t_entrada_salida *tes = (t_entrada_salida*)tmb->datos_bloqueados;
-    wait_interfaz(tes);
-    while(!queue_is_empty(tmb->cola_bloqueados))
-    {
-        t_pid_con_datos* pid_con_datos = queue_peek(tmb->cola_bloqueados);
-        signal_interfaz(tes);
-        enviar_a_io(tmb,pid_con_datos->datos);
-        evaluar_BLOCKED_a_READY(tmb);
-        wait_interfaz(tes);
-    }
-    signal_interfaz(tes);
-}
-
-void enviar_a_io_sleep(t_manejo_bloqueados* tmb, void* datos)
-{
-    t_entrada_salida* tes = (t_entrada_salida*)tmb->datos_bloqueados;
-    uint32_t cant = (uint32_t)datos;
-    t_paquete *p_iogensleep = crear_paquete();
-    agregar_a_paquete(p_iogensleep, "IO_GEN_SLEEP", strlen("IO_GEN_SLEEP") + 1);
-    agregar_a_paquete(p_iogensleep, cant, sizeof(uint32_t));
-    agregar_a_paquete(p_iogensleep, tes->nombre_interfaz, strlen(tes->nombre_interfaz) + 1);
-    enviar_paquete(p_iogensleep, tes->cliente, logger);
-
-    // espero la respuesta de IO
-    recibir_operacion(tes->cliente, logger);
-    t_list *resp = recibir_paquete(tes->cliente, logger);
-    uint8_t resultado = (uint8_t)list_get(resp, 0);
-    if (resultado)
-        log_info(logger, "La interfaz %s ejecuto correctamente la instruccion.", tes->nombre_interfaz);
-    else
-        log_error(logger, "La interfaz %s ejecuto erroneamente la instruccion.", tes->nombre_interfaz);
-    
 }

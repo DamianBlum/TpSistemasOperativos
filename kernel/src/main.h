@@ -16,7 +16,8 @@
 #include <utils/interfazUtils.h>
 #include <commons/memory.h>
 
-typedef enum{
+typedef enum
+{
     RECURSO = 0,
     INTERFAZ
 } e_tipo_bloqueado;
@@ -24,21 +25,18 @@ typedef enum{
 typedef struct
 {
     t_queue *cola_bloqueados;
-    //t_manejo_recursos* instancias_recursos; // si es de un recurso
-    //t_entrada_salida *interfaz; // si es de una interfaz
-    void * datos_bloqueados;
-    e_tipo_bloqueado identificador; 
+    // t_manejo_recursos* instancias_recursos; // si es de un recurso
+    // t_entrada_salida *interfaz; // si es de una interfaz
+    void *datos_bloqueados;
+    e_tipo_bloqueado identificador;
 } t_manejo_bloqueados;
-
-typedef void (*Enviar_a_io)(t_manejo_bloqueados*, void*);
 
 typedef struct
 {
     uint32_t pid;
-    void* datos;
+    t_list *datos;
+    e_tipo_interfaz tipo_parametros_io;
 } t_pid_con_datos; // esto va en cola de bloqueados
-
-
 
 typedef enum
 {
@@ -68,11 +66,6 @@ typedef struct
 {
     int instancias_recursos;
 } t_manejo_recursos;
-
-typedef struct {
-    Enviar_a_io enviar_a_io_sleep;
-    t_manejo_bloqueados* tmb;
-} t_hilo_args;
 
 int main(int argc, char *argv[]);
 int generar_clientes();
@@ -106,7 +99,7 @@ void evaluar_READY_a_EXEC();
 void evaluar_EXEC_a_READY();
 void evaluar_READY_a_EXIT(t_PCB *pcb);
 void evaluar_BLOCKED_a_EXIT(t_PCB *pcb);
-void evaluar_EXEC_a_BLOCKED(char *recurso, void * datos);
+void evaluar_EXEC_a_BLOCKED(char *recurso, t_list *datos);
 void evaluar_BLOCKED_a_READY(t_manejo_bloqueados *tmb);
 void evaluar_EXEC_a_EXIT();
 
@@ -129,7 +122,5 @@ t_entrada_salida *obtener_entrada_salida(char *nombre_interfaz);
 void crear_interfaz(char *nombre_interfaz, int cliente);
 void wait_interfaz(t_entrada_salida *tes);
 void signal_interfaz(t_entrada_salida *tes);
-void enviar_a_io_sleep(t_manejo_bloqueados* tmb, void* datos);
-void* mandar_a_io_al_siguiente(void* args);
 
 #endif
