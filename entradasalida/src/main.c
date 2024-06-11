@@ -412,7 +412,7 @@ uint8_t borrar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
     char *path_metadata = armar_path_metadata(nombre_archivo, idial->path_base_dialfs);
 
     // consigo el config
-    t_config *c = config_create(c);
+    t_config *c = config_create(path_metadata);
     uint32_t bloque_inicial = (uint32_t)config_get_int_value(c, "BLOQUE_INICIAL");
     uint32_t tamanio_archivo = (uint32_t)config_get_int_value(c, "TAMANIO_ARCHIVO");
     uint32_t cant_bloques = (uint32_t)ceil(tamanio_archivo / idial->block_size); // ceil redondea para arriba
@@ -437,7 +437,7 @@ uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t
 {
     uint8_t resultado = 0;
     // consigo la info del archivo
-    char *path_metadata = armar_path_metadata();
+    char *path_metadata = armar_path_metadata(nombre_archivo, idial->path_base_dialfs);
     t_config *config = config_create(path_metadata);
     uint32_t bloque_inicial = (uint32_t)config_get_int_value(config, "BLOQUE_INICIAL");
     uint32_t size_archivo = (uint32_t)config_get_int_value(config, "TAMANIO_ARCHIVO");
@@ -485,7 +485,7 @@ uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t
         uint32_t cant_bloques_actual = (uint32_t)ceil(size_archivo / idial->block_size);
         uint32_t cant_bloques_nueva = (uint32_t)ceil(nuevo_size / idial->block_size);
         uint32_t bloques_a_sacar = cant_bloques_actual - cant_bloques_nueva;
-        uint32_t pos_arranque = ;
+        uint32_t pos_arranque = bloque_inicial + size_archivo;
 
         // siempre voy a tener espacio para truncar ya que estoy borrando
         for (uint32_t i = pos_arranque; i > pos_arranque - bloques_a_sacar; i--)
