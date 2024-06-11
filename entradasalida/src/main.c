@@ -463,10 +463,12 @@ uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t
         if (puedo_truncar)
         {
             // seteo el bitmap
-            for (uint32_t i = pos_arranque; i < bloques_a_agregar; i++)
+            for (uint32_t i = pos_arranque; i < pos_arranque + bloques_a_agregar; i++)
             {
                 if (!ocupar_bloque(idial->bitmap, i))
-                    log_warning(logger, "Se intento truncar el bloque %u pero ya se encontraba ocupado.");
+                    log_warning(logger, "Se intento ocupar el bloque %u pero ya se encontraba ocupado.");
+                else
+                    log_debug(logger, "Se pudo ocupar el bloque %u correctamente, faltan %u.", i, pos_arranque + bloques_a_agregar - i);
                 // limpio el bloque del archivo asi no tiene basura
                 limpiar_bloque(idial->bitmap, i);
             }
@@ -480,7 +482,24 @@ uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t
     } // si es menor no valido nada, interpreto que es valido perder informacion al truncar
     else
     {
-        uint32_t bloques_a_sacar = (uint32_t)ceil((size_archivo - nuevo_size) / idial->block_size);
+        uint32_t cant_bloques_actual = (uint32_t)ceil(size_archivo / idial->block_size);
+        uint32_t cant_bloques_nueva = (uint32_t)ceil(nuevo_size / idial->block_size);
+        uint32_t bloques_a_sacar = cant_bloques_actual - cant_bloques_nueva;
+        uint32_t pos_arranque = ;
+
+        // siempre voy a tener espacio para truncar ya que estoy borrando
+        for (uint32_t i = pos_arranque; i > pos_arranque - bloques_a_sacar; i--)
+        {
+            if (!liberar_bloque(idial->bitmap, i))
+                log_warning(logger, "Se intento liberar el bloque %u pero ya se encontraba libre.");
+            else
+                log_debug(logger, "Se pudo liberar el bloque %u correctamente, faltan %u.", i, i - (pos_arranque - bloques_a_sacar));
+        }
+
+        // seteo la metadata (solamente varia el size)
+        config_set_value(config, "TAMANIO_ARCHIVO", nuevo_size);
+        config_save(config);
+        resultado = 1;
     }
 
     // cierro todo
