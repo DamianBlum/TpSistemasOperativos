@@ -8,7 +8,6 @@ void *serializar_paquete(t_paquete *paquete, int bytes, t_log *logger)
 {
 	void *magic = malloc(bytes);
 	int desplazamiento = 0;
-tically merge. Don’t worry, you can still create the pull request. 
 	memcpy(magic + desplazamiento, &(paquete->codigo_operacion), sizeof(int));
 	desplazamiento += sizeof(int);
 	// log_debug(logger, "DESPLAZAMIENTO 1: %d", desplazamiento);
@@ -169,8 +168,8 @@ int iniciar_servidor(t_config *config, char *key_puerto)
 							 servinfo->ai_socktype,
 							 servinfo->ai_protocol);
 
-	if (setsockopt(socket_servidor, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) 
-    	error("setsockopt(SO_REUSEADDR) failed");
+	if (setsockopt(socket_servidor, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0)
+		error("setsockopt(SO_REUSEADDR) failed");
 
 	// bind socket to the server's addrinfo
 	bind(socket_servidor, servinfo->ai_addr, servinfo->ai_addrlen);
