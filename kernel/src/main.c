@@ -194,9 +194,6 @@ void *atender_cliente_io(void *arg)
         uint8_t hay_algo = !queue_is_empty(tmb->cola_bloqueados);
         signal_interfaz(tes);
 
-        if (string_equals_ignore_case("impresora", nombreInterfaz))
-            log_trace(logger, "AAAAAAAAAAAAA");
-
         if (hay_algo)
         {
             log_debug(logger, "asd");
@@ -760,7 +757,7 @@ void *atender_respuesta_proceso(void *arg)
                 uint8_t resultado_asignar_recurso_signal = desasignar_recurso(argSignal, pcb_en_running);
                 if (resultado_asignar_recurso_signal == 0)
                 { // hay instancias disponibles, voy a desbloquear a alguien y le respondo a cpu
-                    agregar_a_paquete(respuesta_para_cpu_signal, respuesta_para_cpu_signal, sizeof(uint8_t));
+                    agregar_a_paquete(respuesta_para_cpu_signal, resultado_asignar_recurso_signal, sizeof(uint8_t));
                     enviar_paquete(respuesta_para_cpu_signal, cliente_cpu_dispatch, logger);
                     evaluar_BLOCKED_a_READY((t_manejo_bloqueados *)dictionary_get(diccionario_recursos_e_interfaces, argSignal));
                     log_trace(logger, "Voy a enviarle al CPU que salio todo bien.");
@@ -768,7 +765,7 @@ void *atender_respuesta_proceso(void *arg)
                 else if (respuesta_para_cpu_signal == 1)
                 { // le digo a cpu q desaloje el proceso y lo mando a exit
                     log_error(logger, "El cpu me pidio un recurso que no existe. Lo tenemos que matar!");
-                    agregar_a_paquete(respuesta_para_cpu_signal, respuesta_para_cpu_signal, sizeof(uint8_t));
+                    agregar_a_paquete(respuesta_para_cpu_signal, resultado_asignar_recurso_signal, sizeof(uint8_t));
                     enviar_paquete(respuesta_para_cpu_signal, cliente_cpu_dispatch, logger);
                     evaluar_EXEC_a_EXIT();
                     // termino el ciclo
