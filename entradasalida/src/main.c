@@ -274,11 +274,13 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_WRITE"))
         { // IO_FS_WRITE Int4 notas.txt AX ECX EDX
             log_trace(logger, "(%s|%u): Entre a IO_FS_WRITE.", interfaz->nombre, interfaz->tipo_interfaz);
+            log_warning(logger, "Funcionalidad aun sin implementar!");
             ejecuto_correctamente = 1;
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_READ"))
         {
             log_trace(logger, "(%s|%u): Entre a IO_FS_READ.", interfaz->nombre, interfaz->tipo_interfaz);
+            log_warning(logger, "Funcionalidad aun sin implementar!");
             ejecuto_correctamente = 1;
         }
         else
