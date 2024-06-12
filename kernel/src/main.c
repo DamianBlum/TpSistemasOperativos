@@ -625,8 +625,17 @@ void evaluar_BLOCKED_a_READY(t_manejo_bloqueados *tmb)
             log_trace(logger, "No hay procesos bloqueados por el recurso.");
             return;
         }
+        else if (((t_manejo_recursos *)tmb->datos_bloqueados)->instancias_recursos <= 0)
+        {
+            log_trace(logger, "No voy a desbloquear a nadie porque el valor del semaforo es %u.", ((t_manejo_recursos *)tmb->datos_bloqueados)->instancias_recursos);
+            return;
+        }
+        else
+        {
+            pid_con_datos = queue_pop(colaRecurso);
+            log_trace(logger, "Proceso a desbloquear: %u.", pid_con_datos->pid);
+        }
         break;
-        pid_con_datos = queue_pop(colaRecurso);
     case INTERFAZ:
         t_entrada_salida *tes = (t_entrada_salida *)tmb->datos_bloqueados;
         wait_interfaz(tes);
@@ -640,8 +649,6 @@ void evaluar_BLOCKED_a_READY(t_manejo_bloqueados *tmb)
         signal_interfaz(tes);
         break;
     }
-
-    queue_push(cola_READY, pid_con_datos->pid);
 
     t_PCB *pcb = devolver_pcb_desde_lista(lista_de_pcbs, pid_con_datos->pid);
 
@@ -960,9 +967,14 @@ void liberar_memoria(uint32_t id)
     log_trace(logger, "Voy a decirle a memoria q libere lo del proceso %d", id);
 
     t_paquete *p = crear_paquete();
-    agregar_a_paquete(p, 1, sizeof(uint8_t)); // 1 es de borrar proceso
+    agregar_a_paquete(p, BORRAR_PROCESO, sizeof(uint8_t)); // 1 es de borrar proceso
     agregar_a_paquete(p, id, sizeof(id));
-    // enviar_paquete(p, cliente_memoria, logger); todavia no esta implementado en memoria
+    enviar_paquete(p, cliente_memoria, logger);
+
+    recibir_operacion(cliente_memoria, logger);
+    t_list *resp_memoria = recibir_paquete(cliente_memoria, logger);
+    if (!list_get(resp_memoria, 0))
+        log_debug(logger, "Memoria pudo liberar el proceso %u correctamente.");
 }
 
 bool crear_proceso_en_memoria(uint32_t id, char *path)
@@ -976,15 +988,14 @@ bool crear_proceso_en_memoria(uint32_t id, char *path)
 
     // espero la respuesta sobre como salio la creacion
     bool v = false;
-    int op = recibir_operacion(cliente_memoria, logger);
-    if (op == PAQUETE)
-    {
-        t_list *l = list_create();
-        l = recibir_paquete(cliente_memoria, logger);
-        log_debug(logger, "Respuesta recibida de Memoria: %u", (uint8_t)list_get(l, 0));
-        v = ((uint8_t)list_get(l, 0) == 0);
-        list_destroy(l);
-    }
+    recibir_operacion(cliente_memoria, logger);
+
+    t_list *l = list_create();
+    l = recibir_paquete(cliente_memoria, logger);
+    log_debug(logger, "Respuesta recibida de Memoria: %u", (uint8_t)list_get(l, 0));
+    v = ((uint8_t)list_get(l, 0) == 0);
+    list_destroy(l);
+
     // recibir cualquier otra cosa implica false, por que? porque si
     return v;
 }

@@ -15,6 +15,7 @@
 #include <math.h> // lo uso para redondear los tiempos de ejecucion
 #include <utils/interfazUtils.h>
 #include <commons/memory.h>
+#include <utils/operacionMemoriaUtils.h>
 
 typedef enum
 {

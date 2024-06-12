@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
     registros = crear_registros();
     logger = iniciar_logger("cpu.log", "CPU", argc, argv);
     config = iniciar_config("cpu.config");
-    
+
     inicializar_TLB();
 
     linea_de_instruccion = string_new();
@@ -132,7 +132,6 @@ void *servidor_dispatch(void *arg)
             decode();
             execute(); 
             check_interrupt();
-            
         }
 
         if (mandar_pcb)
@@ -299,34 +298,34 @@ void decode()
     linea_de_instruccion_separada = string_split(linea_de_instruccion, " ");
     instruccion = parsear_instruccion(linea_de_instruccion_separada[0]);
 
-    // para saber si hay que hacer un uso de la MMU 
+    // para saber si hay que hacer un uso de la MMU
     switch (instruccion)
     {
-        case MOV_IN:
-            // hay que hacer uso de la MMU
-            linea_de_instruccion_separada[2]=componente_mmu(linea_de_instruccion_separada[2], registros->PID);
-            break;
-        case MOV_OUT:
-            linea_de_instruccion_separada[1]=componente_mmu(linea_de_instruccion_separada[1], registros->PID);
-            break;
-        case COPY_STRING:
-            string_array_push(&linea_de_instruccion_separada,componente_mmu("SI", registros->PID));
-            string_array_push(&linea_de_instruccion_separada,componente_mmu("DI", registros->PID));
-            break;
-        case IO_STDIN_READ:
-            linea_de_instruccion_separada[2]=componente_mmu(linea_de_instruccion_separada[2], registros->PID);
-            break;
-        case IO_STDOUT_WRITE:
-            linea_de_instruccion_separada[2]=componente_mmu(linea_de_instruccion_separada[2], registros->PID);
-            break;
-        case IO_FS_WRITE:
-            linea_de_instruccion_separada[2]=componente_mmu(linea_de_instruccion_separada[2], registros->PID);
-            break;
-        case IO_FS_READ:
-            linea_de_instruccion_separada[2]=componente_mmu(linea_de_instruccion_separada[2], registros->PID);
-            break;
+    case MOV_IN:
+        // hay que hacer uso de la MMU
+        linea_de_instruccion_separada[2] = componente_mmu(linea_de_instruccion_separada[2], registros->PID);
+        break;
+    case MOV_OUT:
+        linea_de_instruccion_separada[1] = componente_mmu(linea_de_instruccion_separada[1], registros->PID);
+        break;
+    case COPY_STRING:
+        string_array_push(&linea_de_instruccion_separada, componente_mmu("SI", registros->PID));
+        string_array_push(&linea_de_instruccion_separada, componente_mmu("DI", registros->PID));
+        break;
+    case IO_STDIN_READ:
+        linea_de_instruccion_separada[2] = componente_mmu(linea_de_instruccion_separada[2], registros->PID);
+        break;
+    case IO_STDOUT_WRITE:
+        linea_de_instruccion_separada[2] = componente_mmu(linea_de_instruccion_separada[2], registros->PID);
+        break;
+    case IO_FS_WRITE:
+        linea_de_instruccion_separada[2] = componente_mmu(linea_de_instruccion_separada[2], registros->PID);
+        break;
+    case IO_FS_READ:
+        linea_de_instruccion_separada[2] = componente_mmu(linea_de_instruccion_separada[2], registros->PID);
+        break;
     }
-    
+
     return EXIT_SUCCESS;
 }
 
@@ -404,7 +403,7 @@ void instruccion_resize() // para probar
     log_info(logger, "PID: < %d > - Ejecutando: < RESIZE > - < %s >", registros->PID, linea_de_instruccion_separada[1]);
 
     uint32_t nuevo_size = (uint32_t)atoi(linea_de_instruccion_separada[1]);
-    log_debug(logger, "Nuevo size: %d",nuevo_size);
+    log_debug(logger, "Nuevo size: %d", nuevo_size);
     // le pido a memoria que haga el resize
     log_debug(logger, "Le voy a pedir a memoria que haga un resize de %u al proceso %u.", nuevo_size, registros->PID);
     t_paquete *solicitud_a_mem = crear_paquete();
@@ -457,9 +456,9 @@ void instruccion_io_fs_write()
 void instruccion_io_stdin_read()
 {
     log_info(logger, "PID: < %d > - Ejecutando: < IO_STDIN_READ > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
-    char* df = linea_de_instruccion_separada[2];
+    char *df = linea_de_instruccion_separada[2];
     char *nombreInterfaz = linea_de_instruccion_separada[1];
-    char* tamanio = string_itoa(obtenerValorRegistros(linea_de_instruccion_separada[3]));
+    char *tamanio = string_itoa(obtenerValorRegistros(linea_de_instruccion_separada[3]));
 
     char **datos_interfaz_stdin_read = string_array_new();
     string_array_push(&datos_interfaz_stdin_read, df);
@@ -486,9 +485,9 @@ void instruccion_io_stdin_read()
 void instruccion_io_stdout_write()
 {
     log_info(logger, "PID: < %d > - Ejecutando: < IO_STDOUT_WRITE > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
-    char* df = (linea_de_instruccion_separada[2]);
+    char *df = (linea_de_instruccion_separada[2]);
     char *nombreInterfaz = linea_de_instruccion_separada[1];
-    char* tamanio = string_itoa(obtenerValorRegistros(linea_de_instruccion_separada[3]));
+    char *tamanio = string_itoa(obtenerValorRegistros(linea_de_instruccion_separada[3]));
 
     char **datos_interfaz_std = string_array_new();
     string_array_push(&datos_interfaz_std, df);
@@ -678,35 +677,36 @@ void instruccion_io_gen_sleep()
 void instruccion_copy_string() // para probar
 {
     log_info(logger, "PID: < %d > - Ejecutando: < COPY_STRING > - < %s >", registros->PID, linea_de_instruccion_separada[1]);
-    /*COPY_STRING (Tamaño): Toma del string apuntado por el registro SI y 
-    copia la cantidad de bytes indicadas en el parámetro tamaño a la 
+    /*COPY_STRING (Tamaño): Toma del string apuntado por el registro SI y
+    copia la cantidad de bytes indicadas en el parámetro tamaño a la
     posición de memoria apuntada por el registro DI. */
-    uint32_t tamanio = linea_de_instruccion_separada[1]; // tamanio a copiar
-    uint32_t df_a_leer = linea_de_instruccion_separada[2]; // direccion de memoria a leer
+    uint32_t tamanio = linea_de_instruccion_separada[1];       // tamanio a copiar
+    uint32_t df_a_leer = linea_de_instruccion_separada[2];     // direccion de memoria a leer
     uint32_t df_a_escribir = linea_de_instruccion_separada[3]; // direccion de memoria a escribir
     // hay que hacer un pedido lectura y escritura a memoria
     t_paquete *paquete_lectura = crear_paquete();
-    agregar_a_paquete(paquete_lectura,PEDIDO_LECTURA,sizeof(PEDIDO_LECTURA));
-    agregar_a_paquete(paquete_lectura,df_a_leer,sizeof(df_a_leer));
-    agregar_a_paquete(paquete_lectura,tamanio,sizeof(tamanio));
-    agregar_a_paquete(paquete_lectura,registros->PID, sizeof(registros->PID));
-    agregar_a_paquete(paquete_lectura,0,sizeof(uint8_t)); // El 0 es define el tipo char*
+    agregar_a_paquete(paquete_lectura, PEDIDO_LECTURA, sizeof(PEDIDO_LECTURA));
+    agregar_a_paquete(paquete_lectura, df_a_leer, sizeof(df_a_leer));
+    agregar_a_paquete(paquete_lectura, tamanio, sizeof(tamanio));
+    agregar_a_paquete(paquete_lectura, registros->PID, sizeof(registros->PID));
+    agregar_a_paquete(paquete_lectura, 0, sizeof(uint8_t));   // El 0 es define el tipo char*
     enviar_paquete(paquete_lectura, cliente_memoria, logger); // Enviamos el paquete para la lectura en memoria
-    recibir_operacion(cliente_memoria, logger); 
-    t_list* lista_de_memoria = recibir_paquete(cliente_memoria, logger);
-    char* string_a_copiar = list_get(lista_de_memoria, 0);
-    
+    recibir_operacion(cliente_memoria, logger);
+    t_list *lista_de_memoria = recibir_paquete(cliente_memoria, logger);
+    char *string_a_copiar = list_get(lista_de_memoria, 0);
+
     t_paquete *paquete_escritura = crear_paquete();
     agregar_a_paquete(paquete_escritura, PEDIDO_ESCRITURA, sizeof(PEDIDO_ESCRITURA));
-    agregar_a_paquete(paquete_escritura,df_a_escribir,sizeof(df_a_escribir));
-    agregar_a_paquete(paquete_escritura,tamanio,sizeof(tamanio));
-    agregar_a_paquete(paquete_escritura,registros->PID,sizeof(registros->PID));
-    agregar_a_paquete(paquete_escritura,string_a_copiar,sizeof(string_a_copiar)); // si rompe fijarse aca si es eso o un string len +1
-    agregar_a_paquete(paquete_escritura,0,sizeof(uint8_t));
+    agregar_a_paquete(paquete_escritura, df_a_escribir, sizeof(df_a_escribir));
+    agregar_a_paquete(paquete_escritura, tamanio, sizeof(tamanio));
+    agregar_a_paquete(paquete_escritura, registros->PID, sizeof(registros->PID));
+    agregar_a_paquete(paquete_escritura, string_a_copiar, sizeof(string_a_copiar)); // si rompe fijarse aca si es eso o un string len +1
+    agregar_a_paquete(paquete_escritura, 0, sizeof(uint8_t));
     enviar_paquete(paquete_escritura, cliente_memoria, logger);
     recibir_operacion(cliente_memoria, logger);
-    char* resultado=recibir_mensaje(cliente_memoria, logger);
-    if (strcmp(resultado,"OK")){
+    char *resultado = recibir_mensaje(cliente_memoria, logger);
+    if (strcmp(resultado, "OK"))
+    {
         log_debug(logger, "Se copio correctamente el string");
     }
     free(resultado);
@@ -714,29 +714,29 @@ void instruccion_copy_string() // para probar
     free(string_a_copiar);
 }
 
-void instruccion_mov_in() 
+void instruccion_mov_in()
 {
     log_info(logger, "PID: < %d > - Ejecutando: < MOV_IN > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
     // hacer un pedido de lectura
     uint32_t df_a_leer = (uint32_t)atoi(linea_de_instruccion_separada[2]); // direccion de memoria a leer
     uint32_t nuevo_size = obtener_size_del_registro(linea_de_instruccion_separada[1]);
-    log_debug(logger, "Nuevo size: %u",nuevo_size);
-    log_debug(logger, "Direccion de memoria a leer: %u",df_a_leer);
+    log_debug(logger, "Nuevo size: %u", nuevo_size);
+    log_debug(logger, "Direccion de memoria a leer: %u", df_a_leer);
     t_paquete *paquete_lectura = crear_paquete();
-    agregar_a_paquete(paquete_lectura,PEDIDO_LECTURA,sizeof(PEDIDO_LECTURA));
-    agregar_a_paquete(paquete_lectura,df_a_leer,sizeof(df_a_leer));
-    agregar_a_paquete(paquete_lectura,nuevo_size,sizeof(nuevo_size));
-    agregar_a_paquete(paquete_lectura,registros->PID, sizeof(registros->PID));
-    agregar_a_paquete(paquete_lectura,1,sizeof(uint8_t)); // El 1 porque es un numero|
+    agregar_a_paquete(paquete_lectura, PEDIDO_LECTURA, sizeof(PEDIDO_LECTURA));
+    agregar_a_paquete(paquete_lectura, df_a_leer, sizeof(df_a_leer));
+    agregar_a_paquete(paquete_lectura, nuevo_size, sizeof(nuevo_size));
+    agregar_a_paquete(paquete_lectura, registros->PID, sizeof(registros->PID));
+    agregar_a_paquete(paquete_lectura, 1, sizeof(uint8_t));   // El 1 porque es un numero|
     enviar_paquete(paquete_lectura, cliente_memoria, logger); // Enviamos el paquete para la lectura en memoria
     recibir_operacion(cliente_memoria, logger);
-    t_list* lista_de_memoria = recibir_paquete(cliente_memoria, logger);
+    t_list *lista_de_memoria = recibir_paquete(cliente_memoria, logger);
     uint32_t valor = (uint32_t)list_get(lista_de_memoria, 0);
     asignarValoresIntEnRegistros(linea_de_instruccion_separada[1], valor, "MOV_IN");
 }
 
-void instruccion_mov_out() 
-{   
+void instruccion_mov_out()
+{
     log_info(logger, "PID: < %d > - Ejecutando: < MOV_OUT > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
     uint32_t valorRegistro = obtenerValorRegistros(linea_de_instruccion_separada[2]);
     uint32_t nuevo_size = obtener_size_del_registro(linea_de_instruccion_separada[2]);
@@ -750,8 +750,9 @@ void instruccion_mov_out()
     agregar_a_paquete(paquete_escritura, 1, sizeof(uint8_t)); // El 1 porque es un numero
     enviar_paquete(paquete_escritura, cliente_memoria, logger);
     recibir_operacion(cliente_memoria, logger);
-    char* resultado = recibir_mensaje(cliente_memoria, logger);
-    if (strcmp(resultado,"OK")){
+    char *resultado = recibir_mensaje(cliente_memoria, logger);
+    if (strcmp(resultado, "OK"))
+    {
         log_debug(logger, "Se copio correctamente el registro");
     }
 }
@@ -864,7 +865,7 @@ int obtenerValorRegistros(char *registroCPU)
     return EXIT_SUCCESS;
 }
 
-int obtener_size_del_registro(char* registroCPU)
+int obtener_size_del_registro(char *registroCPU)
 {
     if (strcmp(registroCPU, "AX") == 0)
     {
@@ -911,7 +912,7 @@ int obtener_size_del_registro(char* registroCPU)
         log_error(logger, "NO SE PUDO OBTENER EL VALOR DEL REGISTRO: %s", registroCPU);
         exit(EXIT_FAILURE);
     }
-    return EXIT_SUCCESS;   
+    return EXIT_SUCCESS;
 }
 
 void check_interrupt()
@@ -943,12 +944,13 @@ void agregar_datos_recurso(t_paquete *paquete, void *nombre_recurso)
     agregar_a_paquete(paquete, nombre_recurso, strlen(nombre_recurso) + 1);
 }
 
-void agregar_datos_interfaz_std(t_paquete* paquete, void* datos){
-    char** datos_interfaz_stdin_read = (char**)datos;
+void agregar_datos_interfaz_std(t_paquete *paquete, void *datos)
+{
+    char **datos_interfaz_stdin_read = (char **)datos;
     // convierto el tamanio y el df a uint32_t
     uint32_t tamanio = (uint32_t)atoi(datos_interfaz_stdin_read[2]);
     uint32_t df = (uint32_t)atoi(datos_interfaz_stdin_read[0]);
-    char* nombreInterfaz = datos_interfaz_stdin_read[1];
+    char *nombreInterfaz = datos_interfaz_stdin_read[1];
     agregar_a_paquete(paquete, nombreInterfaz, strlen(nombreInterfaz) + 1);
     agregar_a_paquete(paquete, df, sizeof(df));
     agregar_a_paquete(paquete, tamanio, sizeof(tamanio));
@@ -973,61 +975,65 @@ void no_agregar_datos(t_paquete *paquete, void *datos)
     log_debug(logger, "Estoy en la funcion no_agregar_datos");
 }
 
-// MMU 
-char* componente_mmu(char* registro, uint32_t pid)
+// MMU
+char *componente_mmu(char *registro, uint32_t pid)
 {
     // conseguimos lo que esta dentro del registro
     uint32_t dl = (uint32_t)obtenerValorRegistros(registro);
     uint32_t nro_pagina = floor(dl / tam_pag);
     uint32_t desplazamiento = dl - (nro_pagina * tam_pag);
     log_debug(logger, "PID: < %u > - Direccion Logica: < %u > - Nro Pagina: < %u > - Desplazamiento: < %u >", pid, dl, nro_pagina, desplazamiento);
-    int marco=conseguir_marco(pid, nro_pagina);
+    int marco = conseguir_marco(pid, nro_pagina);
     // harcodea que el marco es igual a la pagina
     // int marco = (int) nro_pagina;
     uint32_t direccion_fisica = (uint32_t)(marco * tam_pag) + desplazamiento;
-    log_debug(logger,"Direccion Fisica: %d", direccion_fisica);
+    log_debug(logger, "Direccion Fisica: %d", direccion_fisica);
     return (string_itoa(direccion_fisica));
 }
 
 // Hacemos chanchadas para conseguir el tam_pag
-int conseguir_tam_pag(){
+int conseguir_tam_pag()
+{
     config = iniciar_config("../memoria/memoria.config");
     int tam_pag = config_get_int_value(config, "TAM_PAGINA");
     destruir_config(config);
     return tam_pag;
 }
 
-int conseguir_marco(uint32_t pid, uint32_t nro_pagina){
+int conseguir_marco(uint32_t pid, uint32_t nro_pagina)
+{
 
-    int marco = conseguir_marco_en_la_tlb(pid, nro_pagina); 
-    if (marco == -1){
-        
+    int marco = conseguir_marco_en_la_tlb(pid, nro_pagina);
+    if (marco == -1)
+    {
+
         // si no esta en la tlb, tengo que pedirlo a memoria
-        t_paquete* paquete = crear_paquete();
+        t_paquete *paquete = crear_paquete();
         agregar_a_paquete(paquete, OBTENER_MARCO, sizeof(OBTENER_MARCO));
         agregar_a_paquete(paquete, pid, sizeof(pid));
         agregar_a_paquete(paquete, nro_pagina, sizeof(nro_pagina));
-        enviar_paquete(paquete,cliente_memoria,logger);
+        enviar_paquete(paquete, cliente_memoria, logger);
 
         // recibir el marco
         recibir_operacion(cliente_memoria, logger);
-        t_list* lista_de_memoria = list_create();
+        t_list *lista_de_memoria = list_create();
         lista_de_memoria = recibir_paquete(cliente_memoria, logger);
         marco = (int)list_get(lista_de_memoria, 0);
         agregar_a_tlb(pid, nro_pagina, marco);
         instante_referencia++;
         list_destroy(lista_de_memoria);
     }
-    log_info(logger,"PID: < %u > - OBTENER MARCO - Página: < %u > - Marco: < %u > ", pid, nro_pagina, marco);
+    log_info(logger, "PID: < %u > - OBTENER MARCO - Página: < %u > - Marco: < %u > ", pid, nro_pagina, marco);
     return marco;
 }
 
-void inicializar_TLB(){
+void inicializar_TLB()
+{
     tlb_size = config_get_int_value(config, "CANTIDAD_ENTRADAS_TLB");
     TLB = malloc(tlb_size * sizeof(t_TLB));
     for (int i = 0; i < tlb_size; i++)
     {
-        TLB[i].PID = -1; 
+        TLB[i].PID = -1;
     }
 }
 
@@ -1040,38 +1046,39 @@ int conseguir_marco_en_la_tlb(uint32_t pid, uint32_t nro_pagina)
             log_info(logger, "PID: < %u > - TLB HIT - Pagina: < %u > ", pid, nro_pagina);
             TLB[i].instante_refencia = instante_referencia;
             instante_referencia++;
-            return ((int) TLB[i].nro_marco);
+            return ((int)TLB[i].nro_marco);
         }
     }
-    log_info(logger,"PID: < %u > - TLB MISS - Pagina: < %u > ", pid, nro_pagina);
+    log_info(logger, "PID: < %u > - TLB MISS - Pagina: < %u > ", pid, nro_pagina);
     return -1;
-} 
+}
 
 int agregar_a_tlb(uint32_t pid, uint32_t nro_pagina, uint32_t nro_marco)
 {
-    
+
     for (int i = 0; i < tlb_size; i++)
     {
-        //si encuentra un hueco libre, lo agrega ahi
+        // si encuentra un hueco libre, lo agrega ahi
         if (TLB[i].PID == -1)
         {
-            TLB[i].PID = (int) pid;
+            TLB[i].PID = (int)pid;
             TLB[i].nro_pag = nro_pagina;
             TLB[i].nro_marco = nro_marco;
             TLB[i].instante_refencia = instante_referencia;
             return EXIT_SUCCESS;
         }
     }
-    //si no hay hueco libre, lo agrega en la primera posicion que se uso
+    // si no hay hueco libre, lo agrega en la primera posicion que se uso
     log_debug(logger, "TLB LLENA - Se va a reemplazar una entrada");
-    char* algortimo_tlb = config_get_string_value(config, "ALGORITMO_TLB");
+    char *algortimo_tlb = config_get_string_value(config, "ALGORITMO_TLB");
     if (string_equals_ignore_case(algortimo_tlb, "FIFO"))
     {
-        if (ultima_fila_modificada == tlb_size){
+        if (ultima_fila_modificada == tlb_size)
+        {
             ultima_fila_modificada = 0;
         }
-        log_debug(logger, "TLB - Se remplaza una entrada en el indice %d",ultima_fila_modificada);
-        TLB[ultima_fila_modificada].PID = (int) pid;
+        log_debug(logger, "TLB - Se remplaza una entrada en el indice %d", ultima_fila_modificada);
+        TLB[ultima_fila_modificada].PID = (int)pid;
         TLB[ultima_fila_modificada].nro_pag = nro_pagina;
         TLB[ultima_fila_modificada].nro_marco = nro_marco;
         TLB[ultima_fila_modificada].instante_refencia = instante_referencia;
@@ -1081,8 +1088,8 @@ int agregar_a_tlb(uint32_t pid, uint32_t nro_pagina, uint32_t nro_marco)
     {
         // LRU
         int indice = buscar_tlb_con_menor_referencia();
-        log_debug(logger, "TLB - Se remplaza una entrada en el indice %d",indice);
-        TLB[indice].PID = (int) pid;
+        log_debug(logger, "TLB - Se remplaza una entrada en el indice %d", indice);
+        TLB[indice].PID = (int)pid;
         TLB[indice].nro_pag = nro_pagina;
         TLB[indice].nro_marco = nro_marco;
         TLB[indice].instante_refencia = instante_referencia;
