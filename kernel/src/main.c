@@ -65,65 +65,8 @@ int main(int argc, char *argv[])
         mostrar_menu();
         char *comandoLeido;
         comandoLeido = readline(">"); // Lee de consola lo ingresado
-        char **comandoSpliteado = string_split(comandoLeido, " ");
 
-        if ((string_equals_ignore_case("INICIAR_PROCESO", comandoSpliteado[0]) || string_equals_ignore_case("IP", comandoSpliteado[0])) && comandoSpliteado[1] != NULL)
-        {
-            log_debug(logger, "Entraste a INICIAR_PROCESO, path: %s.", comandoSpliteado[1]);
-            crear_proceso(comandoSpliteado[1]);
-            // evaluar_NEW_a_READY(); creeeeeeo q esto no deberia estar aca
-        }
-        else if (string_equals_ignore_case("PROCESO_ESTADO", comandoSpliteado[0]) || string_equals_ignore_case("PE", comandoSpliteado[0]))
-        {
-            log_debug(logger, "Entraste a PROCESO_ESTADO."); // lista de procesos
-            log_info(logger, "Listado de procesos con estado:");
-
-            for (int i = 0; i < list_size(lista_de_pcbs); i++)
-            {
-                t_PCB *p = list_get(lista_de_pcbs, i);
-                log_info(logger, "ID: %d Estado: %s", p->processID, estado_proceso_texto(p->estado));
-                log_debug(logger, "ID: %d PC: %d Q: %d Estado: %s AX: %d BX: %d CX: %d DX: %d EAX: %d EBX: %d ECX: %d EDX SI: %d DI: %d", p->processID, p->programCounter, p->quantum, estado_proceso_texto(p->estado), p->AX, p->BX, p->CX, p->DX, p->EAX, p->EBX, p->ECX, p->EDX, p->SI, p->DI);
-            }
-            log_info(logger, "Fin de la lista.");
-        }
-        else if ((string_equals_ignore_case("FINALIZAR_PROCESO", comandoSpliteado[0]) || string_equals_ignore_case("FP", comandoSpliteado[0])) && comandoSpliteado[1] != NULL)
-        {
-            log_debug(logger, "Entraste a FINALIZAR_PROCESO para el proceso: %s.", comandoSpliteado[1]);
-            eliminar_proceso(atoi(comandoSpliteado[1]));
-            evaluar_READY_a_EXEC();
-            evaluar_NEW_a_READY();
-        }
-        else if (string_equals_ignore_case("INICIAR_PLAFICACION", comandoSpliteado[0]) || string_equals_ignore_case("IPL", comandoSpliteado[0]))
-        {
-            log_debug(logger, "Entraste a INICIAR_PLAFICACION.");
-            esta_planificacion_pausada = false;
-            evaluar_NEW_a_READY();
-            evaluar_READY_a_EXEC(); // este esta para cuando recien se arranco el programa y cuando se despausa la planificacion
-        }
-        else if (string_equals_ignore_case("DETENER_PLANIFICACION", comandoSpliteado[0]) || string_equals_ignore_case("DP", comandoSpliteado[0]))
-        {
-            log_debug(logger, "Entraste a DETENER_PLANIFICACION.");
-            esta_planificacion_pausada = true;
-        }
-        else if (string_equals_ignore_case("EJECUTAR_SCRIPT", comandoSpliteado[0]) || string_equals_ignore_case("ES", comandoSpliteado[0]) && comandoSpliteado[1] != NULL)
-        {
-            log_debug(logger, "Entraste a EJECUTAR_SCRIPT, path: %s.", comandoSpliteado[1]);
-        }
-        else if ((string_equals_ignore_case("MULTIPROGRAMACION", comandoSpliteado[0]) || string_equals_ignore_case("MP", comandoSpliteado[0])) && comandoSpliteado[1] != NULL)
-        {
-            log_debug(logger, "Entraste a MULTIPROGRAMACION, nuevo grado: %s.", comandoSpliteado[1]);
-            log_debug(logger, "Se va a modificar el grado de multiprogramacion de %d a %s.", grado_multiprogramacion, comandoSpliteado[1]);
-            grado_multiprogramacion = atoi(comandoSpliteado[1]);
-        }
-        else if (string_equals_ignore_case("SALIR", comandoSpliteado[0]) || string_equals_ignore_case("S", comandoSpliteado[0]))
-        {
-            log_debug(logger, "Entraste a SALIR, se va a terminar el modulo", comandoSpliteado[1]);
-            seguir = 0;
-        }
-        else
-        {
-            log_error(logger, "COMANDO NO VALIDO: %s", comandoSpliteado[0]);
-        }
+        seguir = ejecutar_comando(comandoLeido);
     }
 
     liberar_conexion(cliente_cpu_dispatch, logger);
@@ -133,6 +76,97 @@ int main(int argc, char *argv[])
     destruir_config(config);
 
     return EXIT_SUCCESS;
+}
+
+uint8_t ejecutar_comando(char *comando)
+{
+    char **comandoSpliteado = string_split(comando, " ");
+    uint8_t seguir = 1;
+
+    if ((string_equals_ignore_case("INICIAR_PROCESO", comandoSpliteado[0]) || string_equals_ignore_case("IP", comandoSpliteado[0])) && comandoSpliteado[1] != NULL)
+    {
+        log_debug(logger, "Entraste a INICIAR_PROCESO, path: %s.", comandoSpliteado[1]);
+        crear_proceso(comandoSpliteado[1]);
+        // evaluar_NEW_a_READY(); creeeeeeo q esto no deberia estar aca
+    }
+    else if (string_equals_ignore_case("PROCESO_ESTADO", comandoSpliteado[0]) || string_equals_ignore_case("PE", comandoSpliteado[0]))
+    {
+        log_debug(logger, "Entraste a PROCESO_ESTADO."); // lista de procesos
+        log_info(logger, "Listado de procesos con estado:");
+
+        for (int i = 0; i < list_size(lista_de_pcbs); i++)
+        {
+            t_PCB *p = list_get(lista_de_pcbs, i);
+            log_info(logger, "ID: %d Estado: %s", p->processID, estado_proceso_texto(p->estado));
+            log_debug(logger, "ID: %d PC: %d Q: %d Estado: %s AX: %d BX: %d CX: %d DX: %d EAX: %d EBX: %d ECX: %d EDX SI: %d DI: %d", p->processID, p->programCounter, p->quantum, estado_proceso_texto(p->estado), p->AX, p->BX, p->CX, p->DX, p->EAX, p->EBX, p->ECX, p->EDX, p->SI, p->DI);
+        }
+        log_info(logger, "Fin de la lista.");
+    }
+    else if ((string_equals_ignore_case("FINALIZAR_PROCESO", comandoSpliteado[0]) || string_equals_ignore_case("FP", comandoSpliteado[0])) && comandoSpliteado[1] != NULL)
+    {
+        log_debug(logger, "Entraste a FINALIZAR_PROCESO para el proceso: %s.", comandoSpliteado[1]);
+        eliminar_proceso(atoi(comandoSpliteado[1]));
+        evaluar_READY_a_EXEC();
+        evaluar_NEW_a_READY();
+    }
+    else if (string_equals_ignore_case("INICIAR_PLAFICACION", comandoSpliteado[0]) || string_equals_ignore_case("IPL", comandoSpliteado[0]))
+    {
+        log_debug(logger, "Entraste a INICIAR_PLAFICACION.");
+        esta_planificacion_pausada = false;
+        evaluar_NEW_a_READY();
+        evaluar_READY_a_EXEC(); // este esta para cuando recien se arranco el programa y cuando se despausa la planificacion
+    }
+    else if (string_equals_ignore_case("DETENER_PLANIFICACION", comandoSpliteado[0]) || string_equals_ignore_case("DP", comandoSpliteado[0]))
+    {
+        log_debug(logger, "Entraste a DETENER_PLANIFICACION.");
+        esta_planificacion_pausada = true;
+    }
+    else if (string_equals_ignore_case("EJECUTAR_SCRIPT", comandoSpliteado[0]) || string_equals_ignore_case("ES", comandoSpliteado[0]) && comandoSpliteado[1] != NULL)
+    {
+        log_debug(logger, "Entraste a EJECUTAR_SCRIPT, path: %s.", comandoSpliteado[1]);
+
+        // leer archivo en cuestion
+        FILE *file = fopen(comandoSpliteado[1], "r");
+        if (file == NULL)
+        {
+            log_error(logger, "No se encontro el script \"%s\".", comandoSpliteado[1]);
+            return 1;
+        }
+
+        struct stat stat_file;
+        stat(comandoSpliteado[1], &stat_file);
+
+        char *buffer = calloc(1, stat_file.st_size + 1);
+        fread(buffer, stat_file.st_size, 1, file);
+        fclose(file);
+
+        char **lineas_de_comando = string_split(buffer, "\n");
+
+        // ejecutar todos sus comandos
+
+        string_iterate_lines(lineas_de_comando, ejecutar_comando);
+
+        // matar todo
+        string_array_destroy(lineas_de_comando);
+        free(buffer);
+    }
+    else if ((string_equals_ignore_case("MULTIPROGRAMACION", comandoSpliteado[0]) || string_equals_ignore_case("MP", comandoSpliteado[0])) && comandoSpliteado[1] != NULL)
+    {
+        log_debug(logger, "Entraste a MULTIPROGRAMACION, nuevo grado: %s.", comandoSpliteado[1]);
+        log_debug(logger, "Se va a modificar el grado de multiprogramacion de %d a %s.", grado_multiprogramacion, comandoSpliteado[1]);
+        grado_multiprogramacion = atoi(comandoSpliteado[1]);
+    }
+    else if (string_equals_ignore_case("SALIR", comandoSpliteado[0]) || string_equals_ignore_case("S", comandoSpliteado[0]))
+    {
+        log_debug(logger, "Entraste a SALIR, se va a terminar el modulo", comandoSpliteado[1]);
+        seguir = 0;
+    }
+    else
+    {
+        log_error(logger, "COMANDO NO VALIDO: %s", comandoSpliteado[0]);
+    }
+
+    return seguir;
 }
 
 int generar_clientes()

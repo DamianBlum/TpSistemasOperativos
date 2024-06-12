@@ -16,6 +16,7 @@
 #include <utils/interfazUtils.h>
 #include <commons/memory.h>
 #include <utils/operacionMemoriaUtils.h>
+#include <sys/stat.h>
 
 typedef enum
 {
@@ -69,6 +70,7 @@ typedef struct
 } t_manejo_recursos;
 
 int main(int argc, char *argv[]);
+uint8_t ejecutar_comando(char *comando);
 int generar_clientes();
 void *atender_servidor_io(void *arg);
 void *atender_cliente_io(void *arg);
