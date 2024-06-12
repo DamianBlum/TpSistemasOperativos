@@ -125,16 +125,20 @@ uint8_t ejecutar_comando(char *comando)
     {
         log_debug(logger, "Entraste a EJECUTAR_SCRIPT, path: %s.", comandoSpliteado[1]);
 
+        // armamos el path
+        char *path = string_duplicate("scripts_kernel/");
+        string_append(&path, comandoSpliteado[1]);
+
         // leer archivo en cuestion
-        FILE *file = fopen(comandoSpliteado[1], "r");
+        FILE *file = fopen(path, "r");
         if (file == NULL)
         {
-            log_error(logger, "No se encontro el script \"%s\".", comandoSpliteado[1]);
+            log_error(logger, "No se encontro el script \"%s\".", path);
             return 1;
         }
 
         struct stat stat_file;
-        stat(comandoSpliteado[1], &stat_file);
+        stat(path, &stat_file);
 
         char *buffer = calloc(1, stat_file.st_size + 1);
         fread(buffer, stat_file.st_size, 1, file);
