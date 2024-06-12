@@ -847,11 +847,11 @@ void *atender_respuesta_proceso(void *arg)
                 break;
             case MOTIVO_DESALOJO_IO_STDIN_READ:
                 char *nombre_interfaz_stdin = list_get(lista_respuesta_cpu, 13);
-                uint32_t df_stdin = list_get(lista_respuesta_cpu, 15);
-                uint32_t tamanio_stdin = list_get(lista_respuesta_cpu, 16);
+                uint32_t df_stdin = list_get(lista_respuesta_cpu, 14);
+                uint32_t tamanio_stdin = list_get(lista_respuesta_cpu, 15);
                 log_debug(logger, "Argumentos del IO_STDIN_READ: %s | %u | %u", nombre_interfaz_stdin, df_stdin, tamanio_stdin);
 
-                t_manejo_bloqueados *tmb_stdin = dictionary_get(diccionario_recursos_e_interfaces, nombre_interfaz);
+                t_manejo_bloqueados *tmb_stdin = dictionary_get(diccionario_recursos_e_interfaces, nombre_interfaz_stdin);
                 t_entrada_salida *tes_stdin = (t_entrada_salida *)tmb_stdin->datos_bloqueados;
 
                 // armo los datos
@@ -860,19 +860,17 @@ void *atender_respuesta_proceso(void *arg)
                 list_add(l_io_stdin_read, df_stdin);
                 list_add(l_io_stdin_read, tamanio_stdin);
 
-                wait_interfaz(tes_stdin);
                 evaluar_EXEC_a_BLOCKED(nombre_interfaz_stdin, l_io_stdin_read);
-                signal_interfaz(tes_stdin);
 
                 sigo_esperando_cosas_de_cpu = false;
                 break;
             case MOTIVO_DESALOJO_IO_STDOUT_WRITE:
                 char *nombre_interfaz_write = list_get(lista_respuesta_cpu, 13);
-                uint32_t df_write = list_get(lista_respuesta_cpu, 15);
-                uint32_t tamanio_write = list_get(lista_respuesta_cpu, 16);
+                uint32_t df_write = list_get(lista_respuesta_cpu, 14);
+                uint32_t tamanio_write = list_get(lista_respuesta_cpu, 15);
                 log_debug(logger, "Argumentos del IO_STDOUT_WRITE: %s | %u | %u", nombre_interfaz_write, df_write, tamanio_write);
 
-                t_manejo_bloqueados *tmb_stdout = dictionary_get(diccionario_recursos_e_interfaces, nombre_interfaz);
+                t_manejo_bloqueados *tmb_stdout = dictionary_get(diccionario_recursos_e_interfaces, nombre_interfaz_write);
                 t_entrada_salida *tes_stdout = (t_entrada_salida *)tmb_stdout->datos_bloqueados;
 
                 // armo los datos
@@ -881,9 +879,7 @@ void *atender_respuesta_proceso(void *arg)
                 list_add(l_io_stdout_write, df_write);
                 list_add(l_io_stdout_write, tamanio_write);
 
-                wait_interfaz(tes_stdout);
                 evaluar_EXEC_a_BLOCKED(nombre_interfaz_write, l_io_stdout_write);
-                signal_interfaz(tes_stdout);
 
                 sigo_esperando_cosas_de_cpu = false;
                 break;
@@ -1108,7 +1104,6 @@ void crear_interfaz(char *nombre_interfaz, int cliente)
     wait_interfaz(tes);
     dictionary_put(diccionario_recursos_e_interfaces, nombre_interfaz, tmb);
     signal_interfaz(tes);
-    // return tes;
 }
 
 void wait_interfaz(t_entrada_salida *tes)
