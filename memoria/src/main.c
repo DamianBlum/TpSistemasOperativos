@@ -322,7 +322,6 @@ void* hacer_pedido_lectura(t_list* lista){
         resultado=(void*)string_substring_until(elemento_a_guardar,size_original);
         log_info(logger,"Lo que lei fue este texto: %s",resultado);
     }
-    
     free(elemento_a_guardar);
     return resultado;
 }
@@ -582,7 +581,7 @@ int modificar_tamanio_proceso(t_list* lista)
     // si no las tengas voy desde la primera que necesito en adelante
     uint32_t pid = (uint32_t)list_get(lista, 2);
     t_memoria_proceso *proceso = encontrar_proceso(pid);
-    uint32_t paginas_necesarias = nuevo_tam / (uint32_t)tam_pag;
+    uint32_t paginas_necesarias = ceil(nuevo_tam / (uint32_t)tam_pag); // pense que ya redondeaba para arriba, fijarme eso!!
     uint32_t paginas_actuales = proceso->paginas_actuales;
     if (paginas_actuales>paginas_necesarias)
     {

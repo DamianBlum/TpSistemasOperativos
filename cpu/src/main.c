@@ -132,7 +132,7 @@ void *servidor_dispatch(void *arg)
             decode();
             execute(); 
             check_interrupt();
-            registros->PC++;
+            
         }
 
         if (mandar_pcb)
@@ -288,6 +288,7 @@ void fetch()
     linea_de_instruccion = recibir_mensaje(cliente_memoria, logger);
     log_debug(logger, "La instruccion leida es: < %s >", linea_de_instruccion);
 
+    registros->PC++;
     // liberamos el paquete
     return EXIT_SUCCESS;
 }
@@ -455,7 +456,7 @@ void instruccion_io_fs_write()
 
 void instruccion_io_stdin_read()
 {
-    log_info(logger, "PID: < %d > - Ejecutando: < SET > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
+    log_info(logger, "PID: < %d > - Ejecutando: < IO_STDIN_READ > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
     char* df = linea_de_instruccion_separada[2];
     char *nombreInterfaz = linea_de_instruccion_separada[1];
     char* tamanio = string_itoa(obtenerValorRegistros(linea_de_instruccion_separada[3]));
@@ -484,7 +485,7 @@ void instruccion_io_stdin_read()
 
 void instruccion_io_stdout_write()
 {
-    log_info(logger, "PID: < %d > - Ejecutando: < SET > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
+    log_info(logger, "PID: < %d > - Ejecutando: < IO_STDOUT_WRITE > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
     char* df = (linea_de_instruccion_separada[2]);
     char *nombreInterfaz = linea_de_instruccion_separada[1];
     char* tamanio = string_itoa(obtenerValorRegistros(linea_de_instruccion_separada[3]));
@@ -666,17 +667,7 @@ void instruccion_io_gen_sleep()
 
     enviar_pcb(MOTIVO_DESALOJO_IO_GEN_SLEEP, agregar_datos_tiempo, datos_tiempo);
 
-    // Espero la respuesta de Kernel
-    t_list *resp_kernel_iogensleep = list_create();
-    recibir_operacion(socket_cliente_dispatch, logger);
-    resp_kernel_iogensleep = recibir_paquete(socket_cliente_dispatch, logger);
-
-    uint8_t resultado_numero = list_get(resp_kernel_iogensleep, 0);
-    // Si me devuelve 1 esta todo MAL, si no todo BIEN
-    if (resultado_numero)
-    {
-        proceso_actual_ejecutando = false;
-    }
+    proceso_actual_ejecutando = false;
 
     // LIBERAR LA MEMORIA
     /*free(nroInterfaz); ALGUN DIA LOS HARE
