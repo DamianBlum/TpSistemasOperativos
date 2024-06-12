@@ -97,30 +97,18 @@ t_interfaz_default *crear_nueva_interfaz(char *nombre_archivo_config)
         tid->block_size = (uint32_t)config_get_long_value(config, "BLOCK_SIZE");
         tid->block_count = (uint32_t)config_get_long_value(config, "BLOCK_COUNT");
         tid->retraso_compactacion = (uint32_t)config_get_long_value(config, "RETRASO_COMPACTACION");
+        interfaz->configs_especificas = tid; // casi me olvido de esto je
 
         // creo las estructuras necesarias (si ya estan creadas no pasa nada)
         // 1- bloques.dat
         char *path_bloques = string_duplicate(tid->path_base_dialfs);
         string_append(&path_bloques, "bloques.dat");
-        FILE *fbloques = fopen(path_bloques, "ab");
-        log_debug(logger, "Se creo el archivo de bloques en el path: %s", path_bloques);
-        truncate(path_bloques, tid->block_count * tid->block_size);
-        log_debug(logger, "Se trunco el archivo para que tenga size: %u", tid->block_count * tid->block_size);
+        tid->bloques = crear_bloques(path_bloques, tid->block_count, tid->block_size, logger);
 
         // 2- bitmap.dat
         char *path_bitmap = string_duplicate(tid->path_base_dialfs);
         string_append(&path_bitmap, "bitmap.dat");
         tid->bitmap = crear_bitmap(path_bitmap, tid->block_count, logger);
-
-        // pruebas bitmap
-        uint8_t r = esta_bloque_ocupado(tid->bitmap, 0);
-        log_debug(logger, "Estado bloque 0: %u", r);
-        r = ocupar_bloque(tid->bitmap, 0);
-        log_debug(logger, "Modifico el bloque 0, resultado: %u", r);
-        r = esta_bloque_ocupado(tid->bitmap, 0);
-        log_debug(logger, "Estado bloque 0: %u", r);
-
-        // 3- metadata (1 por archivo) => nombreArchivo.config
         break;
     default:
         break;
@@ -268,26 +256,33 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
         if (string_equals_ignore_case(nombre_instruccion, "IO_FS_CREATE"))
         {
             log_trace(logger, "(%s|%u): Entre a IO_FS_CREATE.", interfaz->nombre, interfaz->tipo_interfaz);
-            ejecuto_correctamente = 1;
+
+            char *nombre_archivo = list_get(datos_desde_kernel, 1);
+            ejecuto_correctamente = crear_archivo(idialfs, nombre_archivo);
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_DELETE"))
         {
             log_trace(logger, "(%s|%u): Entre a IO_FS_DELETE.", interfaz->nombre, interfaz->tipo_interfaz);
-            ejecuto_correctamente = 1;
+            char *nombre_archivo = list_get(datos_desde_kernel, 1);
+            ejecuto_correctamente = borrar_archivo(idialfs, nombre_archivo);
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_TRUNCATE"))
         {
             log_trace(logger, "(%s|%u): Entre a IO_FS_TRUNCATE.", interfaz->nombre, interfaz->tipo_interfaz);
-            ejecuto_correctamente = 1;
+            char *nombre_archivo = list_get(datos_desde_kernel, 1);
+            uint32_t nuevo_size = list_get(datos_desde_kernel, 2);
+            ejecuto_correctamente = truncar_archivo(idialfs, nombre_archivo, nuevo_size);
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_WRITE"))
-        {
+        { // IO_FS_WRITE Int4 notas.txt AX ECX EDX
             log_trace(logger, "(%s|%u): Entre a IO_FS_WRITE.", interfaz->nombre, interfaz->tipo_interfaz);
+            log_warning(logger, "Funcionalidad aun sin implementar!");
             ejecuto_correctamente = 1;
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_READ"))
         {
             log_trace(logger, "(%s|%u): Entre a IO_FS_READ.", interfaz->nombre, interfaz->tipo_interfaz);
+            log_warning(logger, "Funcionalidad aun sin implementar!");
             ejecuto_correctamente = 1;
         }
         else
@@ -351,4 +346,177 @@ void manejo_de_interfaz(void *args)
     liberar_conexion(interfaz->conexion_kernel, logger);
     // liberar_conexion(interfaz->conexion_memoria, logger);
     return EXIT_SUCCESS;
+}
+
+uint8_t crear_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
+{ // solamente le asigno 1 bloque al crear un archivo
+
+    // valido que el archivo ya no exista
+    char *path_metadata = armar_path_metadata(nombre_archivo, idial->path_base_dialfs);
+
+    if (access(path_metadata, F_OK) == 0)
+    {
+        log_error(logger, "Ya existe el archivo %s, se cancela la creacion.", nombre_archivo);
+        return 0;
+    }
+
+    // me fijo donde lo puedo ubicar
+    for (uint32_t i = 0; i < idial->block_count; i++)
+    {
+        uint8_t hay_espacio = 1;
+        if (esta_bloque_ocupado(idial->bitmap, i))
+        {
+            log_debug(logger, "Bloque %u ocupado, me quedan %u.", i, idial->block_count - (i + 1));
+            hay_espacio = 0;
+        }
+
+        // log_debug(logger, "Bloque %u libre, voy a asignar el archivo ahi.", i);
+
+        if (hay_espacio)
+        { // si existe un lugar donde guardar el dato, lo escribo en el bitmap
+            log_trace(logger, "Se encontro un espacio (bloque: %u) para guardar el archivo %s.", i, nombre_archivo);
+
+            if (!ocupar_bloque(idial->bitmap, i))
+                log_error(logger, "Error al intentar ocupar el bloque %u para el archivo %s", i, nombre_archivo);
+            else
+                log_debug(logger, "Se ocupo el bloque %u para el archivo %s", i, nombre_archivo);
+
+            log_trace(logger, "Se reservo el bloque %u para el archivo %s.", i, nombre_archivo);
+
+            // limpio el bloque del archivo
+            limpiar_bloque(idial->bloques, i);
+
+            // creo el archivo de metadata
+            FILE *fmd = txt_open_for_append(path_metadata);
+            txt_close_file(fmd);
+
+            // creo un config con el archivo y le asigno las keys con sus valores
+            t_config *c = config_create(path_metadata);
+            config_set_value(c, "BLOQUE_INICIAL", string_itoa(i));
+            config_set_value(c, "TAMANIO_ARCHIVO", string_itoa(0));
+            config_save(c);
+            destruir_config(c);
+
+            // salgo del for
+            break;
+        }
+        else if (i == idial->block_count - 1) // recorri todo el bitmap
+        {
+            log_error(logger, "No se encontro un espacio donde pueda guardar el archivo %s.", nombre_archivo);
+            return 0;
+        }
+    }
+    free(path_metadata);
+    return 1;
+}
+
+uint8_t borrar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
+{
+    // armo el path
+    char *path_metadata = armar_path_metadata(nombre_archivo, idial->path_base_dialfs);
+
+    // consigo el config
+    t_config *c = config_create(path_metadata);
+    uint32_t bloque_inicial = (uint32_t)config_get_int_value(c, "BLOQUE_INICIAL");
+    uint32_t tamanio_archivo = (uint32_t)config_get_int_value(c, "TAMANIO_ARCHIVO");
+    uint32_t cant_bloques = (uint32_t)ceil(tamanio_archivo / idial->block_size); // ceil redondea para arriba
+
+    // limpio el bitmap
+    for (uint32_t i = bloque_inicial; i < bloque_inicial + cant_bloques; i++)
+    {
+        if (!liberar_bloque(idial->bitmap, i)) // solamente lo printeo xq en si no es algo que me pueda dar un error
+            log_warning(logger, "El bloque ya se encontraba liberado");
+    }
+
+    // borro el .metadata
+    uint8_t r = 1;
+
+    if (remove(path_metadata))
+        r = 0; // error al borrar el archivo
+
+    return r;
+}
+
+uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t nuevo_size)
+{
+    uint8_t resultado = 0;
+    // consigo la info del archivo
+    char *path_metadata = armar_path_metadata(nombre_archivo, idial->path_base_dialfs);
+    t_config *config = config_create(path_metadata);
+    uint32_t bloque_inicial = (uint32_t)config_get_int_value(config, "BLOQUE_INICIAL");
+    uint32_t size_archivo = (uint32_t)config_get_int_value(config, "TAMANIO_ARCHIVO");
+
+    if (nuevo_size > size_archivo)
+    { // en este caso me tengo q fijar que exista el espacio
+        uint32_t bloques_a_agregar = (uint32_t)ceil((nuevo_size - size_archivo) / idial->block_size);
+        uint32_t pos_arranque = bloque_inicial + size_archivo; // esto es el primer bloque que le sigue al ultimo que ya tiene asignado el archivo
+        uint8_t puedo_truncar = 1;
+
+        for (uint32_t i = pos_arranque; i < bloques_a_agregar; i++)
+        { // se pueden dar 2 situacion por las cuales no pueda truncar:
+            // 1- pido mas de lo que le queda al filesystem de espacio (desde mi pos actual, ej: hay 1024, estoy en la 700 y pido 500)
+            // 2- hay bloques ocupados que necesitaria tomar para poder hacer el trunque (ej: estoy en 200, pido 50 y desde la 230 esta ocupado por otro archivo)
+            if (i >= idial->block_count || esta_bloque_ocupado(idial->bitmap, i))
+            {
+                log_error(logger, "No se puede truncar porque el bloque %u esta ocupado por otro proceso (me faltaron %u bloques).", i, bloques_a_agregar - i);
+                puedo_truncar = 0;
+                break;
+            }
+        }
+        // trunco si se puede
+        if (puedo_truncar)
+        {
+            // seteo el bitmap
+            for (uint32_t i = pos_arranque; i < pos_arranque + bloques_a_agregar; i++)
+            {
+                if (!ocupar_bloque(idial->bitmap, i))
+                    log_warning(logger, "Se intento ocupar el bloque %u pero ya se encontraba ocupado.");
+                else
+                    log_debug(logger, "Se pudo ocupar el bloque %u correctamente, faltan %u.", i, pos_arranque + bloques_a_agregar - i);
+                // limpio el bloque del archivo asi no tiene basura
+                limpiar_bloque(idial->bitmap, i);
+            }
+
+            // seteo la metadata (solamente varia el size)
+            config_set_value(config, "TAMANIO_ARCHIVO", nuevo_size);
+            config_save(config);
+            resultado = 1;
+        }
+
+    } // si es menor no valido nada, interpreto que es valido perder informacion al truncar
+    else
+    {
+        uint32_t cant_bloques_actual = (uint32_t)ceil(size_archivo / idial->block_size);
+        uint32_t cant_bloques_nueva = (uint32_t)ceil(nuevo_size / idial->block_size);
+        uint32_t bloques_a_sacar = cant_bloques_actual - cant_bloques_nueva;
+        uint32_t pos_arranque = bloque_inicial + size_archivo;
+
+        // siempre voy a tener espacio para truncar ya que estoy borrando
+        for (uint32_t i = pos_arranque; i > pos_arranque - bloques_a_sacar; i--)
+        {
+            if (!liberar_bloque(idial->bitmap, i))
+                log_warning(logger, "Se intento liberar el bloque %u pero ya se encontraba libre.");
+            else
+                log_debug(logger, "Se pudo liberar el bloque %u correctamente, faltan %u.", i, i - (pos_arranque - bloques_a_sacar));
+        }
+
+        // seteo la metadata (solamente varia el size)
+        config_set_value(config, "TAMANIO_ARCHIVO", nuevo_size);
+        config_save(config);
+        resultado = 1;
+    }
+
+    // cierro todo
+    config_destroy(config);
+    free(path_metadata);
+
+    return resultado;
+}
+
+char *armar_path_metadata(char *nombre_archivo, char *path)
+{
+    char *path_metadata = string_duplicate(path);
+    string_append(&path_metadata, nombre_archivo); // /dialfs/algo/nombre_archivo
+    string_append(&path_metadata, ".metadata");    // /dialfs/algo/nombre_archivo.txt
+    return path_metadata;
 }
