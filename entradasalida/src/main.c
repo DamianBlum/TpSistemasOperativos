@@ -78,11 +78,13 @@ t_interfaz_default *crear_nueva_interfaz(char *nombre_archivo_config)
         break;
     case STDIN:
         t_interfaz_stdin *tisin = malloc(sizeof(t_interfaz_stdin));
+        log_debug(logger, "Como soy una interfaz STDIN voy a crear la conexion con memoria.");
         tisin->conexion_memoria = crear_conexion(config, "IP_MEMORIA", "PUERTO_MEMORIA", logger);
         interfaz->configs_especificas = tisin;
         break;
     case STDOUT:
         t_interfaz_stdout *tisout = malloc(sizeof(t_interfaz_stdout));
+         log_debug(logger, "Como soy una interfaz STDOUT voy a crear la conexion con memoria.");
         tisout->tiempo_unidad_trabajo = (uint32_t)config_get_long_value(config, "TIEMPO_UNIDAD_TRABAJO");
         tisout->conexion_memoria = crear_conexion(config, "IP_MEMORIA", "PUERTO_MEMORIA", logger);
         interfaz->configs_especificas = tisout;

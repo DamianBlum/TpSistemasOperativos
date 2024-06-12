@@ -8,6 +8,9 @@ typedef enum
     PEDIDO_LECTURA,
     PEDIDO_ESCRITURA,
     RESIZE_PROCESO,
+    OBTENER_MARCO,
+    OBTENER_INSTRUCCION,
+    MODIFICAR_TAMANIO_PROCESO
 } e_operacion;
 
 #endif

@@ -1,6 +1,7 @@
 #ifndef MEMORIA_H_
 #define MEMORIA_H_
 
+#include <math.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -10,7 +11,9 @@
 #include <commons/string.h>
 #include <utils/sockets.h>
 #include <commons/bitarray.h>
-
+#include <commons/memory.h>
+#include <assert.h>
+#include <utils/operacionMemoriaUtils.h>
 typedef enum
 {
     SOY_CPU = 0,
@@ -18,17 +21,13 @@ typedef enum
     SOY_IO
 } e_quien_soy;
 
-typedef enum
-{
-    INICIAR_PROCESO = 0,
-    BORRAR_PROCESO
-} e_operacion;
 
 typedef struct t_memoria_proceso
 {
     char **lineas_de_codigo;
     char *nombre_archivo;
-    char **tabla_paginas;
+    uint32_t *tabla_paginas;
+    uint32_t paginas_actuales;
 } t_memoria_proceso;
 
 int main(int argc, char *argv[]);
@@ -40,6 +39,10 @@ t_memoria_proceso *crear_estructura_proceso(char *nombre_archivo, char **lineas_
 t_memoria_proceso *encontrar_proceso(uint32_t pid);
 void destruir_proceso(uint32_t pid);
 void crear_espacio_memoria();
-uint32_t devolver_marco(uint32_t pid, uint32_t pagina);
 void *esperar_io(void *arg);
+uint32_t conseguir_siguiente_marco(uint32_t pid,uint32_t marco);
+int hacer_pedido_escritura(t_list* lista);
+void* hacer_pedido_lectura(t_list* lista);
+char* obtener_instruccion(t_list* lista);
+uint32_t obtener_marco(t_list* lista);
 #endif
