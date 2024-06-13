@@ -51,7 +51,8 @@ typedef struct
 {
     char *nombre_interfaz;
     int cliente;
-    pthread_mutex_t mutex; // mutex para el manejo de la interfaz de forma segura
+    pthread_mutex_t mutex;   // mutex para el manejo de la interfaz de forma segura
+    pthread_mutex_t binario; // esto lo uso para sincronizar
 } t_entrada_salida;
 typedef struct
 {

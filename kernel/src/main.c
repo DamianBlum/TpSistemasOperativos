@@ -228,6 +228,10 @@ void *atender_cliente_io(void *arg)
     t_entrada_salida *tes = (t_entrada_salida *)tmb->datos_bloqueados;
     while (1)
     {
+        // hago aca un wait para que no me joda mucho en la consola
+        pthread_mutex_lock(&(tes->binario));
+        log_trace(logger, "Pude pasar por el binario de la interfaz %s", tes->nombre_interfaz);
+
         wait_interfaz(tes);
         uint8_t hay_algo = !queue_is_empty(tmb->cola_bloqueados);
         signal_interfaz(tes);
@@ -638,6 +642,9 @@ void evaluar_EXEC_a_BLOCKED(char *key, t_list *lista) // antes era recurso, ahor
             wait_interfaz(tes);
             queue_push(tmb->cola_bloqueados, pid_con_datos);
             signal_interfaz(tes);
+            // esto es para desbloquear el hilo que atiende el envio a IO
+            pthread_mutex_unlock(&(tes->binario));
+            log_trace(logger, "Se desbloqueo el binario de la interfaz %s", tes->nombre_interfaz);
             break;
         }
 
@@ -1008,7 +1015,7 @@ void liberar_memoria(uint32_t id)
     recibir_operacion(cliente_memoria, logger);
     t_list *resp_memoria = recibir_paquete(cliente_memoria, logger);
     if (!list_get(resp_memoria, 0))
-        log_debug(logger, "Memoria pudo liberar el proceso %u correctamente.");
+        log_debug(logger, "Memoria pudo liberar el proceso %u correctamente.", id);
 }
 
 bool crear_proceso_en_memoria(uint32_t id, char *path)
@@ -1101,6 +1108,8 @@ void crear_interfaz(char *nombre_interfaz, int cliente)
     tes->nombre_interfaz = nombre_interfaz;
     tes->cliente = cliente;
     pthread_mutex_init(&(tes->mutex), NULL);
+    pthread_mutex_init(&(tes->binario), NULL);
+    pthread_mutex_lock(&(tes->binario)); // esto es porque quiero q arranque bloqueado y se desbloquee cuando meto a alguien en la queue
     wait_interfaz(tes);
     dictionary_put(diccionario_recursos_e_interfaces, nombre_interfaz, tmb);
     signal_interfaz(tes);
