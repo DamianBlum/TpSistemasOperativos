@@ -128,7 +128,13 @@ void *servidor_dispatch(void *arg)
         while (proceso_actual_ejecutando)
         {
             // ciclo de la instruccion en la cpu
-            fetch();
+            int resultado =fetch();
+            if (resultado == EXIT_FAILURE)
+            {
+                proceso_actual_ejecutando = false;
+                conexion_activa = false;
+                break;
+            }
             decode();
             execute(); 
             check_interrupt();
@@ -266,7 +272,7 @@ e_instruccion parsear_instruccion(char *instruccionString)
     return enum_instruccion;
 }
 
-void fetch()
+int fetch()
 {
     // Buscamos la siguiente instruccion con el pc en memoria y la asignamos a la variable instruccion
     log_info(logger, "PID: < %d > - FETCH - Program Counter: < %d >", registros->PID, registros->PC);
@@ -281,7 +287,12 @@ void fetch()
     log_debug(logger, "Se envio el PID < %d > y el PC < %d > a memoria", registros->PID, registros->PC);
 
     // hay que recibir la operacion porque si no lee mal la instruccion, aunque no se use
-    recibir_operacion(cliente_memoria, logger);
+    int operacion =recibir_operacion(cliente_memoria, logger);
+
+    if (operacion == -1) // si no recibe operacion, es porque se rompio todo
+    {
+        return EXIT_FAILURE;
+    }
 
     // Recibimos la instruccion de memoria
     linea_de_instruccion = recibir_mensaje(cliente_memoria, logger);
