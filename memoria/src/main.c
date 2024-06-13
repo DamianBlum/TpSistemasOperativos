@@ -206,7 +206,7 @@ void *servidor_cpu(void *arg)
         case EXIT: // indica desconexion
             log_error(logger, "Se desconecto el cliente %d.", cliente_cpu);
             sigo_funcionando = 0;
-            break;
+            return EXIT_FAILURE;
         default: // recibi algo q no es eso, vamos a suponer q es para terminar
             log_error(logger, "Desde cliente: %d Recibi una operacion rara (%d), termino el servidor.", operacion);
             return EXIT_FAILURE;
@@ -258,13 +258,13 @@ void *servidor_entradasalida(void *arg)
                         uint32_t valor = *(uint32_t*)resultado_lectura;
                         t_paquete *paquete_a_enviar = crear_paquete();
                         agregar_a_paquete(paquete_a_enviar, valor, size);
-                        enviar_paquete(paquete_a_enviar, cliente_cpu, logger);
+                        enviar_paquete(paquete_a_enviar, cliente_entradasalida, logger);
                     }
                     else{
                         char* texto = string_duplicate((char*)resultado_lectura);
                         t_paquete *paquete_a_enviar = crear_paquete();
                         agregar_a_paquete(paquete_a_enviar, texto, size);
-                        enviar_paquete(paquete_a_enviar, cliente_cpu, logger);
+                        enviar_paquete(paquete_a_enviar, cliente_entradasalida, logger);
                         free(texto);
                     }
                     free(resultado_lectura);
@@ -277,6 +277,7 @@ void *servidor_entradasalida(void *arg)
             break;
         default: // recibi algo q no es eso, vamos a suponer q es para terminar
             log_error(logger, "Desde cliente %d: Recibi una operacion rara (%d), termino el servidor.", cliente_entradasalida, operacion);
+            return EXIT_FAILURE;
         }
     }
     return EXIT_SUCCESS;

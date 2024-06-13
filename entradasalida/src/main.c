@@ -184,7 +184,7 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
             char *texto_ingresado;
             texto_ingresado = readline(">");
 
-            uint32_t dir = list_get(datos_desde_kernel, 1);
+            uint32_t dir = (uint32_t)list_get(datos_desde_kernel, 1);
             uint32_t tamanio_registro = list_get(datos_desde_kernel, 2);
             uint32_t pid = list_get(datos_desde_kernel, 3);
             log_debug(logger, "(%s|%u): Texto ingresado: %s | Direccion fisica: %u | Size registro: %u | PID: %u.", interfaz->nombre, interfaz->tipo_interfaz, texto_ingresado, dir, tamanio_registro, pid);
@@ -237,7 +237,8 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
 
             // esperar y printear el valor obtenido
             recibir_operacion(cm, logger);
-            char *mensaje_obtenido = recibir_mensaje(cm, logger);
+            t_list* lista_recibida = recibir_paquete(cm, logger);
+            char* mensaje_obtenido = list_get(lista_recibida, 0);
             log_info(logger, "(%s|%u): Resultado de la lectura a memoria: %s", interfaz->nombre, interfaz->tipo_interfaz, mensaje_obtenido);
             // log_info(logger, "Print del valor leido en memoria: %s", mensaje_obtenido);
 

@@ -637,7 +637,7 @@ void evaluar_EXEC_a_BLOCKED(char *key, t_list *lista) // antes era recurso, ahor
             pid_con_datos = malloc(sizeof(t_pid_con_datos));
             pid_con_datos->pid = pcb->processID;
             pid_con_datos->tipo_parametros_io = (e_tipo_interfaz)list_get(lista, 0);
-            list_remove_element(lista, 0);
+            list_remove(lista, 0);
             pid_con_datos->datos = lista;
             wait_interfaz(tes);
             queue_push(tmb->cola_bloqueados, pid_con_datos);
