@@ -688,12 +688,16 @@ void instruccion_io_gen_sleep()
 void instruccion_copy_string() // para probar
 {
     log_info(logger, "PID: < %d > - Ejecutando: < COPY_STRING > - < %s >", registros->PID, linea_de_instruccion_separada[1]);
+
     /*COPY_STRING (Tamaño): Toma del string apuntado por el registro SI y
     copia la cantidad de bytes indicadas en el parámetro tamaño a la
     posición de memoria apuntada por el registro DI. */
-    uint32_t tamanio = linea_de_instruccion_separada[1];       // tamanio a copiar
-    uint32_t df_a_leer = linea_de_instruccion_separada[2];     // direccion de memoria a leer
-    uint32_t df_a_escribir = linea_de_instruccion_separada[3]; // direccion de memoria a escribir
+    uint32_t tamanio = (uint32_t)atoi(linea_de_instruccion_separada[1]);       // tamanio a copiar
+    uint32_t df_a_leer = (uint32_t)atoi(linea_de_instruccion_separada[2]);     // direccion de memoria a leer
+    uint32_t df_a_escribir = (uint32_t)atoi(linea_de_instruccion_separada[3]); // direccion de memoria a escribir
+    log_debug(logger, "Direccion fisica de lectura: %u", df_a_leer);
+    log_debug(logger, "Direccion fisica de escritura: %u", df_a_escribir);
+    log_debug(logger, "Tamanio a copiar: %u", tamanio);
     // hay que hacer un pedido lectura y escritura a memoria
     t_paquete *paquete_lectura = crear_paquete();
     agregar_a_paquete(paquete_lectura, PEDIDO_LECTURA, sizeof(PEDIDO_LECTURA));
@@ -705,13 +709,14 @@ void instruccion_copy_string() // para probar
     recibir_operacion(cliente_memoria, logger);
     t_list *lista_de_memoria = recibir_paquete(cliente_memoria, logger);
     char *string_a_copiar = list_get(lista_de_memoria, 0);
+    log_debug(logger, "String a copiar: %s", string_a_copiar);
 
     t_paquete *paquete_escritura = crear_paquete();
     agregar_a_paquete(paquete_escritura, PEDIDO_ESCRITURA, sizeof(PEDIDO_ESCRITURA));
     agregar_a_paquete(paquete_escritura, df_a_escribir, sizeof(df_a_escribir));
     agregar_a_paquete(paquete_escritura, tamanio, sizeof(tamanio));
     agregar_a_paquete(paquete_escritura, registros->PID, sizeof(registros->PID));
-    agregar_a_paquete(paquete_escritura, string_a_copiar, sizeof(string_a_copiar)); // si rompe fijarse aca si es eso o un string len +1
+    agregar_a_paquete(paquete_escritura, string_a_copiar, string_length(string_a_copiar)+1); // si rompe fijarse aca si es eso o un string len +1
     agregar_a_paquete(paquete_escritura, 0, sizeof(uint8_t));
     enviar_paquete(paquete_escritura, cliente_memoria, logger);
     recibir_operacion(cliente_memoria, logger);

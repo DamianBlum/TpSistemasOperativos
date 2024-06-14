@@ -164,11 +164,11 @@ void *servidor_cpu(void *arg)
                     enviar_paquete(paquete_a_enviar, cliente_cpu, logger);
                 }
                 else{
+                    
                     char* texto = string_duplicate((char*)resultado_lectura);
                     t_paquete *paquete_a_enviar = crear_paquete();
-                    agregar_a_paquete(paquete_a_enviar, texto, size);
+                    agregar_a_paquete(paquete_a_enviar, texto, string_length(texto) + 1);
                     enviar_paquete(paquete_a_enviar, cliente_cpu, logger);
-                    free(texto);
                 }
                 free(resultado_lectura);
                 break;
@@ -263,9 +263,8 @@ void *servidor_entradasalida(void *arg)
                     else{
                         char* texto = string_duplicate((char*)resultado_lectura);
                         t_paquete *paquete_a_enviar = crear_paquete();
-                        agregar_a_paquete(paquete_a_enviar, texto, size);
+                        agregar_a_paquete(paquete_a_enviar, texto, string_length(texto) + 1);
                         enviar_paquete(paquete_a_enviar, cliente_entradasalida, logger);
-                        free(texto);
                     }
                     free(resultado_lectura);
                     break;
@@ -345,11 +344,13 @@ int hacer_pedido_escritura(t_list* lista){ // escribe en memoria en Little Endia
             if (memoria_disponible >= size) {
                 if (tipo)
                 {
+                    
                     memcpy(espacio_memoria + df, &elemento_a_insertar, size);
                     resultado = 0;
                 }
                 else
                 {
+                    log_debug(logger, "Voy a escribir unchar*");
                     memcpy(espacio_memoria + df, elemento_a_insertar, size);
                     resultado = 0;
                 }
