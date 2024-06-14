@@ -708,7 +708,7 @@ void instruccion_copy_string() // para probar
     enviar_paquete(paquete_lectura, cliente_memoria, logger); // Enviamos el paquete para la lectura en memoria
     recibir_operacion(cliente_memoria, logger);
     t_list *lista_de_memoria = recibir_paquete(cliente_memoria, logger);
-    char *string_a_copiar = string_duplicate(list_get(lista_de_memoria, 0));
+    char *string_a_copiar = list_get(lista_de_memoria, 0);
     log_debug(logger, "String a copiar: %s", string_a_copiar);
 
     t_paquete *paquete_escritura = crear_paquete();

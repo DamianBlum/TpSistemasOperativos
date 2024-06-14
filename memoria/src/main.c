@@ -167,7 +167,7 @@ void *servidor_cpu(void *arg)
                     
                     char* texto = string_duplicate((char*)resultado_lectura);
                     t_paquete *paquete_a_enviar = crear_paquete();
-                    agregar_a_paquete(paquete_a_enviar, texto, size);
+                    agregar_a_paquete(paquete_a_enviar, texto, string_length(texto) + 1);
                     enviar_paquete(paquete_a_enviar, cliente_cpu, logger);
                 }
                 free(resultado_lectura);
