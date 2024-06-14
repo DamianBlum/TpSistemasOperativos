@@ -47,6 +47,9 @@ bool proceso_actual_ejecutando;
 // para saber si despues de ejecutar el proceso tengo que mandar el pcb o ya se hizo antes
 bool mandar_pcb;
 
+// para saber si ya se mando el pcb
+bool ya_se_mando_pcb;
+
 int main(int argc, char *argv[])
 {
     tam_pag = conseguir_tam_pag();
@@ -124,6 +127,7 @@ void *servidor_dispatch(void *arg)
             return EXIT_FAILURE;
         }
         mandar_pcb = false;
+        ya_se_mando_pcb = false;
         proceso_actual_ejecutando = true;
         while (proceso_actual_ejecutando)
         {
@@ -140,7 +144,7 @@ void *servidor_dispatch(void *arg)
             check_interrupt();
         }
 
-        if (mandar_pcb)
+        if (mandar_pcb && !ya_se_mando_pcb)
         { // hubo una interrupcion
             enviar_pcb(MOTIVO_DESALOJO_INTERRUPCION, no_agregar_datos, NULL);
         }
@@ -169,7 +173,7 @@ void *servidor_interrupt(void *arg) // por aca va a recibir un bit cuando quiere
         case PAQUETE:
             t_list *lista = list_create();
             lista = recibir_paquete(socket_cliente_interrupt, logger);
-            log_info(logger, "Recibi el id que quiere se quiere eliminar: %d.", list_get(lista, 0));
+            log_info(logger, "Recibi el id del que se va a interrumpir: %d.", list_get(lista, 0));
             // el paquete tiene el id pero no me importa, nomas ahora cambiar interrupcion a true
 
             // al modificar la variable global, necesito que no se interrumpa en el medio
@@ -478,18 +482,8 @@ void instruccion_io_stdin_read()
 
     enviar_pcb(MOTIVO_DESALOJO_IO_STDIN_READ, agregar_datos_interfaz_std, datos_interfaz_stdin_read);
 
-    // Espero la respuesta de Kernel
-    t_list *resp_kernel = list_create();
-    recibir_operacion(socket_cliente_dispatch, logger);
-    resp_kernel = recibir_paquete(socket_cliente_dispatch, logger);
-
-    uint8_t resultado_numero = list_get(resp_kernel, 0);
-    // Si me devuelve 1 esta todo MAL, si no todo BIEN
-    if (resultado_numero)
-    {
-        proceso_actual_ejecutando = false;
-    }
-
+    ya_se_mando_pcb = true;
+    proceso_actual_ejecutando = false;
     string_array_destroy(datos_interfaz_stdin_read);
 }
 
@@ -507,17 +501,8 @@ void instruccion_io_stdout_write()
 
     enviar_pcb(MOTIVO_DESALOJO_IO_STDOUT_WRITE, agregar_datos_interfaz_std, datos_interfaz_std);
 
-    // Espero la respuesta de Kernel
-    t_list *resp_kernel = list_create();
-    recibir_operacion(socket_cliente_dispatch, logger);
-    resp_kernel = recibir_paquete(socket_cliente_dispatch, logger);
-
-    uint8_t resultado_numero = list_get(resp_kernel, 0);
-    // Si me devuelve 1 esta todo MAL, si no todo BIEN
-    if (resultado_numero)
-    {
-        proceso_actual_ejecutando = false;
-    }
+    ya_se_mando_pcb = true;
+    proceso_actual_ejecutando = false;
 
     string_array_destroy(datos_interfaz_std);
 }
@@ -627,6 +612,7 @@ void instruccion_wait()
     {
         log_debug(logger, "No se pudo obtener el recurso < %s >", nombre_recurso);
         proceso_actual_ejecutando = false;
+        ya_se_mando_pcb = true;
     }
 
     list_destroy(resp_kernel_wait);
@@ -655,6 +641,7 @@ void instruccion_signal()
     {
         log_debug(logger, "No existia ese recurso %s", nombre_recurso);
         proceso_actual_ejecutando = false;
+        ya_se_mando_pcb = true;
     }
 
     free(nombre_recurso);
@@ -676,13 +663,11 @@ void instruccion_io_gen_sleep()
     string_array_push(&datos_tiempo, tiempoTrabajoString);
 
     enviar_pcb(MOTIVO_DESALOJO_IO_GEN_SLEEP, agregar_datos_tiempo, datos_tiempo);
-
+    ya_se_mando_pcb = true;
     proceso_actual_ejecutando = false;
 
     // LIBERAR LA MEMORIA
-    /*free(nroInterfaz); ALGUN DIA LOS HARE
-    free(tiempoTrabajoString);
-    string_array_destroy(datos_tiempo);*/
+    string_array_destroy(datos_tiempo);
 }
 
 void instruccion_copy_string() // para probar
@@ -822,6 +807,10 @@ void asignarValoresIntEnRegistros(char *registroDestino, int valor, char *instru
     else if (strcmp(registroDestino, "DI") == 0)
     {
         registros->DI = (uint32_t)valor;
+    }
+    else if (strcmp(registroDestino, "PC") == 0)
+    {
+        registros->PC = (uint32_t)valor;
     }
     else
     {
