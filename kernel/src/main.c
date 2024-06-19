@@ -1050,7 +1050,7 @@ void *trigger_interrupcion_quantum(void *args) // escuchar audio q me mande a ws
     log_trace(logger, "Entre al hilo para enviar la interrupcion de fin de quantum del proceso %u.", pcb->processID);
     log_debug(logger, "Valor del quantum: %u", pcb->quantum); // el %u es para unsigned, x las dudas
 
-    sleep(pcb->quantum / 1000); // seteo el q de ms a s
+    usleep(pcb->quantum * 1000); // seteo el q de ms a s
 
     // el objetivo de esto es saber si el proceso sigue ejecutando
     // imaginate q yo creo el proceso y, por lo tanto, esta funcion. Desp el proceso se desaloja por alguna razon sin terminar su quantum

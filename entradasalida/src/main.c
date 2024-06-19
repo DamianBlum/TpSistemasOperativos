@@ -296,10 +296,10 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
 
 void consumir_tiempo_trabajo(uint32_t tiempo_en_ms, t_interfaz_default *interfaz)
 {
-    uint32_t tiempo_en_s = tiempo_en_ms / 1000;
-    log_debug(logger, "(%s|%u): Tiempo a dormir en ms: %u | en s: %u", interfaz->nombre, interfaz->tipo_interfaz, tiempo_en_ms, tiempo_en_s);
-    log_trace(logger, "(%s|%u): Voy a hacer sleep por %u segundos.", interfaz->nombre, interfaz->tipo_interfaz, tiempo_en_s);
-    sleep(tiempo_en_s);
+    uint32_t tiempo_en_micro_s = tiempo_en_ms * 1000;
+    log_debug(logger, "(%s|%u): Tiempo a dormir en ms: %u", interfaz->nombre, interfaz->tipo_interfaz, tiempo_en_ms);
+    log_trace(logger, "(%s|%u): Voy a hacer sleep por %u microsegundos.", interfaz->nombre, interfaz->tipo_interfaz, tiempo_en_micro_s);
+    usleep(tiempo_en_micro_s);
     log_trace(logger, "(%s|%u): Termino el sleep.", interfaz->nombre, interfaz->tipo_interfaz);
 }
 

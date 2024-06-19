@@ -41,11 +41,11 @@ int main(int argc, char *argv[])
 {
     inicializar_modulo_memoria(argc, argv);
     log_info(logger, "Iniciando servidor de memoria");
-    sleep(2);
+    usleep(2000 * 1000);
     log_info(logger, "Pasaron 2 segundos");
-    sleep(2.75);
+    usleep(2750 * 1000);
     log_info(logger, "Pasaron 2,75 segundos");
-    sleep(3);
+    usleep(3000 * 1000);
     log_info(logger, "Pasaron 3 segundos");
     //testear_modulo_memoria();
     //creacion_servidor_y_clientes();
@@ -85,7 +85,7 @@ void *servidor_kernel(void *arg)
             lista = recibir_paquete(cliente_kernel, logger);
             log_info(logger, "Desde cliente %d: Recibi un paquete.", cliente_kernel);
             e_operacion operacion_kernel = (e_operacion)list_get(lista, 0);
-            sleep(config_get_int_value(config, "RETARDO_RESPUESTA") / 1000);
+            usleep(config_get_int_value(config, "RETARDO_RESPUESTA") * 1000);
             switch (operacion_kernel)
             {
 
@@ -155,7 +155,7 @@ void *servidor_cpu(void *arg)
             log_info(logger, "Desde cliente: %d Recibi un paquete.", cliente_cpu);
 
             // aplico el retardo de la respuesta
-            sleep(config_get_int_value(config, "RETARDO_RESPUESTA") / 1000);
+            usleep(config_get_int_value(config, "RETARDO_RESPUESTA") * 1000);
 
             e_operacion operacion_memoria = (e_operacion)list_get(lista,0);
             switch (operacion_memoria)
@@ -245,7 +245,7 @@ void *servidor_entradasalida(void *arg)
             lista = recibir_paquete(cliente_entradasalida, logger);
             log_info(logger, "Desde cliente %d: Recibi un paquete.", cliente_entradasalida);
             e_operacion operacion_io = (e_operacion)list_get(lista, 0);
-            sleep(config_get_int_value(config, "RETARDO_RESPUESTA")/1000);
+            usleep(config_get_int_value(config, "RETARDO_RESPUESTA")*1000);
             switch (operacion_io)
             {
                 case PEDIDO_ESCRITURA:
