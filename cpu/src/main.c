@@ -763,6 +763,7 @@ void instruccion_exit()
     log_info(logger, "PID: < %d > - Ejecutando: < EXIT > - < >", registros->PID);
     // deberia mandar el pcb a kernel
     enviar_pcb(MOTIVO_DESALOJO_EXIT, no_agregar_datos, NULL);
+    ya_se_mando_pcb = true;
     proceso_actual_ejecutando = false;
 }
 

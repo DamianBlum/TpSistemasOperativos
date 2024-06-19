@@ -761,6 +761,7 @@ void *atender_respuesta_proceso(void *arg)
             actualizar_pcb(lista_respuesta_cpu, pcb_en_running, logger);
             // ---------------------------------------------- //
             e_motivo_desalojo motivo_desalojo = conseguir_motivo_desalojo_de_registros_empaquetados(lista_respuesta_cpu);
+            log_trace(logger, "motivo desalojo: %s", motivo_desalojo_texto(motivo_desalojo)); //despues borrar
             log_trace(logger, "Motivo de desalojo de %d: %s", pcb_en_running->processID, motivo_desalojo_texto(motivo_desalojo));
 
             switch (motivo_desalojo)
