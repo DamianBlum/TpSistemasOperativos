@@ -117,6 +117,7 @@ void *servidor_dispatch(void *arg)
             // deberia recibir por aca un PCB para ponerme a ejercutar las instrucciones en el hilo principal
             desempaquetar_pcb_a_registros(lista, registros, logger); // aca pasa de los paquete a los registros
             // list_destroy_and_destroy_elements(lista);
+            log_debug(logger,"%u",list_get(lista,2));
             break;
         case EXIT: // indica desconeccion
             log_error(logger, "Se desconecto el cliente %d.", socket_cliente_dispatch);

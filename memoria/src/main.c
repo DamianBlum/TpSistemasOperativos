@@ -40,16 +40,9 @@ int cant_marcos;
 int main(int argc, char *argv[])
 {
     inicializar_modulo_memoria(argc, argv);
-    log_info(logger, "Iniciando servidor de memoria");
-    usleep(2000 * 1000);
-    log_info(logger, "Pasaron 2 segundos");
-    usleep(2750 * 1000);
-    log_info(logger, "Pasaron 2,75 segundos");
-    usleep(3000 * 1000);
-    log_info(logger, "Pasaron 3 segundos");
     //testear_modulo_memoria();
-    //creacion_servidor_y_clientes();
-    //finalizar_modulo_memoria();
+    creacion_servidor_y_clientes();
+    finalizar_modulo_memoria();
     return 0;
 }
 

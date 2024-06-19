@@ -455,7 +455,7 @@ void evaluar_NEW_a_READY()
 void evaluar_READY_a_EXEC() // hilar (me olvide xq xD), (me acorde y no lo voy a hacer)
 {
     log_trace(logger, "Voy a evaluar si puedo mover un proceso de READY a EXEC (asignar un proceso al CPU).");
-    if (queue_is_empty(cola_RUNNING) && !queue_is_empty(cola_READY) && !esta_planificacion_pausada) // valido q no este nadie corriendo, ready no este vacio y la planificacion no este pausada
+    if (queue_is_empty(cola_RUNNING) && (!queue_is_empty(cola_READY) || !queue_is_empty(cola_READY_PRIORITARIA)) && !esta_planificacion_pausada) // valido q no este nadie corriendo, ready no este vacio y la planificacion no este pausada
     {                                                                                               // tengo q hacer algo distinto segun cada algoritmo de planificacion
         uint32_t id;
 
@@ -1079,6 +1079,7 @@ void cosas_vrr_cuando_se_desaloja_un_proceso(t_PCB *pcb)
     if (algoritmo_planificacion == VRR)
     {
         temporal_stop(pcb->tiempo_en_ejecucion); // esto en si no es necesario pero bueno, por las dudas lo detengo
+        sleep(1);
         int64_t tiempo_ejecutado = temporal_gettime(pcb->tiempo_en_ejecucion);
         log_debug(logger, "Tiempo que se ejecuto el programa: %d | Quantum: %d", tiempo_ejecutado, quantum);
 
