@@ -27,6 +27,7 @@ typedef enum
 typedef struct
 {
     t_queue *cola_bloqueados;
+
     // t_manejo_recursos* instancias_recursos; // si es de un recurso
     // t_entrada_salida *interfaz; // si es de una interfaz
     void *datos_bloqueados;
@@ -67,6 +68,7 @@ typedef struct
 } t_io_stdout;
 typedef struct
 {
+    t_list *lista_procesos_usando_recurso;
     int instancias_recursos;
 } t_manejo_recursos;
 
@@ -83,6 +85,7 @@ void obtener_valores_de_recursos();
 uint8_t asignar_recurso(char *recurso, t_PCB *pcb);
 uint8_t desasignar_recurso(char *recurso, t_PCB *pcb);
 bool eliminar_id_de_la_cola(t_queue *cola, uint32_t id);
+bool eliminar_id_de_la_cola_blocked(t_queue *cola, uint32_t id);
 t_manejo_bloqueados *crear_manejo_bloqueados();
 void destruir_manejor_bloqueados(t_manejo_bloqueados *tmb);
 bool pidio_el_recurso(t_PCB *pcb, char *recurso);
@@ -126,5 +129,7 @@ t_entrada_salida *obtener_entrada_salida(char *nombre_interfaz);
 void crear_interfaz(char *nombre_interfaz, int cliente);
 void wait_interfaz(t_entrada_salida *tes);
 void signal_interfaz(t_entrada_salida *tes);
-
+t_manejo_bloqueados* conseguir_tmb(uint32_t id);
+void sacarle_sus_recursos(uint32_t pid);
+bool eliminar_id_lista(t_list* lista, uint32_t id);
 #endif

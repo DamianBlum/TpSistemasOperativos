@@ -238,7 +238,6 @@ void *atender_cliente_io(void *arg)
 
         if (hay_algo)
         {
-            log_debug(logger, "asd");
             wait_interfaz(tes);
             t_pid_con_datos *pid_con_datos = queue_peek(tmb->cola_bloqueados);
             signal_interfaz(tes);
@@ -337,12 +336,18 @@ void eliminar_proceso(uint32_t id)
     // el llamado a liberar memoria se hace desde los evaluar_ALGO_a_ALGO
 
     t_PCB *pcb_a_finalizar = devolver_pcb_desde_lista(lista_de_pcbs, id);
-    if (pcb_a_finalizar == NULL)
-    {
+
+    // si yo tengo un recurso asignado y me van a matar lo tengo que liberar, por lo tanto valido si algun proceso puede ser desbloqueado, si es el caso tengo que hacer blocked a ready
+
+
+    if (pcb_a_finalizar == NULL) {
         log_error(logger, "El proceso %d no existe.");
         return;
     }
     e_estado_proceso estado = pcb_a_finalizar->estado;
+    // hay que hacer lo de buscar el recurso que tengo disponible
+    
+    sacarle_sus_recursos(pcb_a_finalizar->processID); // busca en los recursos donde esta el proceso y lo aumento y le aviso por si alguno se puede desbloquear
 
     // lo saco de queue
     switch (estado)
@@ -370,8 +375,12 @@ void eliminar_proceso(uint32_t id)
     }
 }
 
+
+
 bool eliminar_id_de_la_cola(t_queue *cola, uint32_t id) // si lo encontre y elimine, retorno true, si no false
 {
+    if (queue_is_empty(cola))
+        return false;
     bool loEncontre = false;
     uint32_t primerId = queue_pop(cola);
     if (primerId != id)
@@ -385,6 +394,30 @@ bool eliminar_id_de_la_cola(t_queue *cola, uint32_t id) // si lo encontre y elim
             else
                 queue_push(cola, idActual);
         }
+    }
+    return loEncontre;
+}
+
+bool eliminar_id_de_la_cola_blocked(t_queue *cola, uint32_t id)
+{
+    if (queue_is_empty(cola))
+        return false;
+    bool loEncontre = false;
+    t_pid_con_datos* primerId = queue_pop(cola);
+    if (primerId->pid != id)
+    {
+        queue_push(cola, primerId);
+        while (queue_peek(cola) != primerId) // ya di toda la vuelta
+        {
+            t_pid_con_datos* idActual = queue_pop(cola);
+            if (idActual->pid == id)
+                loEncontre = true; // es el id q tengo q sacar
+            else
+                queue_push(cola, idActual);
+        }
+    }
+    else {
+        loEncontre = true;
     }
     return loEncontre;
 }
@@ -537,6 +570,7 @@ void evaluar_EXEC_a_READY()
     {
 
         t_PCB *pcb = devolver_pcb_desde_lista(lista_de_pcbs, (uint32_t)queue_pop(cola_RUNNING));
+        cosas_vrr_cuando_se_desaloja_un_proceso(pcb); // ya hago aca lo de cambiar el quantum
         // hago las cosas especificas de VRR
         if (debe_ir_a_cola_prioritaria(pcb)) // se fija si estoy en vrr y si tiene q ir a prio
         {
@@ -576,42 +610,51 @@ void evaluar_READY_a_EXIT(t_PCB *pcb)
 
 void evaluar_BLOCKED_a_EXIT(t_PCB *pcb)
 {
+    t_manejo_bloqueados* tmb = conseguir_tmb(pcb->processID); // si me interesa tener esta tmb y la funcion me permite eliminar a este de blocked
+    // Tambien se recupera el recurso del proceso bloqueado que se pidio antes :p
+    if (tmb->identificador == RECURSO) {
+        t_manejo_recursos *tmr = (t_manejo_recursos *)tmb->datos_bloqueados;
+        tmr->instancias_recursos++; 
+    }
+    
     log_trace(logger, "Voy a mover el proceso %d de BLOCKED a EXIT.", pcb->processID);
     // libero la memoria
     liberar_memoria(pcb->processID);
     // le cambio el estado
     pcb->estado = E_EXIT;
-    // lo popeo de su cola actual
-    for (uint8_t i = 0; i < dictionary_size(diccionario_recursos_e_interfaces); i++) // podria ser un poquito mas lindo esto pero bueno, andar anda
-    {
-        t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos_e_interfaces, list_get(dictionary_keys(diccionario_recursos_e_interfaces), i));
-
-        switch (tmb->identificador)
-        {
-        case RECURSO:
-            if (eliminar_id_de_la_cola(tmb->cola_bloqueados, pcb->processID))
-            {
-                t_manejo_recursos *manejo_recurso = (t_manejo_recursos *)tmb->datos_bloqueados;
-                manejo_recurso->instancias_recursos++;                  // devuelvo la instancia del recurso q se va a matar
-                i = dictionary_size(diccionario_recursos_e_interfaces); // para salir del for
-            }
-            break;
-        case INTERFAZ:
-            t_entrada_salida *tes = (t_entrada_salida *)tmb->datos_bloqueados;
-            wait_interfaz(tes);
-            if (eliminar_id_de_la_cola(tmb->cola_bloqueados, pcb->processID))
-            {
-                i = dictionary_size(diccionario_recursos_e_interfaces); // para salir del for
-            }
-            signal_interfaz(tes);
-            break;
-        }
-    }
     // lo pusheo en exit
     queue_push(cola_EXIT, pcb->processID);
     // desminuyo el contador de procesos
     cant_procesos_ejecutando--;
     log_debug(logger, "Grado de multiprogramacion actual: %d", cant_procesos_ejecutando);
+}
+
+t_manejo_bloqueados* conseguir_tmb(uint32_t id)
+{
+    for (uint8_t i = 0; i < dictionary_size(diccionario_recursos_e_interfaces); i++) // podria ser un poquito mas lindo esto pero bueno, andar anda
+    {
+        t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos_e_interfaces, list_get(dictionary_keys(diccionario_recursos_e_interfaces), i));
+        int size_queue = queue_size(tmb->cola_bloqueados);
+        switch (tmb->identificador)
+        {
+        case RECURSO:
+            if (eliminar_id_de_la_cola_blocked(tmb->cola_bloqueados, id))
+            {
+                return tmb;
+            }
+            break;
+        case INTERFAZ:
+            t_entrada_salida *tes = (t_entrada_salida *)tmb->datos_bloqueados;
+            wait_interfaz(tes);
+            if (eliminar_id_de_la_cola_blocked(tmb->cola_bloqueados, id)) 
+            {
+                return tmb;
+            }
+            signal_interfaz(tes);
+            break;
+        }
+    }
+    return NULL;
 }
 
 void evaluar_EXEC_a_BLOCKED(char *key, t_list *lista) // antes era recurso, ahora puede ser tanto recurso como nombre interfaz
@@ -621,7 +664,7 @@ void evaluar_EXEC_a_BLOCKED(char *key, t_list *lista) // antes era recurso, ahor
     {
         t_PCB *pcb = devolver_pcb_desde_lista(lista_de_pcbs, (uint32_t)queue_pop(cola_RUNNING));
         pcb->estado = E_BLOCKED;
-
+        cosas_vrr_cuando_se_desaloja_un_proceso(pcb); // ya hago aca lo de cambiar el quantum
         // usando la key, consigo el t_manejo_bloqueados y meto el id en la cola
         t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos_e_interfaces, key); // no valido q el recurso o interfaz exita, porque ya se valido antes
         t_pid_con_datos *pid_con_datos;
@@ -630,6 +673,7 @@ void evaluar_EXEC_a_BLOCKED(char *key, t_list *lista) // antes era recurso, ahor
         case RECURSO:
             pid_con_datos = malloc(sizeof(t_pid_con_datos));
             pid_con_datos->pid = pcb->processID;
+            log_trace(logger,"proceso bloqueado %u", pid_con_datos->pid);
             queue_push(tmb->cola_bloqueados, pid_con_datos);
             break;
         case INTERFAZ:
@@ -670,7 +714,7 @@ void evaluar_BLOCKED_a_READY(t_manejo_bloqueados *tmb)
             log_trace(logger, "No hay procesos bloqueados por el recurso.");
             return;
         }
-        else if (((t_manejo_recursos *)tmb->datos_bloqueados)->instancias_recursos <= 0)
+        else if (((t_manejo_recursos *)tmb->datos_bloqueados)->instancias_recursos < 0)
         {
             log_trace(logger, "No voy a desbloquear a nadie porque el valor del semaforo es %u.", ((t_manejo_recursos *)tmb->datos_bloqueados)->instancias_recursos);
             return;
@@ -715,12 +759,13 @@ void evaluar_BLOCKED_a_READY(t_manejo_bloqueados *tmb)
 void evaluar_EXEC_a_EXIT()
 {
     uint32_t id = (uint32_t)queue_pop(cola_RUNNING);
-
+    
     log_trace(logger, "Voy a mover el proceso %d de EXEC a EXIT.", id);
 
     liberar_memoria(id);
 
     t_PCB *pcb_en_running = devolver_pcb_desde_lista(lista_de_pcbs, id);
+    cosas_vrr_cuando_se_desaloja_un_proceso(pcb_en_running); // ya hago aca lo de cambiar el quantum
     pcb_en_running->estado = E_EXIT;
     queue_push(cola_EXIT, id);
     cant_procesos_ejecutando--;
@@ -803,16 +848,16 @@ void *atender_respuesta_proceso(void *arg)
                 }
                 break;
             case MOTIVO_DESALOJO_SIGNAL:
-                char *argSignal = list_get(lista_respuesta_cpu, 13); // hacer desp esto en una funcion
-                log_debug(logger, "Argumento del signal: %s", argSignal);
+                char *nombreRecurso = list_get(lista_respuesta_cpu, 13); // hacer desp esto en una funcion
+                log_debug(logger, "Argumento del signal: %s", nombreRecurso);
                 t_paquete *respuesta_para_cpu_signal = crear_paquete();
                 // desasigno
-                uint8_t resultado_asignar_recurso_signal = desasignar_recurso(argSignal, pcb_en_running);
+                uint8_t resultado_asignar_recurso_signal = desasignar_recurso(nombreRecurso, pcb_en_running);
                 if (resultado_asignar_recurso_signal == 0)
                 { // hay instancias disponibles, voy a desbloquear a alguien y le respondo a cpu
                     agregar_a_paquete(respuesta_para_cpu_signal, resultado_asignar_recurso_signal, sizeof(uint8_t));
                     enviar_paquete(respuesta_para_cpu_signal, cliente_cpu_dispatch, logger);
-                    evaluar_BLOCKED_a_READY((t_manejo_bloqueados *)dictionary_get(diccionario_recursos_e_interfaces, argSignal));
+                    evaluar_BLOCKED_a_READY((t_manejo_bloqueados *)dictionary_get(diccionario_recursos_e_interfaces, nombreRecurso));
                     log_trace(logger, "Voy a enviarle al CPU que salio todo bien.");
                 }
                 else if (respuesta_para_cpu_signal == 1)
@@ -828,7 +873,6 @@ void *atender_respuesta_proceso(void *arg)
             case MOTIVO_DESALOJO_INTERRUPCION:
                 // termino el ciclo
                 sigo_esperando_cosas_de_cpu = false;
-
                 // planifico
                 evaluar_EXEC_a_READY();
                 break;
@@ -913,7 +957,7 @@ void *atender_respuesta_proceso(void *arg)
             sigo_esperando_cosas_de_cpu = false;
         }
     }
-    cosas_vrr_cuando_se_desaloja_un_proceso(pcb_en_running); // lo hago aca al final xq es cuando se q el proceso fue desalojado
+     // lo hago aca al final xq es cuando se q el proceso fue desalojado
     log_trace(logger, "Termino el hilo para el proceso %d.", idProcesoActual);
 }
 
@@ -930,6 +974,7 @@ void obtener_valores_de_recursos()
             break;
         t_manejo_bloqueados *tmb = crear_manejo_bloqueados(RECURSO);
         ((t_manejo_recursos *)(tmb->datos_bloqueados))->instancias_recursos = atoi(lista2[i]);
+        ((t_manejo_recursos *)(tmb->datos_bloqueados))->lista_procesos_usando_recurso = list_create();
         dictionary_put(diccionario_recursos_e_interfaces, (lista1)[i], tmb);
         i++;
     }
@@ -944,13 +989,20 @@ uint8_t asignar_recurso(char *recurso, t_PCB *pcb)
         // hasta aca llegue (los logs de abajo no los hace)
         t_manejo_recursos *manejo_recurso = (t_manejo_recursos *)tmb->datos_bloqueados;
         log_debug(logger, "Valor del recurso %s antes de modificarlo: %d", recurso, manejo_recurso->instancias_recursos);
+        
         manejo_recurso->instancias_recursos -= 1;
         log_debug(logger, "Valor del recurso %s desp de modifiarlo: %d", recurso, manejo_recurso->instancias_recursos);
 
         if (manejo_recurso->instancias_recursos < 0)
+        {
             r = 1; // hay q bloquear el proceso
+        }
         else
+        {
+            list_add(manejo_recurso->lista_procesos_usando_recurso, pcb->processID);
             r = 0; // lo devuelvo sin bloquear
+        }
+
     }
     else
     { // cagaste
@@ -967,6 +1019,7 @@ uint8_t desasignar_recurso(char *recurso, t_PCB *pcb)
     {
         t_manejo_recursos *manejo_recurso = (t_manejo_recursos *)tmb->datos_bloqueados;
         log_debug(logger, "Valor del recurso %s antes de modificarlo: %d", recurso, manejo_recurso->instancias_recursos);
+        list_remove_element(manejo_recurso->lista_procesos_usando_recurso, pcb->processID);
         manejo_recurso->instancias_recursos += 1;
         log_debug(logger, "Valor del recurso %s desp de modifiarlo: %d", recurso, manejo_recurso->instancias_recursos);
         r = 0;
@@ -977,6 +1030,8 @@ uint8_t desasignar_recurso(char *recurso, t_PCB *pcb)
     }
     return r;
 }
+
+
 
 t_manejo_bloqueados *crear_manejo_bloqueados(e_tipo_bloqueado identificador)
 {
@@ -1051,7 +1106,6 @@ void *trigger_interrupcion_quantum(void *args) // escuchar audio q me mande a ws
     log_debug(logger, "Valor del quantum: %u", pcb->quantum); // el %u es para unsigned, x las dudas
 
     usleep(pcb->quantum * 1000); // seteo el q de ms a s
-
     // el objetivo de esto es saber si el proceso sigue ejecutando
     // imaginate q yo creo el proceso y, por lo tanto, esta funcion. Desp el proceso se desaloja por alguna razon sin terminar su quantum
     // entonces reviso si el proceso en cuestion sigue ejecutando y, si es asi, mando la interrupcion, el problema de esto es:
@@ -1079,9 +1133,8 @@ void cosas_vrr_cuando_se_desaloja_un_proceso(t_PCB *pcb)
     if (algoritmo_planificacion == VRR)
     {
         temporal_stop(pcb->tiempo_en_ejecucion); // esto en si no es necesario pero bueno, por las dudas lo detengo
-        sleep(1);
         int64_t tiempo_ejecutado = temporal_gettime(pcb->tiempo_en_ejecucion);
-        log_debug(logger, "Tiempo que se ejecuto el programa: %d | Quantum: %d", tiempo_ejecutado, quantum);
+        log_debug(logger, "Tiempo que se ejecuto el programa: %d | Quantum: %d", tiempo_ejecutado, pcb->quantum);
 
         temporal_destroy(pcb->tiempo_en_ejecucion); // esto es para evitar problemas de memoria, cada vez q paso un proceso de algo a exec, lo creo de vuelta
         if (tiempo_ejecutado < pcb->quantum)
@@ -1125,4 +1178,39 @@ void wait_interfaz(t_entrada_salida *tes)
 void signal_interfaz(t_entrada_salida *tes)
 {
     pthread_mutex_unlock(&(tes->mutex));
+}
+
+void sacarle_sus_recursos(uint32_t pid) 
+{   
+    log_trace(logger, "Voy a sacarle los recursos al proceso %d.", pid);
+    for (uint8_t i = 0; i < dictionary_size(diccionario_recursos_e_interfaces); i++) // podria ser un poquito mas lindo esto pero bueno, andar anda
+    {
+        t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos_e_interfaces, list_get(dictionary_keys(diccionario_recursos_e_interfaces), i));
+        if(tmb->identificador == RECURSO) {
+            t_manejo_recursos *manejo_recurso = (t_manejo_recursos *)tmb->datos_bloqueados;
+           
+            bool seElimino = eliminar_id_lista(manejo_recurso->lista_procesos_usando_recurso, pid);
+            
+            if (seElimino) {
+                log_trace(logger, "Se le saco un recurso al proceso %d.",pid);
+                manejo_recurso->instancias_recursos ++;
+                evaluar_BLOCKED_a_READY(tmb);
+            }
+        }
+    }
+}
+
+bool eliminar_id_lista(t_list* lista, uint32_t id) 
+{
+    bool seElimino = false;
+    
+    for (uint32_t i = 0; i < list_size(lista); i++) {
+        uint32_t id_lista = (uint32_t)list_get(lista, i);
+        if (id_lista == id) {
+            uint32_t elemento = (uint32_t)list_remove(lista, i);
+            seElimino = true;
+            break;
+        }
+    } 
+    return seElimino;
 }

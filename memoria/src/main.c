@@ -37,9 +37,11 @@ t_bitarray *marcos;
 // Varibale cantidad marcos
 int cant_marcos;
 
+
 int main(int argc, char *argv[])
 {
     inicializar_modulo_memoria(argc, argv);
+
     //testear_modulo_memoria();
     creacion_servidor_y_clientes();
     finalizar_modulo_memoria();
