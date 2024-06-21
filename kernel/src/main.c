@@ -811,6 +811,13 @@ void *atender_respuesta_proceso(void *arg)
 
             switch (motivo_desalojo)
             {
+            case MOTIVO_DESALOJO_OUT_OF_MEMORY:
+                log_error(logger, "El proceso %d se quedo sin memoria.", pcb_en_running->processID);
+                sacarle_sus_recursos(pcb_en_running->processID);
+                evaluar_EXEC_a_EXIT();
+                // termino el ciclo
+                sigo_esperando_cosas_de_cpu = false;
+                break;
             case MOTIVO_DESALOJO_EXIT:
                 evaluar_EXEC_a_EXIT();
                 // termino el ciclo

@@ -440,6 +440,8 @@ void instruccion_resize() // para probar
     {
         enviar_pcb(MOTIVO_DESALOJO_OUT_OF_MEMORY, no_agregar_datos, NULL);
         proceso_actual_ejecutando = false; // https://github.com/sisoputnfrba/foro/issues/3799
+        ya_se_mando_pcb = true;
+        
     }
     list_destroy(lista_de_memoria);
 }
