@@ -160,6 +160,8 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
                                    // 2 = Falla en la ejecucion.
     log_trace(logger, "(%s|%u): me llego la instruccion: |%s|", interfaz->nombre, interfaz->tipo_interfaz, nombre_instruccion);
 
+    uint32_t pid = list_get(datos_desde_kernel, 1);
+
     switch (interfaz->tipo_interfaz)
     {
     case GENERICA:
@@ -180,6 +182,7 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
     case STDIN:
         if (string_equals_ignore_case(nombre_instruccion, "IO_STDIN_READ"))
         {
+            t_interfaz_std *tisdin = (t_interfaz_stdin *)interfaz->configs_especificas;
             log_trace(logger, "(%s|%u): Entre a IO_STDIN_READ.", interfaz->nombre, interfaz->tipo_interfaz);
             char *texto_ingresado;
             texto_ingresado = readline(">");
@@ -199,12 +202,15 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
             agregar_a_paquete(paquete_para_mem, dir, sizeof(uint32_t));              // Reg direc logica (en realidad aca mepa q recivo la fisica)
             agregar_a_paquete(paquete_para_mem, tamanio_registro, sizeof(uint32_t)); // Reg tam
             agregar_a_paquete(paquete_para_mem, pid, sizeof(uint32_t));              // PID
-            agregar_a_paquete(paquete_para_mem, texto_chiquito, strlen(texto_chiquito));
+            agregar_a_paquete(paquete_para_mem, texto_chiquito, strlen(texto_chiquito) + 1);
             agregar_a_paquete(paquete_para_mem, 0, sizeof(uint8_t));
-            enviar_paquete(paquete_para_mem, (int)((t_interfaz_stdin *)interfaz->configs_especificas)->conexion_memoria, logger);
+            int cm = (int)tisdin->conexion_memoria;
+            enviar_paquete(paquete_para_mem, cm, logger);
 
             // aca podria esperar a ver q me dice memoria sobre esto
-
+            recibir_operacion(cm, logger);
+            char *mensaje_memoria = recibir_mensaje(cm, logger);
+            log_debug(logger, "(%s|%u): Resultado de la escritura en memoria: %s", interfaz->nombre, interfaz->tipo_interfaz, mensaje_memoria);
             ejecuto_correctamente = 1;
         }
         else
@@ -237,8 +243,8 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
 
             // esperar y printear el valor obtenido
             recibir_operacion(cm, logger);
-            t_list* lista_recibida = recibir_paquete(cm, logger);
-            char* mensaje_obtenido = list_get(lista_recibida, 0);
+            t_list *lista_recibida = recibir_paquete(cm, logger);
+            char *mensaje_obtenido = list_get(lista_recibida, 0);
             log_info(logger, "(%s|%u): Resultado de la lectura a memoria: %s", interfaz->nombre, interfaz->tipo_interfaz, mensaje_obtenido);
             // log_info(logger, "Print del valor leido en memoria: %s", mensaje_obtenido);
 
@@ -275,14 +281,31 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_WRITE"))
         { // IO_FS_WRITE Int4 notas.txt AX ECX EDX
             log_trace(logger, "(%s|%u): Entre a IO_FS_WRITE.", interfaz->nombre, interfaz->tipo_interfaz);
-            log_warning(logger, "Funcionalidad aun sin implementar!");
-            ejecuto_correctamente = 1;
+            char *nombre_archivo = list_get(datos_desde_kernel, 1);
+            uint32_t size_dato = list_get(datos_desde_kernel, 2);
+            uint32_t puntero_archivo = list_get(datos_desde_kernel, 3);
+            void *dato = list_get(datos_desde_kernel, 4);
+            ejecuto_correctamente = escribir_en_archivo(idialfs, nombre_archivo, size_dato, puntero_archivo, dato);
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_READ"))
         {
             log_trace(logger, "(%s|%u): Entre a IO_FS_READ.", interfaz->nombre, interfaz->tipo_interfaz);
-            log_warning(logger, "Funcionalidad aun sin implementar!");
-            ejecuto_correctamente = 1;
+
+            char *nombre_archivo = list_get(datos_desde_kernel, 2);
+            uint32_t size_dato = list_get(datos_desde_kernel, 3);
+            uint32_t puntero_archivo = list_get(datos_desde_kernel, 4);
+            uint32_t dir_fisica_mem = list_get(datos_desde_kernel, 5);
+
+            void *resultado = leer_en_archivo(idialfs, nombre_archivo, size_dato, puntero_archivo);
+
+            t_paquete *paquete_para_mem = crear_paquete();
+            agregar_a_paquete(paquete_para_mem, PEDIDO_ESCRITURA, sizeof(uint8_t));
+            agregar_a_paquete(paquete_para_mem, dir_fisica_mem, sizeof(uint32_t)); // Reg direc logica (en realidad aca mepa q recivo la fisica)
+            agregar_a_paquete(paquete_para_mem, size_dato, sizeof(uint32_t));      // Reg tam
+            agregar_a_paquete(paquete_para_mem, pid, sizeof(uint32_t));            // PID
+            agregar_a_paquete(paquete_para_mem, resultado, size(resultado));
+            agregar_a_paquete(paquete_para_mem, 1, sizeof(uint8_t));
+            enviar_paquete(paquete_para_mem, (int)((t_interfaz_dialfs *)interfaz->configs_especificas)->conexion_memoria, logger);
         }
         else
             log_error(logger, "ERROR: la instruccion pedida (%s) no corresponde a una interfaz generica.", nombre_instruccion);
@@ -512,7 +535,45 @@ uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t
     return resultado;
 }
 
-char *armar_path_metadata(char *nombre_archivo, char *path)
+uint8_t escribir_en_archivo(t_interfaz_dialfs *idialfs, char *nombre_archivo, uint32_t size_dato, uint32_t puntero_archivo, void *dato)
+{
+    // consigo la info del archivo
+    char *path_metadata = armar_path_metadata(nombre_archivo, idialfs->path_base_dialfs);
+    t_config *config = config_create(path_metadata);
+    uint32_t bloque_inicial = (uint32_t)config_get_int_value(config, "BLOQUE_INICIAL");
+    uint32_t size_archivo = (uint32_t)config_get_int_value(config, "TAMANIO_ARCHIVO");
+    uint32_t puntero_en_disco = bloque_inicial * idialfs->block_size + puntero_archivo;
+
+    log_debug(logger, "PeD: %u | BI: %u | PA: %u", puntero_en_disco, bloque_inicial, puntero_archivo);
+
+    // puedo escribir??? => valido q tengo el espacio suficiente
+    if (puntero_en_disco + size_dato > bloque_inicial * idialfs->block_size + size_archivo)
+        return 0;
+
+    escribir_bloque(idialfs->bloques, puntero_archivo, size_dato, dato);
+
+    config_destroy(config);
+
+    return 1;
+}
+
+void *leer_en_archivo(t_interfaz_dialfs *idialfs, char *nombre_archivo, uint32_t size_dato, uint32_t puntero_archivo)
+{
+    // consigo la info del archivo
+    char *path_metadata = armar_path_metadata(nombre_archivo, idialfs->path_base_dialfs);
+    t_config *config = config_create(path_metadata);
+    uint32_t bloque_inicial = (uint32_t)config_get_int_value(config, "BLOQUE_INICIAL");
+    uint32_t size_archivo = (uint32_t)config_get_int_value(config, "TAMANIO_ARCHIVO");
+    uint32_t puntero_en_disco = bloque_inicial * idialfs->block_size + puntero_archivo;
+
+    if (puntero_en_disco + size_dato > bloque_inicial * idialfs->block_size + size_archivo)
+        return 0;
+
+    return leer_bloque(idialfs->bloques, puntero_archivo, size_archivo);
+}
+
+char *
+armar_path_metadata(char *nombre_archivo, char *path)
 {
     char *path_metadata = string_duplicate(path);
     string_append(&path_metadata, nombre_archivo); // /dialfs/algo/nombre_archivo

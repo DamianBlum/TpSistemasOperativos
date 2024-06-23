@@ -15,7 +15,7 @@ t_bloques *crear_bloques(char *path, uint32_t cant_bloques, uint32_t tam_bloque,
     bq->cant_bloques = cant_bloques;
 
     int fd_bloques = open(bq->path, O_RDWR);
-    bq->bloques = mmap(NULL, size, PROT_WRITE, MAP_SHARED, fd_bloques, 0);
+    bq->bloques = mmap(NULL, size, PROT_WRITE | PROT_READ, MAP_SHARED, fd_bloques, 0);
 
     if (bq->bloques == MAP_FAILED)
     {
@@ -26,11 +26,18 @@ t_bloques *crear_bloques(char *path, uint32_t cant_bloques, uint32_t tam_bloque,
     return bq;
 }
 
-void *leer_bloque(t_bloques *bloques, uint32_t pos_bloque, uint32_t offset)
+void *leer_bloque(t_bloques *bloques, uint32_t puntero, uint32_t size_dato)
 {
+    void *dato = malloc(size_dato);
+    memcpy(dato, bloques->bloques + puntero, size_dato);
+    return dato;
 }
 
-uint8_t escribir_bloque(t_bloques *bloques, uint32_t pos_bloque, uint32_t offset) { return 0; }
+uint8_t escribir_bloque(t_bloques *bloques, uint32_t puntero, uint32_t size_dato, void *dato)
+{
+    // voy a escribir lo q me dieron en el la posicion esta
+    memcpy(bloques->bloques + puntero, dato, size_dato);
+}
 
 uint8_t limpiar_bloque(t_bloques *bloques, uint32_t pos_bloque)
 { // cuando asigno un bloque nuevo a un archivo, le pongo todo ceros para que no haya problemas de lectura desp

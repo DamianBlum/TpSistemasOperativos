@@ -20,7 +20,7 @@ typedef struct
 
 t_bloques *crear_bloques(char *path, uint32_t cant_bloques, uint32_t tam_bloque, t_log *logger);
 void *leer_dato_bloque(t_bloques *bloques, uint32_t pos_bloque, uint32_t size_dato_leer);
-void *leer_bloque(t_bloques *bloques, uint32_t pos_bloque, uint32_t offset);
-uint8_t escribir_bloque(t_bloques *bloques, uint32_t pos_bloque, uint32_t offset);
+void *leer_bloque(t_bloques *bloques, uint32_t puntero, uint32_t size_dato);
+uint8_t escribir_bloque(t_bloques *bloques, uint32_t puntero, uint32_t size_dato, void *dato);
 uint8_t limpiar_bloque(t_bloques *bloques, uint32_t pos_bloque);
 #endif
