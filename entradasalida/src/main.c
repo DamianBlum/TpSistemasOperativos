@@ -223,7 +223,7 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
             uint32_t dir_fisica = list_get(datos_desde_kernel, 1);
             uint32_t tam_dato = list_get(datos_desde_kernel, 2);
             uint32_t pid = list_get(datos_desde_kernel, 3);
-            t_interfaz_stdout *tisout = (t_interfaz_stdout *)interfaz->configs_especificas;
+            t_interfaz_std *tisout = (t_interfaz_std *)interfaz->configs_especificas;
             int cm = (int)tisout->conexion_memoria;
 
             log_debug(logger, "(%s|%u): Direccion fisica: %u | Size dato: %u | PID: %u.", interfaz->nombre, interfaz->tipo_interfaz, dir_fisica, tam_dato, pid);

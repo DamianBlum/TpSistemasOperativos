@@ -40,16 +40,12 @@ typedef struct
     uint32_t tiempo_unidad_trabajo;
 } t_interfaz_generica;
 
-typedef struct
-{
-    uint32_t conexion_memoria;
-} t_interfaz_stdin;
 
 typedef struct
 {
     uint32_t tiempo_unidad_trabajo;
     uint32_t conexion_memoria;
-} t_interfaz_stdout;
+} t_interfaz_std;
 
 typedef struct
 {

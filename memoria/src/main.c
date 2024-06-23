@@ -31,6 +31,12 @@ int tam_memoria;
 // Variable espacio memoria
 void *espacio_memoria;
 
+// Variable para el mutex del espacio_memoria
+pthread_mutex_t mutex_espacio_memoria = PTHREAD_MUTEX_INITIALIZER;
+
+// Variable para el mutex de los procesos
+pthread_mutex_t mutex_procesos = PTHREAD_MUTEX_INITIALIZER;
+
 // Varibale Marcos Libres
 t_bitarray *marcos;
 
@@ -245,7 +251,7 @@ void *servidor_entradasalida(void *arg)
             {
                 case PEDIDO_ESCRITURA:
 
-                    int resultado_escritura=hacer_pedido_escritura(lista);
+                    int resultado_escritura = hacer_pedido_escritura(lista);
                     if (resultado_escritura == 0)
                     {
                         enviar_mensaje("OK", cliente_entradasalida, logger);
@@ -254,7 +260,6 @@ void *servidor_entradasalida(void *arg)
                 case PEDIDO_LECTURA:
                     uint8_t tipo = (uint8_t)list_get(lista, 4);
                     uint32_t size = (uint32_t)list_get(lista, 2);
-                    log_debug(logger,"prueba");
                     void* resultado_lectura=hacer_pedido_lectura(lista);
                     if (tipo){
                         uint32_t valor = *(uint32_t*)resultado_lectura;
@@ -298,15 +303,20 @@ void* hacer_pedido_lectura(t_list* lista){
     while (size) {
         uint32_t memoria_disponible  = ((marco + 1) * tam_pag - df);
         if (memoria_disponible >= size) {
+            pthread_mutex_lock(&mutex_espacio_memoria);
             memcpy(elemento_a_guardar+cuanto_voy_guardando, espacio_memoria + df, size);
             size = 0;
+            pthread_mutex_unlock(&mutex_espacio_memoria);
         }
         else {  
+            pthread_mutex_lock(&mutex_espacio_memoria);
             memcpy(elemento_a_guardar+cuanto_voy_guardando, espacio_memoria + df, memoria_disponible);
+            pthread_mutex_unlock(&mutex_espacio_memoria);
             size -= memoria_disponible;
             cuanto_voy_guardando += memoria_disponible; 
             marco = conseguir_siguiente_marco(pid,marco);
             df = marco * tam_pag;
+            
         }
     }
     if (tipo)
@@ -346,14 +356,16 @@ int hacer_pedido_escritura(t_list* lista){ // escribe en memoria en Little Endia
             if (memoria_disponible >= size) {
                 if (tipo)
                 {
-                    
+                    pthread_mutex_lock(&mutex_espacio_memoria);
                     memcpy(espacio_memoria + df, &elemento_a_insertar, size);
+                    pthread_mutex_unlock(&mutex_espacio_memoria);
                     resultado = 0;
                 }
                 else
                 {
-                    log_debug(logger, "Voy a escribir unchar*");
+                    pthread_mutex_lock(&mutex_espacio_memoria);
                     memcpy(espacio_memoria + df, elemento_a_insertar, size);
+                    pthread_mutex_unlock(&mutex_espacio_memoria);
                     resultado = 0;
                 }
                 size = 0;
@@ -361,13 +373,17 @@ int hacer_pedido_escritura(t_list* lista){ // escribe en memoria en Little Endia
             else {  
                 if (tipo)
                 {
+                    pthread_mutex_lock(&mutex_espacio_memoria);
                     memcpy(espacio_memoria + df, &elemento_a_insertar, memoria_disponible);
+                    pthread_mutex_unlock(&mutex_espacio_memoria);
                     size -= memoria_disponible;
                     elemento_a_insertar = ((uint32_t) elemento_a_insertar >> 8*memoria_disponible) & 0xFFFFFFFF;
                 }
                 else
                 {
+                    pthread_mutex_lock(&mutex_espacio_memoria);
                     memcpy(espacio_memoria + df, elemento_a_insertar, memoria_disponible);
+                    pthread_mutex_unlock(&mutex_espacio_memoria);
                     size -= memoria_disponible;
                     elemento_a_insertar += memoria_disponible;
                 }
@@ -377,7 +393,9 @@ int hacer_pedido_escritura(t_list* lista){ // escribe en memoria en Little Endia
                 log_debug(logger, "Direccion fisica donde comienzo a escribir: %u", df);
             }
         }
+        pthread_mutex_lock(&mutex_espacio_memoria);
         mem_hexdump(espacio_memoria, tam_memoria);
+        pthread_mutex_unlock(&mutex_espacio_memoria);
         return resultado;
 }
 
@@ -430,8 +448,9 @@ int crear_proceso(char *nombre_archivo, uint32_t process_id)
     //  paso de uint32_t a string
     char *string_pid = string_itoa((int)process_id);
 
+    pthread_mutex_lock(&mutex_procesos);
     dictionary_put(procesos, string_pid, proceso);
-
+    pthread_mutex_unlock(&mutex_procesos);
     // libero variables
     free(path_completo);
     free(string_pid);
@@ -455,7 +474,9 @@ t_memoria_proceso *encontrar_proceso(uint32_t pid)
     log_trace(logger, "Buscando proceso %d", pid);
     // busco el proceso en el diccionario de procesos
     char *string_pid = string_itoa((int)pid);
+    pthread_mutex_lock(&mutex_procesos);
     t_memoria_proceso *proceso = dictionary_get(procesos, string_pid);
+    pthread_mutex_unlock(&mutex_procesos);
     log_debug(logger, "Proceso encontrado %s", proceso->nombre_archivo);
     free(string_pid);
     return proceso;
@@ -465,7 +486,9 @@ void destruir_proceso(uint32_t pid)
 {
     // busco el proceso en el diccionario de procesos
     char *string_pid = string_itoa((int)pid);
+    pthread_mutex_lock(&mutex_procesos);
     t_memoria_proceso *proceso = dictionary_remove(procesos, string_pid);
+    pthread_mutex_unlock(&mutex_procesos);
     log_info(logger, "PID: <%u> - Tamaño: <%u>", pid, proceso->paginas_actuales);
     borrar_paginas(proceso, 0, proceso->paginas_actuales);
     // libero la memoria del proceso
@@ -608,7 +631,8 @@ void inicializar_modulo_memoria(int argc, char *argv[])
     tam_pag = config_get_int_value(config, "TAM_PAGINA");
     path = config_get_string_value(config, "PATH_INSTRUCCIONES");
     crear_espacio_memoria();
-
+    pthread_mutex_init(&mutex_espacio_memoria, NULL);
+    pthread_mutex_init(&mutex_procesos, NULL);
 }
 
 void testear_modulo_memoria()
@@ -712,6 +736,8 @@ void finalizar_modulo_memoria()
     bitarray_destroy(marcos);
     destruir_logger(logger);
     destruir_config(config);
+    pthread_mutex_destroy(&mutex_espacio_memoria);
+    pthread_mutex_destroy(&mutex_procesos);
 }
 
 void creacion_servidor_y_clientes()
