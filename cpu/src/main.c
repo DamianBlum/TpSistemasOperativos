@@ -30,7 +30,7 @@ bool interrupcion;
 
 // mutex para la variable interrupcion
 pthread_mutex_t mutex_interrupcion = PTHREAD_MUTEX_INITIALIZER;
-int interrupcion_init;
+//int interrupcion_init;
 
 // Linea de instruccion que llega de memoria
 char *linea_de_instruccion;
@@ -57,7 +57,8 @@ int main(int argc, char *argv[])
     // MMU va a ser otro hilo aparte
     // Inicializo las variables
     interrupcion = false;
-    interrupcion_init = pthread_mutex_init(&mutex_interrupcion, NULL);
+    //interrupcion_init = pthread_mutex_init(&mutex_interrupcion, NULL);
+    pthread_mutex_init(&mutex_interrupcion, NULL);
     registros = crear_registros();
     logger = iniciar_logger("cpu.log", "CPU", argc, argv);
     config = iniciar_config("cpu.config");
@@ -1064,7 +1065,10 @@ int conseguir_marco_en_la_tlb(uint32_t pid, uint32_t nro_pagina)
 
 int agregar_a_tlb(uint32_t pid, uint32_t nro_pagina, uint32_t nro_marco)
 {
-
+    if (tlb_size == 0)
+    {
+        return EXIT_FAILURE;
+    }
     for (int i = 0; i < tlb_size; i++)
     {
         // si encuentra un hueco libre, lo agrega ahi

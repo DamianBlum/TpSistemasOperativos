@@ -77,13 +77,14 @@ t_interfaz_default *crear_nueva_interfaz(char *nombre_archivo_config)
         interfaz->configs_especificas = tig;
         break;
     case STDIN:
-        t_interfaz_stdin *tisin = malloc(sizeof(t_interfaz_stdin));
+        t_interfaz_std *tisin = malloc(sizeof(t_interfaz_std));
         log_debug(logger, "Como soy una interfaz STDIN voy a crear la conexion con memoria.");
+        tisin->tiempo_unidad_trabajo = (uint32_t)config_get_long_value(config, "TIEMPO_UNIDAD_TRABAJO");
         tisin->conexion_memoria = crear_conexion(config, "IP_MEMORIA", "PUERTO_MEMORIA", logger);
         interfaz->configs_especificas = tisin;
         break;
     case STDOUT:
-        t_interfaz_stdout *tisout = malloc(sizeof(t_interfaz_stdout));
+        t_interfaz_std *tisout = malloc(sizeof(t_interfaz_std));
         log_debug(logger, "Como soy una interfaz STDOUT voy a crear la conexion con memoria.");
         tisout->tiempo_unidad_trabajo = (uint32_t)config_get_long_value(config, "TIEMPO_UNIDAD_TRABAJO");
         tisout->conexion_memoria = crear_conexion(config, "IP_MEMORIA", "PUERTO_MEMORIA", logger);
@@ -180,6 +181,9 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
     case STDIN:
         if (string_equals_ignore_case(nombre_instruccion, "IO_STDIN_READ"))
         {
+            t_interfaz_std *tisin = (t_interfaz_std *)interfaz->configs_especificas;
+            consumir_tiempo_trabajo(tisin->tiempo_unidad_trabajo, interfaz);
+
             log_trace(logger, "(%s|%u): Entre a IO_STDIN_READ.", interfaz->nombre, interfaz->tipo_interfaz);
             char *texto_ingresado;
             texto_ingresado = readline(">");
@@ -199,11 +203,15 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
             agregar_a_paquete(paquete_para_mem, dir, sizeof(uint32_t));              // Reg direc logica (en realidad aca mepa q recivo la fisica)
             agregar_a_paquete(paquete_para_mem, tamanio_registro, sizeof(uint32_t)); // Reg tam
             agregar_a_paquete(paquete_para_mem, pid, sizeof(uint32_t));              // PID
-            agregar_a_paquete(paquete_para_mem, texto_chiquito, strlen(texto_chiquito));
+            agregar_a_paquete(paquete_para_mem, texto_chiquito, strlen(texto_chiquito)+1);
             agregar_a_paquete(paquete_para_mem, 0, sizeof(uint8_t));
-            enviar_paquete(paquete_para_mem, (int)((t_interfaz_stdin *)interfaz->configs_especificas)->conexion_memoria, logger);
+            int conexion_memoria = (int)tisin->conexion_memoria;
+            enviar_paquete(paquete_para_mem, conexion_memoria , logger);
 
-            // aca podria esperar a ver q me dice memoria sobre esto
+            //Recibo el OK de memoria por el pedido de escritura
+            recibir_operacion(conexion_memoria, logger);
+            char* mensaje_memoria = recibir_mensaje(conexion_memoria, logger);
+            log_debug(logger, "(%s|%u): Resultado de la escritura en memoria: %s", interfaz->nombre, interfaz->tipo_interfaz, mensaje_memoria);
 
             ejecuto_correctamente = 1;
         }
@@ -217,7 +225,7 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
             uint32_t dir_fisica = list_get(datos_desde_kernel, 1);
             uint32_t tam_dato = list_get(datos_desde_kernel, 2);
             uint32_t pid = list_get(datos_desde_kernel, 3);
-            t_interfaz_stdout *tisout = (t_interfaz_stdout *)interfaz->configs_especificas;
+            t_interfaz_std *tisout = (t_interfaz_std *)interfaz->configs_especificas;
             int cm = (int)tisout->conexion_memoria;
 
             log_debug(logger, "(%s|%u): Direccion fisica: %u | Size dato: %u | PID: %u.", interfaz->nombre, interfaz->tipo_interfaz, dir_fisica, tam_dato, pid);
@@ -299,7 +307,7 @@ void consumir_tiempo_trabajo(uint32_t tiempo_en_ms, t_interfaz_default *interfaz
     uint32_t tiempo_en_micro_s = tiempo_en_ms * 1000;
     log_debug(logger, "(%s|%u): Tiempo a dormir en ms: %u", interfaz->nombre, interfaz->tipo_interfaz, tiempo_en_ms);
     log_trace(logger, "(%s|%u): Voy a hacer sleep por %u microsegundos.", interfaz->nombre, interfaz->tipo_interfaz, tiempo_en_micro_s);
-    usleep(tiempo_en_micro_s);
+    usleep(tiempo_en_micro_s); 
     log_trace(logger, "(%s|%u): Termino el sleep.", interfaz->nombre, interfaz->tipo_interfaz);
 }
 
