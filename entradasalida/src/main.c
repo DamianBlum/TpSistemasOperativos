@@ -589,6 +589,7 @@ void compactar(t_interfaz_dialfs *idialfs, char *archivo_agrandar, uint32_t nuev
     log_debug(logger, "Bloque inicial archivo_agrandar: %u", bloque_inicial);
     // primero voy a sacar el archivo q quiere agrandarse
     void *buffer = leer_en_archivo(idialfs, archivo_agrandar, size_archivo, 0);
+    mem_hexdump(buffer, size_archivo);
     limpiar_bitmap(idialfs, bloque_inicial, cant_bloques);
 
     // desp ejecuto el algoritmo para mover el resto de archivos hacia la izquierda
@@ -634,7 +635,13 @@ uint32_t aplicar_algoritmo_compactacion(t_interfaz_dialfs *idial)
             log_debug(logger, "Bloque ocupado en %d", i);
             t_config *config_archivo_a_mover = conseguir_config_archivo_por_inicio(idial, i);
             mover_archivo(idial, primer_bloque_libre, config_archivo_a_mover);
-            busco_bloque_libre = true;
+            uint32_t bloque_inicial = (uint32_t)config_get_int_value(config_archivo_a_mover, "BLOQUE_INICIAL");
+            uint32_t tamanio_archivo = (uint32_t)config_get_int_value(config_archivo_a_mover, "TAMANIO_ARCHIVO");
+            uint32_t cant_bloques = (uint32_t)ceil(tamanio_archivo / idial->block_size); // ceil redondea para arriba
+            uint32_t ultimo_bloque = bloque_inicial + cant_bloques;
+            
+            primer_bloque_libre =  ultimo_bloque;
+            i = ultimo_bloque-1;
         }
     }
     return primer_bloque_libre;
@@ -658,7 +665,7 @@ t_config *conseguir_config_archivo_por_inicio(t_interfaz_dialfs *idialfs, int i)
 
     bool lo_encontre = false;
 
-    while (directorio = readdir(d) && !lo_encontre)
+    while ((directorio = readdir(d)) && !lo_encontre)
     {
         if (string_ends_with(directorio->d_name, ".metadata"))
         {
@@ -666,7 +673,7 @@ t_config *conseguir_config_archivo_por_inicio(t_interfaz_dialfs *idialfs, int i)
             string_append(&path_completo, directorio->d_name);
             log_debug(logger, "Voy a ver si el archivo con el path %s es el que necesito", path_completo);
             config_archivo = config_create(path_completo);
-            uint32_t bloque_inicial = (uint32_t)config_get_int_value(config, "BLOQUE_INICIAL");
+            uint32_t bloque_inicial = (uint32_t)config_get_int_value(config_archivo, "BLOQUE_INICIAL");
             if (bloque_inicial == i)
             {
                 log_debug(logger, "El archivo con el inicio %d es el %s", i, path_completo);
@@ -683,15 +690,15 @@ t_config *conseguir_config_archivo_por_inicio(t_interfaz_dialfs *idialfs, int i)
 void mover_archivo(t_interfaz_dialfs *idialfs, int nuevo_origen, t_config *config_archivo)
 {
     log_debug(logger, "Voy a mover a un archivo su bloque inicial a %d", nuevo_origen);
-    uint32_t bloque_inicial = (uint32_t)config_get_int_value(config, "BLOQUE_INICIAL");
-    uint32_t size_archivo = (uint32_t)config_get_int_value(config, "TAMANIO_ARCHIVO");
+    uint32_t bloque_inicial = (uint32_t)config_get_int_value(config_archivo, "BLOQUE_INICIAL");
+    uint32_t size_archivo = (uint32_t)config_get_int_value(config_archivo, "TAMANIO_ARCHIVO");
     // 666
     uint32_t puntero_en_disco = (bloque_inicial * idialfs->block_size);
 
-    void *informacion_archivo = leer_bloque(idialfs->bloques->bloques, puntero_en_disco, size_archivo);
+    void *informacion_archivo = leer_bloque(idialfs->bloques, puntero_en_disco, size_archivo);
 
     config_set_value(config_archivo, "BLOQUE_INICIAL", string_itoa(nuevo_origen));
     puntero_en_disco = (nuevo_origen * idialfs->block_size);
 
-    escribir_bloque(idialfs->bloques->bloques, puntero_en_disco, size_archivo, informacion_archivo);
+    escribir_bloque(idialfs->bloques, puntero_en_disco, size_archivo, informacion_archivo);
 }
