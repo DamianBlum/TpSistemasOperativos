@@ -182,7 +182,7 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
     case STDIN:
         if (string_equals_ignore_case(nombre_instruccion, "IO_STDIN_READ"))
         {
-            t_interfaz_std *tisdin = (t_interfaz_stdin *)interfaz->configs_especificas;
+            t_interfaz_stdin *tisdin = (t_interfaz_stdin *)interfaz->configs_especificas;
             log_trace(logger, "(%s|%u): Entre a IO_STDIN_READ.", interfaz->nombre, interfaz->tipo_interfaz);
             char *texto_ingresado;
             texto_ingresado = readline(">");
@@ -223,7 +223,7 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
             uint32_t dir_fisica = list_get(datos_desde_kernel, 1);
             uint32_t tam_dato = list_get(datos_desde_kernel, 2);
             uint32_t pid = list_get(datos_desde_kernel, 3);
-            t_interfaz_std *tisout = (t_interfaz_std *)interfaz->configs_especificas;
+            t_interfaz_stdout *tisout = (t_interfaz_stdout *)interfaz->configs_especificas;
             int cm = (int)tisout->conexion_memoria;
 
             log_debug(logger, "(%s|%u): Direccion fisica: %u | Size dato: %u | PID: %u.", interfaz->nombre, interfaz->tipo_interfaz, dir_fisica, tam_dato, pid);
@@ -303,7 +303,7 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
             agregar_a_paquete(paquete_para_mem, dir_fisica_mem, sizeof(uint32_t)); // Reg direc logica (en realidad aca mepa q recivo la fisica)
             agregar_a_paquete(paquete_para_mem, size_dato, sizeof(uint32_t));      // Reg tam
             agregar_a_paquete(paquete_para_mem, pid, sizeof(uint32_t));            // PID
-            agregar_a_paquete(paquete_para_mem, resultado, size(resultado));
+            agregar_a_paquete(paquete_para_mem, resultado, sizeof(resultado));
             agregar_a_paquete(paquete_para_mem, 1, sizeof(uint8_t));
             enviar_paquete(paquete_para_mem, (int)((t_interfaz_dialfs *)interfaz->configs_especificas)->conexion_memoria, logger);
         }
@@ -572,8 +572,7 @@ void *leer_en_archivo(t_interfaz_dialfs *idialfs, char *nombre_archivo, uint32_t
     return leer_bloque(idialfs->bloques, puntero_archivo, size_archivo);
 }
 
-char *
-armar_path_metadata(char *nombre_archivo, char *path)
+char *armar_path_metadata(char *nombre_archivo, char *path)
 {
     char *path_metadata = string_duplicate(path);
     string_append(&path_metadata, nombre_archivo); // /dialfs/algo/nombre_archivo
