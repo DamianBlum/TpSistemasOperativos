@@ -109,6 +109,8 @@ t_interfaz_default *crear_nueva_interfaz(char *nombre_archivo_config)
         char *path_bitmap = string_duplicate(tid->path_base_dialfs);
         string_append(&path_bitmap, "bitmap.dat");
         tid->bitmap = crear_bitmap(path_bitmap, tid->block_count, logger);
+
+        compactar(tid, "archivo_de_prueba2", 2);
         break;
     default:
         break;
@@ -443,12 +445,7 @@ uint8_t borrar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
     uint32_t tamanio_archivo = (uint32_t)config_get_int_value(c, "TAMANIO_ARCHIVO");
     uint32_t cant_bloques = (uint32_t)ceil(tamanio_archivo / idial->block_size); // ceil redondea para arriba
 
-    // limpio el bitmap
-    for (uint32_t i = bloque_inicial; i < bloque_inicial + cant_bloques; i++)
-    {
-        if (!liberar_bloque(idial->bitmap, i)) // solamente lo printeo xq en si no es algo que me pueda dar un error
-            log_warning(logger, "El bloque ya se encontraba liberado");
-    }
+    limpiar_bitmap(idial, bloque_inicial, cant_bloques);
 
     // borro el .metadata
     uint8_t r = 1;
@@ -564,12 +561,12 @@ void *leer_en_archivo(t_interfaz_dialfs *idialfs, char *nombre_archivo, uint32_t
     t_config *config = config_create(path_metadata);
     uint32_t bloque_inicial = (uint32_t)config_get_int_value(config, "BLOQUE_INICIAL");
     uint32_t size_archivo = (uint32_t)config_get_int_value(config, "TAMANIO_ARCHIVO");
-    uint32_t puntero_en_disco = bloque_inicial * idialfs->block_size + puntero_archivo;
+    uint32_t puntero_en_disco = (bloque_inicial * idialfs->block_size) + puntero_archivo;
 
     if (puntero_en_disco + size_dato > bloque_inicial * idialfs->block_size + size_archivo)
         return 0;
 
-    return leer_bloque(idialfs->bloques, puntero_archivo, size_archivo);
+    return leer_bloque(idialfs->bloques, puntero_en_disco, size_archivo);
 }
 
 char *armar_path_metadata(char *nombre_archivo, char *path)
@@ -578,4 +575,123 @@ char *armar_path_metadata(char *nombre_archivo, char *path)
     string_append(&path_metadata, nombre_archivo); // /dialfs/algo/nombre_archivo
     string_append(&path_metadata, ".metadata");    // /dialfs/algo/nombre_archivo.txt
     return path_metadata;
+}
+
+void compactar(t_interfaz_dialfs *idialfs, char *archivo_agrandar, uint32_t nuevo_size)
+{
+    // consigo la info del archivo
+    char *path_metadata = armar_path_metadata(archivo_agrandar, idialfs->path_base_dialfs);
+    t_config *config = config_create(path_metadata);
+    uint32_t bloque_inicial = (uint32_t)config_get_int_value(config, "BLOQUE_INICIAL");
+    uint32_t size_archivo = (uint32_t)config_get_int_value(config, "TAMANIO_ARCHIVO");
+    uint32_t cant_bloques = (uint32_t)ceil(size_archivo / idialfs->block_size); // ceil redondea para arriba
+
+    log_debug(logger, "Bloque inicial archivo_agrandar: %u", bloque_inicial);
+    // primero voy a sacar el archivo q quiere agrandarse
+    void *buffer = leer_en_archivo(idialfs, archivo_agrandar, size_archivo, 0);
+    limpiar_bitmap(idialfs, bloque_inicial, cant_bloques);
+
+    // desp ejecuto el algoritmo para mover el resto de archivos hacia la izquierda
+    uint32_t ultimo_bloque_libre = aplicar_algoritmo_compactacion(idialfs);
+    log_debug(logger, "Mi archivo ahora va a arrancar en %u", ultimo_bloque_libre);
+
+    // meto al final al archivo q saque
+    config_set_value(config, "BLOQUE_INICIAL", string_itoa((int)ultimo_bloque_libre));
+    uint32_t puntero_en_disco = (ultimo_bloque_libre * idialfs->block_size);
+    config_set_value(config, "TAMANIO_ARCHIVO", string_itoa((int)nuevo_size));
+    escribir_bloque(idialfs->bloques->bloques, puntero_en_disco, nuevo_size, buffer);
+    log_debug(logger, "Se re-escribio el archivo a partir del bloque %u, con size %u", puntero_en_disco, size_archivo);
+    // lloro :´( 😭
+}
+
+void limpiar_bitmap(t_interfaz_dialfs *idial, uint32_t bloque_inicial, uint32_t cant_bloques)
+{
+    // limpio el bitmap
+    for (uint32_t i = bloque_inicial; i < bloque_inicial + cant_bloques; i++)
+    {
+        if (!liberar_bloque(idial->bitmap, i)) // solamente lo printeo xq en si no es algo que me pueda dar un error
+            log_warning(logger, "El bloque ya se encontraba liberado");
+        else
+            log_info(logger, "Se libero el bloque");
+    }
+}
+
+uint32_t aplicar_algoritmo_compactacion(t_interfaz_dialfs *idial)
+{
+    uint32_t primer_bloque_libre = 0;
+    uint8_t busco_bloque_libre = true;
+
+    for (int i = 0; i < idial->block_count; i++)
+    {
+        if (!esta_bloque_ocupado(idial->bitmap, i) && busco_bloque_libre)
+        {
+            log_debug(logger, "Bloque libre en %d", i);
+            primer_bloque_libre = i;
+            busco_bloque_libre = false;
+        }
+        if (esta_bloque_ocupado(idial->bitmap, i) && !busco_bloque_libre)
+        {
+            log_debug(logger, "Bloque ocupado en %d", i);
+            t_config *config_archivo_a_mover = conseguir_config_archivo_por_inicio(idial, i);
+            mover_archivo(idial, primer_bloque_libre, config_archivo_a_mover);
+            busco_bloque_libre = true;
+        }
+    }
+    return primer_bloque_libre;
+}
+
+t_config *conseguir_config_archivo_por_inicio(t_interfaz_dialfs *idialfs, int i)
+{
+    t_config *config_archivo;
+    DIR *d;
+    struct dirent *directorio;
+    char *base = string_duplicate("./");
+    string_append(&base, (idialfs->path_base_dialfs));
+    base = string_substring(base, 0, string_length(base) - 1);
+    log_debug(logger, "PATH: %s", base);
+    d = opendir(base);
+    if (d == NULL)
+    {
+        log_error(logger, "No se pudo abrir el directorio.");
+        return EXIT_FAILURE;
+    }
+
+    bool lo_encontre = false;
+
+    while (directorio = readdir(d) && !lo_encontre)
+    {
+        if (string_ends_with(directorio->d_name, ".metadata"))
+        {
+            char *path_completo = string_duplicate(idialfs->path_base_dialfs);
+            string_append(&path_completo, directorio->d_name);
+            log_debug(logger, "Voy a ver si el archivo con el path %s es el que necesito", path_completo);
+            config_archivo = config_create(path_completo);
+            uint32_t bloque_inicial = (uint32_t)config_get_int_value(config, "BLOQUE_INICIAL");
+            if (bloque_inicial == i)
+            {
+                log_debug(logger, "El archivo con el inicio %d es el %s", i, path_completo);
+                lo_encontre = true;
+            }
+            free(path_completo);
+        }
+    }
+    closedir(d);
+    free(base);
+    return config_archivo;
+}
+
+void mover_archivo(t_interfaz_dialfs *idialfs, int nuevo_origen, t_config *config_archivo)
+{
+    log_debug(logger, "Voy a mover a un archivo su bloque inicial a %d", nuevo_origen);
+    uint32_t bloque_inicial = (uint32_t)config_get_int_value(config, "BLOQUE_INICIAL");
+    uint32_t size_archivo = (uint32_t)config_get_int_value(config, "TAMANIO_ARCHIVO");
+    // 666
+    uint32_t puntero_en_disco = (bloque_inicial * idialfs->block_size);
+
+    void *informacion_archivo = leer_bloque(idialfs->bloques->bloques, puntero_en_disco, size_archivo);
+
+    config_set_value(config_archivo, "BLOQUE_INICIAL", string_itoa(nuevo_origen));
+    puntero_en_disco = (nuevo_origen * idialfs->block_size);
+
+    escribir_bloque(idialfs->bloques->bloques, puntero_en_disco, size_archivo, informacion_archivo);
 }

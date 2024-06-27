@@ -15,7 +15,7 @@ typedef struct
     char *path;
     uint32_t size_bloque;
     uint32_t cant_bloques;
-    char *bloques;
+    char *bloques; // mmap
 } t_bloques;
 
 t_bloques *crear_bloques(char *path, uint32_t cant_bloques, uint32_t tam_bloque, t_log *logger);
