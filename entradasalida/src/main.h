@@ -84,6 +84,7 @@ char *armar_path_metadata(char *nombre_archivo, char *path);
 uint8_t escribir_en_archivo(t_interfaz_dialfs *idialfs, char *nombre_archivo, uint32_t size_dato, uint32_t puntero_archivo, void *dato);
 void *leer_en_archivo(t_interfaz_dialfs *idialfs, char *nombre_archivo, uint32_t size_dato, uint32_t puntero_archivo);
 void limpiar_bitmap(t_interfaz_dialfs *idial, uint32_t bloque_inicial, uint32_t cant_bloques);
+void ocupar_bitmap(t_interfaz_dialfs *idial, uint32_t bloque_inicial, uint32_t cant_bloques);
 uint32_t aplicar_algoritmo_compactacion(t_interfaz_dialfs *idial);
 t_config *conseguir_config_archivo_por_inicio(t_interfaz_dialfs *idialfs, int i);
 void mover_archivo(t_interfaz_dialfs *idialfs, int nuevo_origen, t_config *config_archivo);

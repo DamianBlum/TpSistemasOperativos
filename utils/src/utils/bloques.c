@@ -41,5 +41,6 @@ uint8_t escribir_bloque(t_bloques *bloques, uint32_t puntero, uint32_t size_dato
 
 uint8_t limpiar_bloque(t_bloques *bloques, uint32_t pos_bloque)
 { // cuando asigno un bloque nuevo a un archivo, le pongo todo ceros para que no haya problemas de lectura desp
+    memset(bloques->bloques + pos_bloque, 0, bloques->size_bloque);
     return 0;
 }

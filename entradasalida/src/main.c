@@ -501,6 +501,9 @@ uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t
             config_save(config);
             resultado = 1;
         }
+        else {
+            compactar(idial, nombre_archivo, nuevo_size);
+        }
 
     } // si es menor no valido nada, interpreto que es valido perder informacion al truncar
     else
@@ -600,20 +603,36 @@ void compactar(t_interfaz_dialfs *idialfs, char *archivo_agrandar, uint32_t nuev
     config_set_value(config, "BLOQUE_INICIAL", string_itoa((int)ultimo_bloque_libre));
     uint32_t puntero_en_disco = (ultimo_bloque_libre * idialfs->block_size);
     config_set_value(config, "TAMANIO_ARCHIVO", string_itoa((int)nuevo_size));
-    escribir_bloque(idialfs->bloques->bloques, puntero_en_disco, nuevo_size, buffer);
+    ocupar_bitmap(idialfs, ultimo_bloque_libre, (uint32_t)ceil(nuevo_size / idialfs->block_size));
+    escribir_bloque(idialfs->bloques, puntero_en_disco, size_archivo, buffer);
     log_debug(logger, "Se re-escribio el archivo a partir del bloque %u, con size %u", puntero_en_disco, size_archivo);
     // lloro :´( 😭
 }
 
 void limpiar_bitmap(t_interfaz_dialfs *idial, uint32_t bloque_inicial, uint32_t cant_bloques)
 {
-    // limpio el bitmap
     for (uint32_t i = bloque_inicial; i < bloque_inicial + cant_bloques; i++)
     {
         if (!liberar_bloque(idial->bitmap, i)) // solamente lo printeo xq en si no es algo que me pueda dar un error
             log_warning(logger, "El bloque ya se encontraba liberado");
         else
             log_info(logger, "Se libero el bloque");
+    }
+}
+
+
+void ocupar_bitmap(t_interfaz_dialfs *idial, uint32_t bloque_inicial, uint32_t cant_bloques)
+{
+    for (uint32_t i = bloque_inicial; i < bloque_inicial + cant_bloques; i++)
+    {
+        if (!ocupar_bloque(idial->bitmap, i)) // solamente lo printeo xq en si no es algo que me pueda dar un error
+            log_warning(logger, "El bloque ya se encontraba ocupado (-_-)");
+        else
+        {
+            log_info(logger, "Se ocupo el bloque");
+            limpiar_bloque(idial->bloques, i);
+        }
+            
     }
 }
 
@@ -638,10 +657,8 @@ uint32_t aplicar_algoritmo_compactacion(t_interfaz_dialfs *idial)
             uint32_t bloque_inicial = (uint32_t)config_get_int_value(config_archivo_a_mover, "BLOQUE_INICIAL");
             uint32_t tamanio_archivo = (uint32_t)config_get_int_value(config_archivo_a_mover, "TAMANIO_ARCHIVO");
             uint32_t cant_bloques = (uint32_t)ceil(tamanio_archivo / idial->block_size); // ceil redondea para arriba
-            uint32_t ultimo_bloque = bloque_inicial + cant_bloques;
-            
-            primer_bloque_libre =  ultimo_bloque;
-            i = ultimo_bloque-1;
+            primer_bloque_libre =  bloque_inicial + cant_bloques;
+            i = primer_bloque_libre-1; // primer_bloque_libre = primer_bloque_libre -1
         }
     }
     return primer_bloque_libre;
@@ -692,13 +709,17 @@ void mover_archivo(t_interfaz_dialfs *idialfs, int nuevo_origen, t_config *confi
     log_debug(logger, "Voy a mover a un archivo su bloque inicial a %d", nuevo_origen);
     uint32_t bloque_inicial = (uint32_t)config_get_int_value(config_archivo, "BLOQUE_INICIAL");
     uint32_t size_archivo = (uint32_t)config_get_int_value(config_archivo, "TAMANIO_ARCHIVO");
-    // 666
     uint32_t puntero_en_disco = (bloque_inicial * idialfs->block_size);
-
+    uint32_t cant_bloques = (uint32_t)ceil(size_archivo / idialfs->block_size); // ceil redondea para arriba
+    uint32_t actual_ultimo_bloque = bloque_inicial + cant_bloques -1; //  1+1-1 = 1
+    uint32_t nuevo_ultimo_bloque = nuevo_origen + cant_bloques -1; // 0 +1-1 = 0 
+    uint32_t desplazamiento = bloque_inicial - nuevo_origen; // 1 - 0 = 1                                                           
     void *informacion_archivo = leer_bloque(idialfs->bloques, puntero_en_disco, size_archivo);
 
     config_set_value(config_archivo, "BLOQUE_INICIAL", string_itoa(nuevo_origen));
     puntero_en_disco = (nuevo_origen * idialfs->block_size);
-
+    ocupar_bitmap(idialfs, nuevo_origen, cant_bloques);
     escribir_bloque(idialfs->bloques, puntero_en_disco, size_archivo, informacion_archivo);
+    limpiar_bitmap(idialfs,nuevo_ultimo_bloque+1, desplazamiento);
+
 }
