@@ -110,7 +110,7 @@ t_interfaz_default *crear_nueva_interfaz(char *nombre_archivo_config)
         string_append(&path_bitmap, "bitmap.dat");
         tid->bitmap = crear_bitmap(path_bitmap, tid->block_count, logger);
 
-        compactar(tid, "archivo_de_prueba2", 2);
+        //compactar(tid, "archivo_de_prueba2", 2);
         break;
     default:
         break;
@@ -582,6 +582,7 @@ char *armar_path_metadata(char *nombre_archivo, char *path)
 
 void compactar(t_interfaz_dialfs *idialfs, char *archivo_agrandar, uint32_t nuevo_size)
 {
+    log_info(logger, "PID: <> - Inicio Compactación.")
     // consigo la info del archivo
     char *path_metadata = armar_path_metadata(archivo_agrandar, idialfs->path_base_dialfs);
     t_config *config = config_create(path_metadata);
