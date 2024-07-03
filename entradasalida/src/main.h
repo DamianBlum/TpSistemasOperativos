@@ -76,8 +76,8 @@ void manejo_de_interfaz(void *args);
 e_tipo_interfaz convertir_tipo_interfaz_enum(char *tipo_interfaz);
 t_interfaz_default *crear_nueva_interfaz(char *nombre_archivo_config);
 void consumir_tiempo_trabajo(uint32_t tiempo_en_ms, t_interfaz_default *interfaz);
-int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz, t_list *datos_desde_kernel);
-uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t nuevo_size);
+int ejecutar_instruccion(t_interfaz_default *interfaz, t_list *datos_desde_kernel);
+uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t nuevo_size, uint32_t pid);
 uint8_t borrar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo);
 uint8_t crear_archivo(t_interfaz_dialfs *idial, char *nombre_archivo);
 char *armar_path_metadata(char *nombre_archivo, char *path);
@@ -88,4 +88,5 @@ void ocupar_bitmap(t_interfaz_dialfs *idial, uint32_t bloque_inicial, uint32_t c
 uint32_t aplicar_algoritmo_compactacion(t_interfaz_dialfs *idial);
 t_config *conseguir_config_archivo_por_inicio(t_interfaz_dialfs *idialfs, int i);
 void mover_archivo(t_interfaz_dialfs *idialfs, int nuevo_origen, t_config *config_archivo);
+uint8_t hay_espacio_suficiente(t_interfaz_dialfs *idial, uint32_t nuevo_size);
 #endif

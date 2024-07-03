@@ -110,7 +110,7 @@ t_interfaz_default *crear_nueva_interfaz(char *nombre_archivo_config)
         string_append(&path_bitmap, "bitmap.dat");
         tid->bitmap = crear_bitmap(path_bitmap, tid->block_count, logger);
 
-        //compactar(tid, "archivo_de_prueba2", 2);
+        // compactar(tid, "archivo_de_prueba2", 2);
         break;
     default:
         break;
@@ -155,14 +155,18 @@ e_tipo_interfaz convertir_tipo_interfaz_enum(char *tipo_interfaz)
     return e_tipo_interfaz_;
 }
 
-int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz, t_list *datos_desde_kernel)
+int ejecutar_instruccion(t_interfaz_default *interfaz, t_list *datos_desde_kernel)
 {
+    char *nombre_instruccion = list_get(datos_desde_kernel, 0);
+    uint32_t pid = list_get(datos_desde_kernel, 1);
+
     int ejecuto_correctamente = 0; // 0 = Incorrecta o No esta asociada a la interfaz que tengo.
                                    // 1 = Ejecuto correctamente.
                                    // 2 = Falla en la ejecucion.
+
     log_trace(logger, "(%s|%u): me llego la instruccion: |%s|", interfaz->nombre, interfaz->tipo_interfaz, nombre_instruccion);
 
-    uint32_t pid = list_get(datos_desde_kernel, 1);
+    log_info(logger, "PID: <%u> - Operacion: <%s>", pid, nombre_instruccion); // log obligatorio
 
     switch (interfaz->tipo_interfaz)
     {
@@ -170,7 +174,7 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
         if (string_equals_ignore_case(nombre_instruccion, "IO_GEN_SLEEP"))
         {
             log_trace(logger, "(%s|%u): Entre a IO_GEN_SLEEP.", interfaz->nombre, interfaz->tipo_interfaz);
-            uint32_t cantidad_de_esperas = list_get(datos_desde_kernel, 1);
+            uint32_t cantidad_de_esperas = list_get(datos_desde_kernel, 2);
             uint32_t tiempo_espera = (uint32_t)((t_interfaz_generica *)interfaz->configs_especificas)->tiempo_unidad_trabajo;
             uint32_t espera_total = tiempo_espera * cantidad_de_esperas;
 
@@ -189,13 +193,12 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
             char *texto_ingresado;
             texto_ingresado = readline(">");
 
-            uint32_t dir = (uint32_t)list_get(datos_desde_kernel, 1);
-            uint32_t tamanio_registro = list_get(datos_desde_kernel, 2);
-            uint32_t pid = list_get(datos_desde_kernel, 3);
+            uint32_t dir = (uint32_t)list_get(datos_desde_kernel, 2);
+            uint32_t tamanio_registro = list_get(datos_desde_kernel, 3);
             log_debug(logger, "(%s|%u): Texto ingresado: %s | Direccion fisica: %u | Size registro: %u | PID: %u.", interfaz->nombre, interfaz->tipo_interfaz, texto_ingresado, dir, tamanio_registro, pid);
 
             // ahora q lo lei, lo voy a acortar si es necesario
-            char *texto_chiquito = string_substring_until(texto_ingresado, tamanio_registro);
+            char *texto_chiquito = string_substring_until(texto_ingresado, tamanio_registro - 1); // para dejar lugar al \0
             log_debug(logger, "(%s|%u): Texto ingresado despues de cortarlo: %s", interfaz->nombre, interfaz->tipo_interfaz, texto_chiquito);
 
             log_trace(logger, "(%s|%u): Le voy a enviar a memoria el texto para que lo escriba.", interfaz->nombre, interfaz->tipo_interfaz);
@@ -222,9 +225,8 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
         if (string_equals_ignore_case(nombre_instruccion, "IO_STDOUT_WRITE"))
         {
             log_trace(logger, "(%s|%u): Entre a IO_STDOUT_WRITE.", interfaz->nombre, interfaz->tipo_interfaz);
-            uint32_t dir_fisica = list_get(datos_desde_kernel, 1);
-            uint32_t tam_dato = list_get(datos_desde_kernel, 2);
-            uint32_t pid = list_get(datos_desde_kernel, 3);
+            uint32_t dir_fisica = list_get(datos_desde_kernel, 2);
+            uint32_t tam_dato = list_get(datos_desde_kernel, 3);
             t_interfaz_stdout *tisout = (t_interfaz_stdout *)interfaz->configs_especificas;
             int cm = (int)tisout->conexion_memoria;
 
@@ -264,39 +266,69 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
         {
             log_trace(logger, "(%s|%u): Entre a IO_FS_CREATE.", interfaz->nombre, interfaz->tipo_interfaz);
 
-            char *nombre_archivo = list_get(datos_desde_kernel, 1);
+            char *nombre_archivo = list_get(datos_desde_kernel, 2);
+
+            log_info(logger, "PID: <%u> - Crear Archivo: <%s>", pid, nombre_archivo); // log obligatorio
+
             ejecuto_correctamente = crear_archivo(idialfs, nombre_archivo);
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_DELETE"))
         {
             log_trace(logger, "(%s|%u): Entre a IO_FS_DELETE.", interfaz->nombre, interfaz->tipo_interfaz);
-            char *nombre_archivo = list_get(datos_desde_kernel, 1);
+            char *nombre_archivo = list_get(datos_desde_kernel, 2);
+
+            log_info(logger, "PID: <%u> - Eliminar Archivo: <%s>", pid, nombre_archivo); // log obligatorio
+
             ejecuto_correctamente = borrar_archivo(idialfs, nombre_archivo);
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_TRUNCATE"))
         {
             log_trace(logger, "(%s|%u): Entre a IO_FS_TRUNCATE.", interfaz->nombre, interfaz->tipo_interfaz);
-            char *nombre_archivo = list_get(datos_desde_kernel, 1);
-            uint32_t nuevo_size = list_get(datos_desde_kernel, 2);
-            ejecuto_correctamente = truncar_archivo(idialfs, nombre_archivo, nuevo_size);
+            char *nombre_archivo = list_get(datos_desde_kernel, 2);
+            uint32_t nuevo_size = list_get(datos_desde_kernel, 3);
+
+            log_info(logger, "PID: <%u> - Truncar Archivo: <%s> - Tamaño: <%u>", pid, nombre_archivo, nuevo_size); // log obligatorio
+
+            ejecuto_correctamente = truncar_archivo(idialfs, nombre_archivo, nuevo_size, pid);
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_WRITE"))
         { // IO_FS_WRITE Int4 notas.txt AX ECX EDX
             log_trace(logger, "(%s|%u): Entre a IO_FS_WRITE.", interfaz->nombre, interfaz->tipo_interfaz);
-            char *nombre_archivo = list_get(datos_desde_kernel, 1);
-            uint32_t size_dato = list_get(datos_desde_kernel, 2);
-            uint32_t puntero_archivo = list_get(datos_desde_kernel, 3);
-            void *dato = list_get(datos_desde_kernel, 4);
-            ejecuto_correctamente = escribir_en_archivo(idialfs, nombre_archivo, size_dato, puntero_archivo, dato);
+            char *nombre_archivo = list_get(datos_desde_kernel, 2);
+            uint32_t df = list_get(datos_desde_kernel, 3);
+            uint32_t size_dato = list_get(datos_desde_kernel, 4);
+            uint32_t puntero_archivo = list_get(datos_desde_kernel, 5);
+            int cm = (int)idialfs->conexion_memoria;
+            log_info(logger, "PID: <%u> - Leer Archivo: <%s> - Tamaño a Leer: <%u> - Puntero Archivo: <%u>", pid, nombre_archivo, size_dato, puntero_archivo); // log obligatorio
+
+            // leo la direccion en memoria para conseguir el dato a escribir en el archivo
+            log_trace(logger, "(%s|%u): Le voy a pedir a memoria la lectura de la direccion fisica %u.", interfaz->nombre, interfaz->tipo_interfaz, df);
+            t_paquete *pm = crear_paquete();
+            agregar_a_paquete(pm, PEDIDO_LECTURA, sizeof(PEDIDO_LECTURA));
+            agregar_a_paquete(pm, df, sizeof(uint32_t));
+            agregar_a_paquete(pm, size_dato, sizeof(uint32_t));
+            agregar_a_paquete(pm, pid, sizeof(uint32_t));
+            agregar_a_paquete(pm, 0, sizeof(uint8_t));
+            enviar_paquete(pm, cm, logger);
+
+            // esperar y printear el valor obtenido
+            recibir_operacion(cm, logger);
+            t_list *lista_recibida = recibir_paquete(cm, logger);
+            char *mensaje_obtenido = list_get(lista_recibida, 0);
+            log_debug(logger, "(%s|%u): Resultado de la lectura a memoria: %s", interfaz->nombre, interfaz->tipo_interfaz, mensaje_obtenido);
+
+            ejecuto_correctamente = escribir_en_archivo(idialfs, nombre_archivo, size_dato, puntero_archivo, mensaje_obtenido);
         }
         else if (string_equals_ignore_case(nombre_instruccion, "IO_FS_READ"))
         {
             log_trace(logger, "(%s|%u): Entre a IO_FS_READ.", interfaz->nombre, interfaz->tipo_interfaz);
 
             char *nombre_archivo = list_get(datos_desde_kernel, 2);
-            uint32_t size_dato = list_get(datos_desde_kernel, 3);
-            uint32_t puntero_archivo = list_get(datos_desde_kernel, 4);
-            uint32_t dir_fisica_mem = list_get(datos_desde_kernel, 5);
+            uint32_t dir_fisica_mem = list_get(datos_desde_kernel, 3);
+            uint32_t size_dato = list_get(datos_desde_kernel, 4);
+            uint32_t puntero_archivo = list_get(datos_desde_kernel, 5);
+
+            log_info(logger, "PID: <%u> - Escribir Archivo: <%s> - Tamaño a Escribir: <%u> - Puntero Archivo: <%u>", pid, nombre_archivo, size_dato, puntero_archivo); // log obligatorio
 
             void *resultado = leer_en_archivo(idialfs, nombre_archivo, size_dato, puntero_archivo);
 
@@ -306,7 +338,7 @@ int ejecutar_instruccion(char *nombre_instruccion, t_interfaz_default *interfaz,
             agregar_a_paquete(paquete_para_mem, size_dato, sizeof(uint32_t));      // Reg tam
             agregar_a_paquete(paquete_para_mem, pid, sizeof(uint32_t));            // PID
             agregar_a_paquete(paquete_para_mem, resultado, sizeof(resultado));
-            agregar_a_paquete(paquete_para_mem, 1, sizeof(uint8_t));
+            agregar_a_paquete(paquete_para_mem, 1, sizeof(uint8_t)); // ACA DESPUES VER EN LAS PRUEBAS SI ES CORRECTO PORNERLO EN 1 COMO STRING O QUE VAYA COMO NUMERO
             enviar_paquete(paquete_para_mem, (int)((t_interfaz_dialfs *)interfaz->configs_especificas)->conexion_memoria, logger);
         }
         else
@@ -348,8 +380,7 @@ void manejo_de_interfaz(void *args)
             t_list *lista = list_create();
             lista = recibir_paquete(interfaz->conexion_kernel, logger);
             log_info(logger, "Desde cliente %d | %s: Recibi un paquete.", interfaz->conexion_kernel, interfaz->nombre);
-            char *nombre_instruccion = list_get(lista, 0);
-            int resultado = ejecutar_instruccion(nombre_instruccion, interfaz, lista);
+            int resultado = ejecutar_instruccion(interfaz, lista);
 
             // le respondo a kernel
             log_trace(logger, "(%s|%u): Le voy a responder a kernel el resultado de la ejecucion: %u.", interfaz->nombre, interfaz->tipo_interfaz, resultado);
@@ -377,6 +408,7 @@ uint8_t crear_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
 
     // valido que el archivo ya no exista
     char *path_metadata = armar_path_metadata(nombre_archivo, idial->path_base_dialfs);
+    log_debug(logger, "Path armado: %s", path_metadata);
 
     if (access(path_metadata, F_OK) == 0)
     {
@@ -456,7 +488,7 @@ uint8_t borrar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
     return r;
 }
 
-uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t nuevo_size)
+uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t nuevo_size, uint32_t pid)
 {
     uint8_t resultado = 0;
     // consigo la info del archivo
@@ -471,6 +503,12 @@ uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t
         uint32_t pos_arranque = bloque_inicial + size_archivo; // esto es el primer bloque que le sigue al ultimo que ya tiene asignado el archivo
         uint8_t puedo_truncar = 1;
 
+        // caso especial SOLAMENTE si el el truncate es para un archivo recien creado (size 0)
+        if (size_archivo == 0)
+        { // esto es xq aunque yo en el bitmap le asigno un bloque al archivo cuando lo creo, en la metadata le tengo que poner tamanio 0
+            pos_arranque++;
+            bloques_a_agregar--;
+        }
         for (uint32_t i = pos_arranque; i < bloques_a_agregar; i++)
         { // se pueden dar 2 situacion por las cuales no pueda truncar:
             // 1- pido mas de lo que le queda al filesystem de espacio (desde mi pos actual, ej: hay 1024, estoy en la 700 y pido 500)
@@ -482,6 +520,7 @@ uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t
                 break;
             }
         }
+
         // trunco si se puede
         if (puedo_truncar)
         {
@@ -493,16 +532,25 @@ uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t
                 else
                     log_debug(logger, "Se pudo ocupar el bloque %u correctamente, faltan %u.", i, pos_arranque + bloques_a_agregar - i);
                 // limpio el bloque del archivo asi no tiene basura
-                limpiar_bloque(idial->bitmap, i);
+                limpiar_bloque(idial->bloques, i);
             }
+            log_debug(logger, "Termine de truncar. Voy a Modificar el archivo de metadata.");
 
             // seteo la metadata (solamente varia el size)
-            config_set_value(config, "TAMANIO_ARCHIVO", nuevo_size);
+            config_set_value(config, "TAMANIO_ARCHIVO", string_itoa(nuevo_size));
             config_save(config);
             resultado = 1;
         }
-        else {
+        else if (hay_espacio_suficiente(idial, nuevo_size))
+        {
+            log_info(logger, "PID: <%u> - Inicio Compactación.", pid);
             compactar(idial, nombre_archivo, nuevo_size);
+
+            log_info(logger, "PID: <%u> - Fin Compactación.", pid);
+        }
+        else
+        {
+            log_error(logger, "Es imposible truncar el archivo %s para el proceso %u, ya que no hay espacio suficiente.");
         }
 
     } // si es menor no valido nada, interpreto que es valido perder informacion al truncar
@@ -533,6 +581,17 @@ uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t
     free(path_metadata);
 
     return resultado;
+}
+
+uint8_t hay_espacio_suficiente(t_interfaz_dialfs *idial, uint32_t nuevo_size)
+{
+    uint32_t contador = 0;
+    for (uint32_t i = 0; i < idial->block_count; i++)
+    {
+        if (!esta_bloque_ocupado(idial->bitmap, i))
+            contador++;
+    }
+    return nuevo_size <= contador;
 }
 
 uint8_t escribir_en_archivo(t_interfaz_dialfs *idialfs, char *nombre_archivo, uint32_t size_dato, uint32_t puntero_archivo, void *dato)
@@ -582,7 +641,6 @@ char *armar_path_metadata(char *nombre_archivo, char *path)
 
 void compactar(t_interfaz_dialfs *idialfs, char *archivo_agrandar, uint32_t nuevo_size)
 {
-    log_info(logger, "PID: <> - Inicio Compactación.")
     // consigo la info del archivo
     char *path_metadata = armar_path_metadata(archivo_agrandar, idialfs->path_base_dialfs);
     t_config *config = config_create(path_metadata);
@@ -599,6 +657,8 @@ void compactar(t_interfaz_dialfs *idialfs, char *archivo_agrandar, uint32_t nuev
     // desp ejecuto el algoritmo para mover el resto de archivos hacia la izquierda
     uint32_t ultimo_bloque_libre = aplicar_algoritmo_compactacion(idialfs);
     log_debug(logger, "Mi archivo ahora va a arrancar en %u", ultimo_bloque_libre);
+
+    usleep(idialfs->retraso_compactacion * 1000);
 
     // meto al final al archivo q saque
     config_set_value(config, "BLOQUE_INICIAL", string_itoa((int)ultimo_bloque_libre));
@@ -621,7 +681,6 @@ void limpiar_bitmap(t_interfaz_dialfs *idial, uint32_t bloque_inicial, uint32_t 
     }
 }
 
-
 void ocupar_bitmap(t_interfaz_dialfs *idial, uint32_t bloque_inicial, uint32_t cant_bloques)
 {
     for (uint32_t i = bloque_inicial; i < bloque_inicial + cant_bloques; i++)
@@ -630,10 +689,9 @@ void ocupar_bitmap(t_interfaz_dialfs *idial, uint32_t bloque_inicial, uint32_t c
             log_warning(logger, "El bloque ya se encontraba ocupado (-_-)");
         else
         {
-            log_info(logger, "Se ocupo el bloque");
+            log_trace(logger, "Se ocupo el bloque");
             limpiar_bloque(idial->bloques, i);
         }
-            
     }
 }
 
@@ -658,8 +716,8 @@ uint32_t aplicar_algoritmo_compactacion(t_interfaz_dialfs *idial)
             uint32_t bloque_inicial = (uint32_t)config_get_int_value(config_archivo_a_mover, "BLOQUE_INICIAL");
             uint32_t tamanio_archivo = (uint32_t)config_get_int_value(config_archivo_a_mover, "TAMANIO_ARCHIVO");
             uint32_t cant_bloques = (uint32_t)ceil(tamanio_archivo / idial->block_size); // ceil redondea para arriba
-            primer_bloque_libre =  bloque_inicial + cant_bloques;
-            i = primer_bloque_libre-1; // primer_bloque_libre = primer_bloque_libre -1
+            primer_bloque_libre = bloque_inicial + cant_bloques;
+            i = primer_bloque_libre - 1; // primer_bloque_libre = primer_bloque_libre -1
         }
     }
     return primer_bloque_libre;
@@ -712,15 +770,14 @@ void mover_archivo(t_interfaz_dialfs *idialfs, int nuevo_origen, t_config *confi
     uint32_t size_archivo = (uint32_t)config_get_int_value(config_archivo, "TAMANIO_ARCHIVO");
     uint32_t puntero_en_disco = (bloque_inicial * idialfs->block_size);
     uint32_t cant_bloques = (uint32_t)ceil(size_archivo / idialfs->block_size); // ceil redondea para arriba
-    uint32_t actual_ultimo_bloque = bloque_inicial + cant_bloques -1; //  1+1-1 = 1
-    uint32_t nuevo_ultimo_bloque = nuevo_origen + cant_bloques -1; // 0 +1-1 = 0 
-    uint32_t desplazamiento = bloque_inicial - nuevo_origen; // 1 - 0 = 1                                                           
+    uint32_t actual_ultimo_bloque = bloque_inicial + cant_bloques - 1;          //  1+1-1 = 1
+    uint32_t nuevo_ultimo_bloque = nuevo_origen + cant_bloques - 1;             // 0 +1-1 = 0
+    uint32_t desplazamiento = bloque_inicial - nuevo_origen;                    // 1 - 0 = 1
     void *informacion_archivo = leer_bloque(idialfs->bloques, puntero_en_disco, size_archivo);
 
     config_set_value(config_archivo, "BLOQUE_INICIAL", string_itoa(nuevo_origen));
     puntero_en_disco = (nuevo_origen * idialfs->block_size);
     ocupar_bitmap(idialfs, nuevo_origen, cant_bloques);
     escribir_bloque(idialfs->bloques, puntero_en_disco, size_archivo, informacion_archivo);
-    limpiar_bitmap(idialfs,nuevo_ultimo_bloque+1, desplazamiento);
-
+    limpiar_bitmap(idialfs, nuevo_ultimo_bloque + 1, desplazamiento);
 }

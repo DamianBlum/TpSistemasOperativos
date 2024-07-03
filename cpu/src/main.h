@@ -45,7 +45,8 @@ typedef enum
     INSTRUCTION_EXIT
 } e_instruccion;
 
-typedef struct {
+typedef struct
+{
     int PID;
     uint32_t nro_pag;
     uint32_t nro_marco;
@@ -57,7 +58,7 @@ typedef void (*Agregar_datos_paquete)(t_paquete *, void *);
 int main(int argc, char *argv[]);
 void *servidor_dispatch(void *arg);
 void *servidor_interrupt(void *arg);
-char* componente_mmu(char* registro, uint32_t pid);
+char *componente_mmu(char *registro, uint32_t pid);
 int fetch();
 void decode();
 void execute();
@@ -67,4 +68,7 @@ void no_agregar_datos(t_paquete *paquete, void *datos);
 void agregar_datos_tiempo(t_paquete *paquete, void *datos);
 void agregar_datos_recurso(t_paquete *paquete, void *nombre_recurso);
 void agregar_datos_interfaz_std(t_paquete *paquete, void *datos);
+void agregar_datos_interfaz_create_delete(t_paquete *paquete, void *datos);
+void agregar_datos_interfaz_truncate(t_paquete *paquete, void *datos);
+void agregar_datos_interfaz_read_write(t_paquete *paquete, void *datos);
 #endif
