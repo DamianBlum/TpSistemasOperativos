@@ -513,7 +513,7 @@ void instruccion_io_fs_read()
     string_array_push(&datos_interfaz, nombre_archivo);
     string_array_push(&datos_interfaz, df);
     string_array_push(&datos_interfaz, valor_tamanio_string);
-    string_array_push(&datos_interfaz, valor_tamanio_string);
+    string_array_push(&datos_interfaz, valor_puntero_archivo_string);
     enviar_pcb(MOTIVO_DESALOJO_IO_FS_READ, agregar_datos_interfaz_read_write, datos_interfaz);
 
     ya_se_mando_pcb = true;
@@ -539,7 +539,7 @@ void instruccion_io_fs_write()
     string_array_push(&datos_interfaz, nombre_archivo);
     string_array_push(&datos_interfaz, df);
     string_array_push(&datos_interfaz, valor_tamanio_string);
-    string_array_push(&datos_interfaz, valor_tamanio_string);
+    string_array_push(&datos_interfaz, valor_puntero_archivo_string);
     enviar_pcb(MOTIVO_DESALOJO_IO_FS_WRITE, agregar_datos_interfaz_read_write, datos_interfaz);
 
     ya_se_mando_pcb = true;

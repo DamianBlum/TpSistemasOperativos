@@ -338,8 +338,13 @@ int ejecutar_instruccion(t_interfaz_default *interfaz, t_list *datos_desde_kerne
             agregar_a_paquete(paquete_para_mem, size_dato, sizeof(uint32_t));      // Reg tam
             agregar_a_paquete(paquete_para_mem, pid, sizeof(uint32_t));            // PID
             agregar_a_paquete(paquete_para_mem, resultado, sizeof(resultado));
-            agregar_a_paquete(paquete_para_mem, 1, sizeof(uint8_t)); // ACA DESPUES VER EN LAS PRUEBAS SI ES CORRECTO PORNERLO EN 1 COMO STRING O QUE VAYA COMO NUMERO
+            agregar_a_paquete(paquete_para_mem, 0, sizeof(uint8_t)); // ACA DESPUES VER EN LAS PRUEBAS SI ES CORRECTO PORNERLO EN 1 COMO STRING O QUE VAYA COMO NUMERO
             enviar_paquete(paquete_para_mem, (int)((t_interfaz_dialfs *)interfaz->configs_especificas)->conexion_memoria, logger);
+
+            recibir_operacion((int)((t_interfaz_dialfs *)interfaz->configs_especificas)->conexion_memoria, logger);
+            char *respuesta_memoria = recibir_mensaje((int)((t_interfaz_dialfs *)interfaz->configs_especificas)->conexion_memoria, logger);
+            if (string_equals_ignore_case(respuesta_memoria, "OK"))
+                ejecuto_correctamente = 1;
         }
         else
             log_error(logger, "ERROR: la instruccion pedida (%s) no corresponde a una interfaz generica.", nombre_instruccion);

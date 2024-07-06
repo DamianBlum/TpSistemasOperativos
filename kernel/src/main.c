@@ -1055,7 +1055,7 @@ void *atender_respuesta_proceso(void *arg)
                 uint32_t punterio_archivo_write = list_get(lista_respuesta_cpu, 17);
                 log_debug(logger, "Argumentos del IO_FS_WRITE: %s | %s | %u | %u | %u", nombre_interfaz_fs_write, nombre_archivo_write, df_fs_write, tamanio_fs_write, punterio_archivo_write);
 
-                t_manejo_bloqueados *tmb_dialfs_write = dictionary_get(diccionario_recursos_e_interfaces, nombre_interfaz_write);
+                t_manejo_bloqueados *tmb_dialfs_write = dictionary_get(diccionario_recursos_e_interfaces, nombre_interfaz_fs_write);
                 t_entrada_salida *tes_dialfs_write = (t_entrada_salida *)tmb_dialfs_write->datos_bloqueados;
 
                 // armo los datos
