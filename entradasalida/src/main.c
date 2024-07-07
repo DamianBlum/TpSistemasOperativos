@@ -484,6 +484,12 @@ uint8_t borrar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
 
     limpiar_bitmap(idial, bloque_inicial, cant_bloques);
 
+    // limpio todos los bloques de datos
+    for (uint32_t i = bloque_inicial; i < bloque_inicial + cant_bloques; i++)
+    {
+        limpiar_bloque(idial->bloques, i);
+    }
+
     // borro el .metadata
     uint8_t r = 1;
 
@@ -663,7 +669,7 @@ void compactar(t_interfaz_dialfs *idialfs, char *archivo_agrandar, uint32_t nuev
     uint32_t ultimo_bloque_libre = aplicar_algoritmo_compactacion(idialfs);
     log_debug(logger, "Mi archivo ahora va a arrancar en %u", ultimo_bloque_libre);
 
-    usleep(idialfs->retraso_compactacion * 1000);
+    usleep(idialfs->retraso_compactacion);
 
     // meto al final al archivo q saque
     config_set_value(config, "BLOQUE_INICIAL", string_itoa((int)ultimo_bloque_libre));
