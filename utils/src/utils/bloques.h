@@ -8,6 +8,7 @@
 #include <commons/log.h>
 #include <sys/mman.h>
 #include <fcntl.h>
+#include <string.h>
 #include <commons/memory.h>
 
 typedef struct
