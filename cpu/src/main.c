@@ -1070,7 +1070,7 @@ void agregar_datos_interfaz_read_write(t_paquete *paquete, void *datos)
     char *nombre_archivo = datos_interfaz[1];
     uint32_t df = (uint32_t)atoi(datos_interfaz[2]);
     uint32_t tamanio = (uint32_t)atoi(datos_interfaz[3]);
-    uint32_t puntero_archivo = (uint32_t)atoi(datos_interfaz[3]);
+    uint32_t puntero_archivo = (uint32_t)atoi(datos_interfaz[4]);
     agregar_a_paquete(paquete, nombre_interfaz, strlen(nombre_interfaz) + 1);
     agregar_a_paquete(paquete, nombre_archivo, strlen(nombre_archivo) + 1);
     agregar_a_paquete(paquete, df, sizeof(df));
