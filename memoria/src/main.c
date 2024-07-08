@@ -342,7 +342,7 @@ int hacer_pedido_escritura(t_list* lista){ // escribe en memoria en Little Endia
         uint32_t df = (uint32_t)list_get(lista, 1);
         uint32_t size = (uint32_t)list_get(lista, 2);
         uint32_t pid = (uint32_t)list_get(lista, 3);
-        void *elemento_a_insertar  = list_get(lista, 4);
+        void *elemento_a_insertar  = list_get(lista, 4); 
         uint8_t tipo = (uint8_t)list_get(lista, 5); // 0 si es char* y 1 si es uint32_t
         int resultado = -1; 
         uint32_t marco = floor(df / tam_pag);

@@ -197,7 +197,7 @@ int ejecutar_instruccion(t_interfaz_default *interfaz, t_list *datos_desde_kerne
             log_debug(logger, "(%s|%u): Texto ingresado: %s | Direccion fisica: %u | Size registro: %u | PID: %u.", interfaz->nombre, interfaz->tipo_interfaz, texto_ingresado, dir, tamanio_registro, pid);
 
             // ahora q lo lei, lo voy a acortar si es necesario
-            char *texto_chiquito = string_substring_until(texto_ingresado, tamanio_registro - 1); // para dejar lugar al \0
+            char *texto_chiquito = string_substring_until(texto_ingresado, tamanio_registro); // para dejar lugar al \0
             log_debug(logger, "(%s|%u): Texto ingresado despues de cortarlo: %s", interfaz->nombre, interfaz->tipo_interfaz, texto_chiquito);
 
             log_trace(logger, "(%s|%u): Le voy a enviar a memoria el texto para que lo escriba.", interfaz->nombre, interfaz->tipo_interfaz);
@@ -329,15 +329,15 @@ int ejecutar_instruccion(t_interfaz_default *interfaz, t_list *datos_desde_kerne
 
             log_info(logger, "PID: <%u> - Escribir Archivo: <%s> - Tamaño a Escribir: <%u> - Puntero Archivo: <%u>", pid, nombre_archivo, size_dato, puntero_archivo); // log obligatorio
 
-            void *resultado = leer_en_archivo(idialfs, nombre_archivo, size_dato, puntero_archivo);
+            char *resultado = (char*)leer_en_archivo(idialfs, nombre_archivo, size_dato, puntero_archivo);
 
             t_paquete *paquete_para_mem = crear_paquete();
             agregar_a_paquete(paquete_para_mem, PEDIDO_ESCRITURA, sizeof(uint8_t));
             agregar_a_paquete(paquete_para_mem, dir_fisica_mem, sizeof(uint32_t)); // Reg direc logica (en realidad aca mepa q recivo la fisica)
             agregar_a_paquete(paquete_para_mem, size_dato, sizeof(uint32_t));      // Reg tam
             agregar_a_paquete(paquete_para_mem, pid, sizeof(uint32_t));            // PID
-            agregar_a_paquete(paquete_para_mem, resultado, sizeof(resultado));
-            agregar_a_paquete(paquete_para_mem, 0, sizeof(uint8_t)); // ACA DESPUES VER EN LAS PRUEBAS SI ES CORRECTO PORNERLO EN 1 COMO STRING O QUE VAYA COMO NUMERO
+            agregar_a_paquete(paquete_para_mem, resultado, strlen(resultado)+1);
+            agregar_a_paquete(paquete_para_mem, 0, sizeof(uint8_t)); // 0 char* - 1 Numero
             enviar_paquete(paquete_para_mem, (int)((t_interfaz_dialfs *)interfaz->configs_especificas)->conexion_memoria, logger);
 
             recibir_operacion((int)((t_interfaz_dialfs *)interfaz->configs_especificas)->conexion_memoria, logger);
@@ -622,7 +622,7 @@ uint8_t escribir_en_archivo(t_interfaz_dialfs *idialfs, char *nombre_archivo, ui
     if (puntero_en_disco + size_dato > bloque_inicial * idialfs->block_size + size_archivo)
         return 0;
 
-    escribir_bloque(idialfs->bloques, puntero_archivo, size_dato, dato);
+    escribir_bloque(idialfs->bloques, puntero_en_disco, size_dato, dato);
 
     config_destroy(config);
 
