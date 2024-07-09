@@ -6,7 +6,11 @@ typedef enum
     GENERICA = 0,
     STDIN,
     STDOUT,
-    DIALFS,
+    DIALFS_CREATE,
+    DIALFS_DELETE,
+    DIALFS_TRUNCATE,
+    DIALFS_WRITE,
+    DIALFS_READ,
 } e_tipo_interfaz;
 
 #endif

@@ -342,7 +342,7 @@ int hacer_pedido_escritura(t_list* lista){ // escribe en memoria en Little Endia
         uint32_t df = (uint32_t)list_get(lista, 1);
         uint32_t size = (uint32_t)list_get(lista, 2);
         uint32_t pid = (uint32_t)list_get(lista, 3);
-        void *elemento_a_insertar  = list_get(lista, 4);
+        void *elemento_a_insertar  = list_get(lista, 4); 
         uint8_t tipo = (uint8_t)list_get(lista, 5); // 0 si es char* y 1 si es uint32_t
         int resultado = -1; 
         uint32_t marco = floor(df / tam_pag);
@@ -504,7 +504,7 @@ void crear_espacio_memoria()
     tam_memoria = config_get_int_value(config, "TAM_MEMORIA"); // 32 bytes
     cant_marcos = tam_memoria / tam_pag; // tam_pag = 4 bytes => 8 marcos
     espacio_memoria = malloc(tam_memoria);
-    int bytes_redondeados = ceil(cant_marcos / 8);
+    int bytes_redondeados = ceil( (double)cant_marcos / 8.0);
     void *puntero_a_bits = malloc(bytes_redondeados);
     marcos = bitarray_create_with_mode(puntero_a_bits, bytes_redondeados, MSB_FIRST);
 
@@ -608,7 +608,7 @@ int modificar_tamanio_proceso(t_list* lista)
     // si no las tengas voy desde la primera que necesito en adelante
     uint32_t pid = (uint32_t)list_get(lista, 2);
     t_memoria_proceso *proceso = encontrar_proceso(pid);
-    uint32_t paginas_necesarias = ceil(nuevo_tam / (uint32_t)tam_pag); // pense que ya redondeaba para arriba, fijarme eso!!
+    uint32_t paginas_necesarias = ceil((double)nuevo_tam / (double)tam_pag); // pense que ya redondeaba para arriba, fijarme eso!!
     uint32_t paginas_actuales = proceso->paginas_actuales;
     if (paginas_actuales>paginas_necesarias)
     {

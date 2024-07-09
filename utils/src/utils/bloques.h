@@ -8,6 +8,7 @@
 #include <commons/log.h>
 #include <sys/mman.h>
 #include <fcntl.h>
+#include <string.h>
 #include <commons/memory.h>
 
 typedef struct
@@ -15,12 +16,12 @@ typedef struct
     char *path;
     uint32_t size_bloque;
     uint32_t cant_bloques;
-    char *bloques;
+    char *bloques; // mmap
 } t_bloques;
 
 t_bloques *crear_bloques(char *path, uint32_t cant_bloques, uint32_t tam_bloque, t_log *logger);
 void *leer_dato_bloque(t_bloques *bloques, uint32_t pos_bloque, uint32_t size_dato_leer);
-void *leer_bloque(t_bloques *bloques, uint32_t pos_bloque, uint32_t offset);
-uint8_t escribir_bloque(t_bloques *bloques, uint32_t pos_bloque, uint32_t offset);
+void *leer_bloque(t_bloques *bloques, uint32_t puntero, uint32_t size_dato);
+uint8_t escribir_bloque(t_bloques *bloques, uint32_t puntero, uint32_t size_dato, void *dato);
 uint8_t limpiar_bloque(t_bloques *bloques, uint32_t pos_bloque);
 #endif

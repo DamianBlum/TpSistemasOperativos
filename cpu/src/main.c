@@ -30,7 +30,7 @@ bool interrupcion;
 
 // mutex para la variable interrupcion
 pthread_mutex_t mutex_interrupcion = PTHREAD_MUTEX_INITIALIZER;
-//int interrupcion_init;
+// int interrupcion_init;
 
 // Linea de instruccion que llega de memoria
 char *linea_de_instruccion;
@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
     // MMU va a ser otro hilo aparte
     // Inicializo las variables
     interrupcion = false;
-    //interrupcion_init = pthread_mutex_init(&mutex_interrupcion, NULL);
+    // interrupcion_init = pthread_mutex_init(&mutex_interrupcion, NULL);
     pthread_mutex_init(&mutex_interrupcion, NULL);
     registros = crear_registros();
     logger = iniciar_logger("cpu.log", "CPU", argc, argv);
@@ -118,7 +118,7 @@ void *servidor_dispatch(void *arg)
             // deberia recibir por aca un PCB para ponerme a ejercutar las instrucciones en el hilo principal
             desempaquetar_pcb_a_registros(lista, registros, logger); // aca pasa de los paquete a los registros
             // list_destroy_and_destroy_elements(lista);
-            log_debug(logger,"%u",list_get(lista,2));
+            log_debug(logger, "%u", list_get(lista, 2));
             break;
         case EXIT: // indica desconeccion
             log_error(logger, "Se desconecto el cliente %d.", socket_cliente_dispatch);
@@ -134,7 +134,7 @@ void *servidor_dispatch(void *arg)
         while (proceso_actual_ejecutando)
         {
             // ciclo de la instruccion en la cpu
-            int resultado =fetch();
+            int resultado = fetch();
             if (resultado == EXIT_FAILURE)
             {
                 proceso_actual_ejecutando = false;
@@ -142,7 +142,7 @@ void *servidor_dispatch(void *arg)
                 break;
             }
             decode();
-            execute(); 
+            execute();
             check_interrupt();
         }
 
@@ -293,7 +293,7 @@ int fetch()
     log_debug(logger, "Se envio el PID < %d > y el PC < %d > a memoria", registros->PID, registros->PC);
 
     // hay que recibir la operacion porque si no lee mal la instruccion, aunque no se use
-    int operacion =recibir_operacion(cliente_memoria, logger);
+    int operacion = recibir_operacion(cliente_memoria, logger);
 
     if (operacion == -1) // si no recibe operacion, es porque se rompio todo
     {
@@ -336,10 +336,10 @@ void decode()
         linea_de_instruccion_separada[2] = componente_mmu(linea_de_instruccion_separada[2], registros->PID);
         break;
     case IO_FS_WRITE:
-        linea_de_instruccion_separada[2] = componente_mmu(linea_de_instruccion_separada[2], registros->PID);
+        linea_de_instruccion_separada[3] = componente_mmu(linea_de_instruccion_separada[3], registros->PID);
         break;
     case IO_FS_READ:
-        linea_de_instruccion_separada[2] = componente_mmu(linea_de_instruccion_separada[2], registros->PID);
+        linea_de_instruccion_separada[3] = componente_mmu(linea_de_instruccion_separada[3], registros->PID);
         break;
     }
 
@@ -442,34 +442,111 @@ void instruccion_resize() // para probar
         enviar_pcb(MOTIVO_DESALOJO_OUT_OF_MEMORY, no_agregar_datos, NULL);
         proceso_actual_ejecutando = false; // https://github.com/sisoputnfrba/foro/issues/3799
         ya_se_mando_pcb = true;
-        
     }
     list_destroy(lista_de_memoria);
 }
 
 void instruccion_io_fs_create()
 {
-    log_info(logger, "PID: < %d > - Ejecutando: < SET > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
+    log_info(logger, "PID: < %d > - Ejecutando: < FS CREATE > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
+    char *nombre_interfaz = string_duplicate(linea_de_instruccion_separada[1]);
+    char *nombre_archivo = string_duplicate(linea_de_instruccion_separada[2]);
+
+    char **datos_interfaz = string_array_new();
+    string_array_push(&datos_interfaz, nombre_interfaz);
+    string_array_push(&datos_interfaz, nombre_archivo);
+    enviar_pcb(MOTIVO_DESALOJO_IO_FS_CREATE, agregar_datos_interfaz_create_delete, datos_interfaz);
+
+    ya_se_mando_pcb = true;
+    proceso_actual_ejecutando = false;
+    string_array_destroy(datos_interfaz); // tengo que destruir tambien a nombre_archivo y nombre_interfaz?
 }
 
 void instruccion_io_fs_delete()
 {
-    log_info(logger, "PID: < %d > - Ejecutando: < SET > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
+    log_info(logger, "PID: < %d > - Ejecutando: < FS DELETE > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
+    char *nombre_interfaz = string_duplicate(linea_de_instruccion_separada[1]);
+    char *nombre_archivo = string_duplicate(linea_de_instruccion_separada[2]);
+
+    char **datos_interfaz = string_array_new();
+    string_array_push(&datos_interfaz, nombre_interfaz);
+    string_array_push(&datos_interfaz, nombre_archivo);
+    enviar_pcb(MOTIVO_DESALOJO_IO_FS_DELETE, agregar_datos_interfaz_create_delete, datos_interfaz);
+
+    ya_se_mando_pcb = true;
+    proceso_actual_ejecutando = false;
+    string_array_destroy(datos_interfaz); // tengo que destruir tambien a nombre_archivo y nombre_interfaz?}
+}
+void instruccion_io_fs_truncate()
+{
+    log_info(logger, "PID: < %d > - Ejecutando: < FS TRUNCATE > - < %s %s %s>", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2], linea_de_instruccion_separada[3]);
+    char *nombre_interfaz = string_duplicate(linea_de_instruccion_separada[1]);
+    char *nombre_archivo = string_duplicate(linea_de_instruccion_separada[2]);
+    char *nombre_registro = string_duplicate(linea_de_instruccion_separada[3]);
+    char *valor_registro_string = string_itoa(obtenerValorRegistros(nombre_registro));
+
+    char **datos_interfaz = string_array_new();
+    string_array_push(&datos_interfaz, nombre_interfaz);
+    string_array_push(&datos_interfaz, nombre_archivo);
+    string_array_push(&datos_interfaz, valor_registro_string);
+    enviar_pcb(MOTIVO_DESALOJO_IO_FS_TRUNCATE, agregar_datos_interfaz_truncate, datos_interfaz);
+
+    ya_se_mando_pcb = true;
+    proceso_actual_ejecutando = false;
+    string_array_destroy(datos_interfaz); // tengo que destruir tambien a nombre_archivo y nombre_interfaz?}
+    free(nombre_registro);
 }
 
 void instruccion_io_fs_read()
 {
-    log_info(logger, "PID: < %d > - Ejecutando: < SET > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
-}
+    log_info(logger, "PID: < %d > - Ejecutando: < FS READ > - < %s %s %s %s %s>", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2], linea_de_instruccion_separada[3], linea_de_instruccion_separada[4], linea_de_instruccion_separada[5]);
+    char *nombre_interfaz = string_duplicate(linea_de_instruccion_separada[1]);
+    char *nombre_archivo = string_duplicate(linea_de_instruccion_separada[2]);
+    char *df = string_duplicate(linea_de_instruccion_separada[3]);
+    char *nombre_registro_tamanio = string_duplicate(linea_de_instruccion_separada[4]);
+    char *valor_tamanio_string = string_itoa(obtenerValorRegistros(nombre_registro_tamanio));
+    char *nombre_registro_puntero_archivo = string_duplicate(linea_de_instruccion_separada[5]);
+    char *valor_puntero_archivo_string = string_itoa(obtenerValorRegistros(nombre_registro_puntero_archivo));
 
-void instruccion_io_fs_truncate()
-{
-    log_info(logger, "PID: < %d > - Ejecutando: < SET > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
+    char **datos_interfaz = string_array_new();
+    string_array_push(&datos_interfaz, nombre_interfaz);
+    string_array_push(&datos_interfaz, nombre_archivo);
+    string_array_push(&datos_interfaz, df);
+    string_array_push(&datos_interfaz, valor_tamanio_string);
+    string_array_push(&datos_interfaz, valor_puntero_archivo_string);
+    enviar_pcb(MOTIVO_DESALOJO_IO_FS_READ, agregar_datos_interfaz_read_write, datos_interfaz);
+
+    ya_se_mando_pcb = true;
+    proceso_actual_ejecutando = false;
+    string_array_destroy(datos_interfaz); // tengo que destruir tambien a nombre_archivo y nombre_interfaz?}
+    free(nombre_registro_tamanio);
+    free(nombre_registro_puntero_archivo);
 }
 
 void instruccion_io_fs_write()
 {
-    log_info(logger, "PID: < %d > - Ejecutando: < SET > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
+    log_info(logger, "PID: < %d > - Ejecutando: < FS WRITE > - < %s %s %s %s %s>", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2], linea_de_instruccion_separada[3], linea_de_instruccion_separada[4], linea_de_instruccion_separada[5]);
+    char *nombre_interfaz = string_duplicate(linea_de_instruccion_separada[1]);
+    char *nombre_archivo = string_duplicate(linea_de_instruccion_separada[2]);
+    char *df = string_duplicate(linea_de_instruccion_separada[3]);
+    char *nombre_registro_tamanio = string_duplicate(linea_de_instruccion_separada[4]);
+    char *valor_tamanio_string = string_itoa(obtenerValorRegistros(nombre_registro_tamanio));
+    char *nombre_registro_puntero_archivo = string_duplicate(linea_de_instruccion_separada[5]);
+    char *valor_puntero_archivo_string = string_itoa(obtenerValorRegistros(nombre_registro_puntero_archivo));
+
+    char **datos_interfaz = string_array_new();
+    string_array_push(&datos_interfaz, nombre_interfaz);
+    string_array_push(&datos_interfaz, nombre_archivo);
+    string_array_push(&datos_interfaz, df);
+    string_array_push(&datos_interfaz, valor_tamanio_string);
+    string_array_push(&datos_interfaz, valor_puntero_archivo_string);
+    enviar_pcb(MOTIVO_DESALOJO_IO_FS_WRITE, agregar_datos_interfaz_read_write, datos_interfaz);
+
+    ya_se_mando_pcb = true;
+    proceso_actual_ejecutando = false;
+    string_array_destroy(datos_interfaz); // tengo que destruir tambien a nombre_archivo y nombre_interfaz?}
+    free(nombre_registro_puntero_archivo);
+    free(nombre_registro_tamanio);
 }
 
 void instruccion_io_stdin_read()
@@ -494,8 +571,8 @@ void instruccion_io_stdin_read()
 void instruccion_io_stdout_write()
 {
     log_info(logger, "PID: < %d > - Ejecutando: < IO_STDOUT_WRITE > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
-    char *df = (linea_de_instruccion_separada[2]);
-    char *nombreInterfaz = linea_de_instruccion_separada[1];
+    char *df = string_duplicate(linea_de_instruccion_separada[2]);
+    char *nombreInterfaz = string_duplicate(linea_de_instruccion_separada[1]);
     char *tamanio = string_itoa(obtenerValorRegistros(linea_de_instruccion_separada[3]));
 
     char **datos_interfaz_std = string_array_new();
@@ -705,7 +782,7 @@ void instruccion_copy_string() // para probar
     agregar_a_paquete(paquete_escritura, df_a_escribir, sizeof(df_a_escribir));
     agregar_a_paquete(paquete_escritura, tamanio, sizeof(tamanio));
     agregar_a_paquete(paquete_escritura, registros->PID, sizeof(registros->PID));
-    agregar_a_paquete(paquete_escritura, string_a_copiar, string_length(string_a_copiar)+1); // si rompe fijarse aca si es eso o un string len +1
+    agregar_a_paquete(paquete_escritura, string_a_copiar, string_length(string_a_copiar) + 1); // si rompe fijarse aca si es eso o un string len +1
     agregar_a_paquete(paquete_escritura, 0, sizeof(uint8_t));
     enviar_paquete(paquete_escritura, cliente_memoria, logger);
     recibir_operacion(cliente_memoria, logger);
@@ -919,7 +996,7 @@ int obtener_size_del_registro(char *registroCPU)
     }
     else
     {
-        log_error(logger, "NO SE PUDO OBTENER EL VALOR DEL REGISTRO: %s", registroCPU);
+        log_error(logger, "NO SE PUDO OBTENER EL SIZE DEL REGISTRO: %s", registroCPU);
         exit(EXIT_FAILURE);
     }
     return EXIT_SUCCESS;
@@ -960,10 +1037,45 @@ void agregar_datos_interfaz_std(t_paquete *paquete, void *datos)
     // convierto el tamanio y el df a uint32_t
     uint32_t tamanio = (uint32_t)atoi(datos_interfaz_stdin_read[2]);
     uint32_t df = (uint32_t)atoi(datos_interfaz_stdin_read[0]);
-    char *nombreInterfaz = datos_interfaz_stdin_read[1];
-    agregar_a_paquete(paquete, nombreInterfaz, strlen(nombreInterfaz) + 1);
+    char *nombre_interfaz = datos_interfaz_stdin_read[1];
+    agregar_a_paquete(paquete, nombre_interfaz, strlen(nombre_interfaz) + 1);
     agregar_a_paquete(paquete, df, sizeof(df));
     agregar_a_paquete(paquete, tamanio, sizeof(tamanio));
+}
+
+void agregar_datos_interfaz_create_delete(t_paquete *paquete, void *datos)
+{
+    char **datos_interfaz = (char **)datos;
+    char *nombre_interfaz = datos_interfaz[0];
+    char *nombre_archivo = datos_interfaz[1];
+    agregar_a_paquete(paquete, nombre_interfaz, strlen(nombre_interfaz) + 1);
+    agregar_a_paquete(paquete, nombre_archivo, strlen(nombre_archivo) + 1);
+}
+
+void agregar_datos_interfaz_truncate(t_paquete *paquete, void *datos)
+{
+    char **datos_interfaz = (char **)datos;
+    char *nombre_interfaz = datos_interfaz[0];
+    char *nombre_archivo = datos_interfaz[1];
+    uint32_t tamanio = (uint32_t)atoi(datos_interfaz[2]);
+    agregar_a_paquete(paquete, nombre_interfaz, strlen(nombre_interfaz) + 1);
+    agregar_a_paquete(paquete, nombre_archivo, strlen(nombre_archivo) + 1);
+    agregar_a_paquete(paquete, tamanio, sizeof(tamanio));
+}
+
+void agregar_datos_interfaz_read_write(t_paquete *paquete, void *datos)
+{
+    char **datos_interfaz = (char **)datos;
+    char *nombre_interfaz = datos_interfaz[0];
+    char *nombre_archivo = datos_interfaz[1];
+    uint32_t df = (uint32_t)atoi(datos_interfaz[2]);
+    uint32_t tamanio = (uint32_t)atoi(datos_interfaz[3]);
+    uint32_t puntero_archivo = (uint32_t)atoi(datos_interfaz[4]);
+    agregar_a_paquete(paquete, nombre_interfaz, strlen(nombre_interfaz) + 1);
+    agregar_a_paquete(paquete, nombre_archivo, strlen(nombre_archivo) + 1);
+    agregar_a_paquete(paquete, df, sizeof(df));
+    agregar_a_paquete(paquete, tamanio, sizeof(tamanio));
+    agregar_a_paquete(paquete, puntero_archivo, sizeof(puntero_archivo));
 }
 
 void agregar_datos_tiempo(t_paquete *paquete, void *datos)

@@ -189,7 +189,7 @@ void *atender_servidor_io(void *arg)
     // Este servidor solamente se encarga de conectar los clientes de io y crear los hilos que los van a atender
     socket_servidor = iniciar_servidor(config, "PUERTO_ESCUCHA");
 
-    log_info(logger, "Servidor %d creado.", socket_servidor);
+    log_debug(logger, "Servidor %d creado.", socket_servidor);
 
     while (true)
     {
@@ -218,6 +218,7 @@ void *atender_cliente_io(void *arg)
         enviar_paquete(resp, cliente_io, logger);
         return EXIT_FAILURE;
     }
+
     // list_add(lista_de_entradas_salidas, crear_interfaz(nombreInterfaz, cliente_io));
     crear_interfaz(nombreInterfaz, cliente_io);
     agregar_a_paquete(resp, 0, sizeof(uint8_t)); // interfaz creada en kernel con exito
@@ -254,14 +255,16 @@ void *atender_cliente_io(void *arg)
                 uint32_t cant = list_get(lista_de_parametros, 0);
 
                 agregar_a_paquete(paquete_para_io, "IO_GEN_SLEEP", strlen("IO_GEN_SLEEP") + 1);
+                agregar_a_paquete(paquete_para_io, (uint32_t)list_get(lista_de_parametros, 1), sizeof(uint32_t));
                 agregar_a_paquete(paquete_para_io, cant, sizeof(uint32_t));
-                // agregar_a_paquete(paquete_para_io, tes->nombre_interfaz, strlen(tes->nombre_interfaz) + 1);
+
                 break;
             case STDIN:
                 uint32_t dir_stdin = list_get(lista_de_parametros, 0);
                 uint32_t size_reg_stdin = list_get(lista_de_parametros, 1);
 
                 agregar_a_paquete(paquete_para_io, "IO_STDIN_READ", strlen("IO_STDIN_READ") + 1);
+                agregar_a_paquete(paquete_para_io, (uint32_t)list_get(lista_de_parametros, 2), sizeof(uint32_t));
                 agregar_a_paquete(paquete_para_io, dir_stdin, sizeof(uint32_t));
                 agregar_a_paquete(paquete_para_io, size_reg_stdin, sizeof(uint32_t));
                 break;
@@ -270,17 +273,61 @@ void *atender_cliente_io(void *arg)
                 uint32_t size_reg_stdout = list_get(lista_de_parametros, 1);
 
                 agregar_a_paquete(paquete_para_io, "IO_STDOUT_WRITE", strlen("IO_STDOUT_WRITE") + 1);
+                agregar_a_paquete(paquete_para_io, (uint32_t)list_get(lista_de_parametros, 2), sizeof(uint32_t));
                 agregar_a_paquete(paquete_para_io, dir_stdout, sizeof(uint32_t));
                 agregar_a_paquete(paquete_para_io, size_reg_stdout, sizeof(uint32_t));
 
                 break;
-            case DIALFS:
-                log_warning(logger, "Todavia no implementado");
+            case DIALFS_CREATE:
+                char *nombre_archivo_c = list_get(lista_de_parametros, 0);
+                agregar_a_paquete(paquete_para_io, "IO_FS_CREATE", strlen("IO_FS_CREATE") + 1);
+                agregar_a_paquete(paquete_para_io, (uint32_t)list_get(lista_de_parametros, 1), sizeof(uint32_t));
+                agregar_a_paquete(paquete_para_io, nombre_archivo_c, strlen(nombre_archivo_c) + 1);
+
+                break;
+            case DIALFS_DELETE:
+                char *nombre_archivo_d = list_get(lista_de_parametros, 0);
+                agregar_a_paquete(paquete_para_io, "IO_FS_DELETE", strlen("IO_FS_DELETE") + 1);
+                agregar_a_paquete(paquete_para_io, (uint32_t)list_get(lista_de_parametros, 0), sizeof(uint32_t));
+                agregar_a_paquete(paquete_para_io, nombre_archivo_d, strlen(nombre_archivo_d) + 1);
+
+                break;
+            case DIALFS_TRUNCATE:
+                char *nombre_archivo_t = list_get(lista_de_parametros, 0);
+                uint32_t tamanio_t = list_get(lista_de_parametros, 2);
+                agregar_a_paquete(paquete_para_io, "IO_FS_TRUNCATE", strlen("IO_FS_TRUNCATE") + 1);
+                agregar_a_paquete(paquete_para_io, (uint32_t)list_get(lista_de_parametros, 1), sizeof(uint32_t));
+                agregar_a_paquete(paquete_para_io, nombre_archivo_t, strlen(nombre_archivo_t) + 1);
+                agregar_a_paquete(paquete_para_io, tamanio_t, sizeof(tamanio_t));
+
+                break;
+            case DIALFS_READ:
+                char *nombre_archivo_r = list_get(lista_de_parametros, 0);
+                uint32_t df_r = list_get(lista_de_parametros, 2);
+                uint32_t tamanio_r = list_get(lista_de_parametros, 3);
+                uint32_t puntero_archivo_r = list_get(lista_de_parametros, 4);
+                agregar_a_paquete(paquete_para_io, "IO_FS_READ", strlen("IO_FS_READ") + 1);
+                agregar_a_paquete(paquete_para_io, (uint32_t)list_get(lista_de_parametros, 1), sizeof(uint32_t));
+                agregar_a_paquete(paquete_para_io, nombre_archivo_r, strlen(nombre_archivo_r) + 1);
+                agregar_a_paquete(paquete_para_io, df_r, sizeof(df_r));
+                agregar_a_paquete(paquete_para_io, tamanio_r, sizeof(tamanio_r));
+                agregar_a_paquete(paquete_para_io, puntero_archivo_r, sizeof(puntero_archivo_r));
+
+                break;
+            case DIALFS_WRITE:
+                char *nombre_archivo_w = list_get(lista_de_parametros, 0);
+                uint32_t df_w = list_get(lista_de_parametros, 2);
+                uint32_t tamanio_w = list_get(lista_de_parametros, 3);
+                uint32_t puntero_archivo_w = list_get(lista_de_parametros, 4);
+                agregar_a_paquete(paquete_para_io, "IO_FS_WRITE", strlen("IO_FS_WRITE") + 1);
+                agregar_a_paquete(paquete_para_io, (uint32_t)list_get(lista_de_parametros, 1), sizeof(uint32_t));
+                agregar_a_paquete(paquete_para_io, nombre_archivo_w, strlen(nombre_archivo_w) + 1);
+                agregar_a_paquete(paquete_para_io, df_w, sizeof(df_w));
+                agregar_a_paquete(paquete_para_io, tamanio_w, sizeof(tamanio_w));
+                agregar_a_paquete(paquete_para_io, puntero_archivo_w, sizeof(puntero_archivo_w));
+
                 break;
             }
-
-            // siempre al final envio el PID
-            agregar_a_paquete(paquete_para_io, pid_con_datos->pid, sizeof(uint32_t));
 
             enviar_paquete(paquete_para_io, tes->cliente, logger);
 
@@ -339,14 +386,14 @@ void eliminar_proceso(uint32_t id)
 
     // si yo tengo un recurso asignado y me van a matar lo tengo que liberar, por lo tanto valido si algun proceso puede ser desbloqueado, si es el caso tengo que hacer blocked a ready
 
-
-    if (pcb_a_finalizar == NULL) {
+    if (pcb_a_finalizar == NULL)
+    {
         log_error(logger, "El proceso %d no existe.");
         return;
     }
     e_estado_proceso estado = pcb_a_finalizar->estado;
     // hay que hacer lo de buscar el recurso que tengo disponible
-    
+
     sacarle_sus_recursos(pcb_a_finalizar->processID); // busca en los recursos donde esta el proceso y lo aumento y le aviso por si alguno se puede desbloquear
 
     // lo saco de queue
@@ -375,8 +422,6 @@ void eliminar_proceso(uint32_t id)
     }
 }
 
-
-
 bool eliminar_id_de_la_cola(t_queue *cola, uint32_t id) // si lo encontre y elimine, retorno true, si no false
 {
     if (queue_is_empty(cola))
@@ -403,20 +448,21 @@ bool eliminar_id_de_la_cola_blocked(t_queue *cola, uint32_t id)
     if (queue_is_empty(cola))
         return false;
     bool loEncontre = false;
-    t_pid_con_datos* primerId = queue_pop(cola);
+    t_pid_con_datos *primerId = queue_pop(cola);
     if (primerId->pid != id)
     {
         queue_push(cola, primerId);
         while (queue_peek(cola) != primerId) // ya di toda la vuelta
         {
-            t_pid_con_datos* idActual = queue_pop(cola);
+            t_pid_con_datos *idActual = queue_pop(cola);
             if (idActual->pid == id)
                 loEncontre = true; // es el id q tengo q sacar
             else
                 queue_push(cola, idActual);
         }
     }
-    else {
+    else
+    {
         loEncontre = true;
     }
     return loEncontre;
@@ -489,7 +535,7 @@ void evaluar_READY_a_EXEC() // hilar (me olvide xq xD), (me acorde y no lo voy a
 {
     log_trace(logger, "Voy a evaluar si puedo mover un proceso de READY a EXEC (asignar un proceso al CPU).");
     if (queue_is_empty(cola_RUNNING) && (!queue_is_empty(cola_READY) || !queue_is_empty(cola_READY_PRIORITARIA)) && !esta_planificacion_pausada) // valido q no este nadie corriendo, ready no este vacio y la planificacion no este pausada
-    {                                                                                               // tengo q hacer algo distinto segun cada algoritmo de planificacion
+    {                                                                                                                                            // tengo q hacer algo distinto segun cada algoritmo de planificacion
         uint32_t id;
 
         switch (algoritmo_planificacion)
@@ -610,13 +656,14 @@ void evaluar_READY_a_EXIT(t_PCB *pcb)
 
 void evaluar_BLOCKED_a_EXIT(t_PCB *pcb)
 {
-    t_manejo_bloqueados* tmb = conseguir_tmb(pcb->processID); // si me interesa tener esta tmb y la funcion me permite eliminar a este de blocked
+    t_manejo_bloqueados *tmb = conseguir_tmb(pcb->processID); // si me interesa tener esta tmb y la funcion me permite eliminar a este de blocked
     // Tambien se recupera el recurso del proceso bloqueado que se pidio antes :p
-    if (tmb->identificador == RECURSO) {
+    if (tmb->identificador == RECURSO)
+    {
         t_manejo_recursos *tmr = (t_manejo_recursos *)tmb->datos_bloqueados;
-        tmr->instancias_recursos++; 
+        tmr->instancias_recursos++;
     }
-    
+
     log_trace(logger, "Voy a mover el proceso %d de BLOCKED a EXIT.", pcb->processID);
     // libero la memoria
     liberar_memoria(pcb->processID);
@@ -629,7 +676,7 @@ void evaluar_BLOCKED_a_EXIT(t_PCB *pcb)
     log_debug(logger, "Grado de multiprogramacion actual: %d", cant_procesos_ejecutando);
 }
 
-t_manejo_bloqueados* conseguir_tmb(uint32_t id)
+t_manejo_bloqueados *conseguir_tmb(uint32_t id)
 {
     for (uint8_t i = 0; i < dictionary_size(diccionario_recursos_e_interfaces); i++) // podria ser un poquito mas lindo esto pero bueno, andar anda
     {
@@ -646,7 +693,7 @@ t_manejo_bloqueados* conseguir_tmb(uint32_t id)
         case INTERFAZ:
             t_entrada_salida *tes = (t_entrada_salida *)tmb->datos_bloqueados;
             wait_interfaz(tes);
-            if (eliminar_id_de_la_cola_blocked(tmb->cola_bloqueados, id)) 
+            if (eliminar_id_de_la_cola_blocked(tmb->cola_bloqueados, id))
             {
                 return tmb;
             }
@@ -673,7 +720,7 @@ void evaluar_EXEC_a_BLOCKED(char *key, t_list *lista) // antes era recurso, ahor
         case RECURSO:
             pid_con_datos = malloc(sizeof(t_pid_con_datos));
             pid_con_datos->pid = pcb->processID;
-            log_trace(logger,"proceso bloqueado %u", pid_con_datos->pid);
+            log_trace(logger, "proceso bloqueado %u", pid_con_datos->pid);
             queue_push(tmb->cola_bloqueados, pid_con_datos);
             break;
         case INTERFAZ:
@@ -759,7 +806,7 @@ void evaluar_BLOCKED_a_READY(t_manejo_bloqueados *tmb)
 void evaluar_EXEC_a_EXIT()
 {
     uint32_t id = (uint32_t)queue_pop(cola_RUNNING);
-    
+
     log_trace(logger, "Voy a mover el proceso %d de EXEC a EXIT.", id);
 
     liberar_memoria(id);
@@ -895,6 +942,7 @@ void *atender_respuesta_proceso(void *arg)
                 t_list *l_io_sleep = list_create();
                 list_add(l_io_sleep, GENERICA);
                 list_add(l_io_sleep, cant);
+                list_add(l_io_sleep, pcb_en_running->processID);
 
                 // estos wait y signal NO van xq adentro del la funcion hago otros, por lo tanto termino en una especie de deadlock xq hago wait 2 veces y nunca llego al signal
                 // wait_interfaz(tes_sleep);
@@ -917,6 +965,7 @@ void *atender_respuesta_proceso(void *arg)
                 list_add(l_io_stdin_read, STDIN);
                 list_add(l_io_stdin_read, df_stdin);
                 list_add(l_io_stdin_read, tamanio_stdin);
+                list_add(l_io_stdin_read, pcb_en_running->processID);
 
                 evaluar_EXEC_a_BLOCKED(nombre_interfaz_stdin, l_io_stdin_read);
 
@@ -936,20 +985,114 @@ void *atender_respuesta_proceso(void *arg)
                 list_add(l_io_stdout_write, STDOUT);
                 list_add(l_io_stdout_write, df_write);
                 list_add(l_io_stdout_write, tamanio_write);
+                list_add(l_io_stdout_write, pcb_en_running->processID);
 
                 evaluar_EXEC_a_BLOCKED(nombre_interfaz_write, l_io_stdout_write);
 
                 sigo_esperando_cosas_de_cpu = false;
                 break;
             case MOTIVO_DESALOJO_IO_FS_CREATE:
+                char *nombre_interfaz_create = list_get(lista_respuesta_cpu, 13);
+                char *nombre_archivo_create = list_get(lista_respuesta_cpu, 14);
+                log_debug(logger, "Argumentos del IO_FS_CREATE: %s | %s", nombre_interfaz_create, nombre_archivo_create);
+
+                t_manejo_bloqueados *tmb_dialfs_create = dictionary_get(diccionario_recursos_e_interfaces, nombre_interfaz_create);
+                t_entrada_salida *tes_dialfs_create = (t_entrada_salida *)tmb_dialfs_create->datos_bloqueados;
+
+                // armo los datos
+                t_list *l_io_fs_create = list_create();
+                list_add(l_io_fs_create, DIALFS_CREATE);
+                list_add(l_io_fs_create, nombre_archivo_create);
+                list_add(l_io_fs_create, pcb_en_running->processID);
+
+                evaluar_EXEC_a_BLOCKED(nombre_interfaz_create, l_io_fs_create);
+
+                sigo_esperando_cosas_de_cpu = false;
                 break;
             case MOTIVO_DESALOJO_IO_FS_DELETE:
+                char *nombre_interfaz_delete = list_get(lista_respuesta_cpu, 13);
+                char *nombre_archivo_delete = list_get(lista_respuesta_cpu, 14);
+                log_debug(logger, "Argumentos del IO_FS_DELETE: %s | %s", nombre_interfaz_delete, nombre_archivo_delete);
+
+                t_manejo_bloqueados *tmb_dialfs_delete = dictionary_get(diccionario_recursos_e_interfaces, nombre_interfaz_delete);
+                t_entrada_salida *tes_dialfs_delete = (t_entrada_salida *)tmb_dialfs_delete->datos_bloqueados;
+
+                // armo los datos
+                t_list *l_io_fs_delete = list_create();
+                list_add(l_io_fs_delete, DIALFS_DELETE);
+                list_add(l_io_fs_delete, nombre_archivo_delete);
+                list_add(l_io_fs_delete, pcb_en_running->processID);
+
+                evaluar_EXEC_a_BLOCKED(nombre_interfaz_delete, l_io_fs_delete);
+
+                sigo_esperando_cosas_de_cpu = false;
                 break;
             case MOTIVO_DESALOJO_IO_FS_TRUNCATE:
+                char *nombre_interfaz_truncate = list_get(lista_respuesta_cpu, 13);
+                char *nombre_archivo_truncate = list_get(lista_respuesta_cpu, 14);
+                uint32_t tamanio_truncate = list_get(lista_respuesta_cpu, 15);
+                log_debug(logger, "Argumentos del IO_FS_TRUNCATE: %s | %s | %u", nombre_interfaz_truncate, nombre_archivo_truncate, tamanio_truncate);
+
+                t_manejo_bloqueados *tmb_dialfs_truncate = dictionary_get(diccionario_recursos_e_interfaces, nombre_interfaz_truncate);
+                t_entrada_salida *tes_dialfs_truncate = (t_entrada_salida *)tmb_dialfs_truncate->datos_bloqueados;
+
+                // armo los datos
+                t_list *l_io_fs_truncate = list_create();
+                list_add(l_io_fs_truncate, DIALFS_TRUNCATE);
+                list_add(l_io_fs_truncate, nombre_archivo_truncate);
+                list_add(l_io_fs_truncate, pcb_en_running->processID);
+                list_add(l_io_fs_truncate, tamanio_truncate);
+
+                evaluar_EXEC_a_BLOCKED(nombre_interfaz_truncate, l_io_fs_truncate);
+
+                sigo_esperando_cosas_de_cpu = false;
                 break;
             case MOTIVO_DESALOJO_IO_FS_WRITE:
+                char *nombre_interfaz_fs_write = list_get(lista_respuesta_cpu, 13);
+                char *nombre_archivo_write = list_get(lista_respuesta_cpu, 14);
+                uint32_t df_fs_write = list_get(lista_respuesta_cpu, 15);
+                uint32_t tamanio_fs_write = list_get(lista_respuesta_cpu, 16);
+                uint32_t punterio_archivo_write = list_get(lista_respuesta_cpu, 17);
+                log_debug(logger, "Argumentos del IO_FS_WRITE: %s | %s | %u | %u | %u", nombre_interfaz_fs_write, nombre_archivo_write, df_fs_write, tamanio_fs_write, punterio_archivo_write);
+
+                t_manejo_bloqueados *tmb_dialfs_write = dictionary_get(diccionario_recursos_e_interfaces, nombre_interfaz_fs_write);
+                t_entrada_salida *tes_dialfs_write = (t_entrada_salida *)tmb_dialfs_write->datos_bloqueados;
+
+                // armo los datos
+                t_list *l_io_fs_write = list_create();
+                list_add(l_io_fs_write, DIALFS_WRITE);
+                list_add(l_io_fs_write, nombre_archivo_write);
+                list_add(l_io_fs_write, pcb_en_running->processID);
+                list_add(l_io_fs_write, df_fs_write);
+                list_add(l_io_fs_write, tamanio_fs_write);
+                list_add(l_io_fs_write, punterio_archivo_write);
+                evaluar_EXEC_a_BLOCKED(nombre_interfaz_fs_write, l_io_fs_write);
+
+                sigo_esperando_cosas_de_cpu = false;
                 break;
             case MOTIVO_DESALOJO_IO_FS_READ:
+                char *nombre_interfaz_read = list_get(lista_respuesta_cpu, 13);
+                char *nombre_archivo_read = list_get(lista_respuesta_cpu, 14);
+                uint32_t df_read = list_get(lista_respuesta_cpu, 15);
+                uint32_t tamanio_read = list_get(lista_respuesta_cpu, 16);
+                uint32_t punterio_archivo_read = list_get(lista_respuesta_cpu, 17);
+                log_debug(logger, "Argumentos del IO_FS_READ: %s | %s | %u | %u | %u", nombre_interfaz_read, nombre_archivo_read, df_read, tamanio_read, punterio_archivo_read);
+
+                t_manejo_bloqueados *tmb_dialfs_read = dictionary_get(diccionario_recursos_e_interfaces, nombre_interfaz_read);
+                t_entrada_salida *tes_dialfs_read = (t_entrada_salida *)tmb_dialfs_read->datos_bloqueados;
+
+                // armo los datos
+                t_list *l_io_fs_read = list_create();
+                list_add(l_io_fs_read, DIALFS_READ);
+                list_add(l_io_fs_read, nombre_archivo_read);
+                list_add(l_io_fs_read, pcb_en_running->processID);
+                list_add(l_io_fs_read, df_read);
+                list_add(l_io_fs_read, tamanio_read);
+                list_add(l_io_fs_read, punterio_archivo_read);
+
+                evaluar_EXEC_a_BLOCKED(nombre_interfaz_read, l_io_fs_read);
+
+                sigo_esperando_cosas_de_cpu = false;
                 break;
             default:
                 log_error(logger, "Recibi cualquier cosa como motivo de desalojo");
@@ -963,7 +1106,7 @@ void *atender_respuesta_proceso(void *arg)
             sigo_esperando_cosas_de_cpu = false;
         }
     }
-     // lo hago aca al final xq es cuando se q el proceso fue desalojado
+    // lo hago aca al final xq es cuando se q el proceso fue desalojado
     log_trace(logger, "Termino el hilo para el proceso %d.", idProcesoActual);
 }
 
@@ -995,7 +1138,7 @@ uint8_t asignar_recurso(char *recurso, t_PCB *pcb)
         // hasta aca llegue (los logs de abajo no los hace)
         t_manejo_recursos *manejo_recurso = (t_manejo_recursos *)tmb->datos_bloqueados;
         log_debug(logger, "Valor del recurso %s antes de modificarlo: %d", recurso, manejo_recurso->instancias_recursos);
-        
+
         manejo_recurso->instancias_recursos -= 1;
         log_debug(logger, "Valor del recurso %s desp de modifiarlo: %d", recurso, manejo_recurso->instancias_recursos);
 
@@ -1008,7 +1151,6 @@ uint8_t asignar_recurso(char *recurso, t_PCB *pcb)
             list_add(manejo_recurso->lista_procesos_usando_recurso, pcb->processID);
             r = 0; // lo devuelvo sin bloquear
         }
-
     }
     else
     { // cagaste
@@ -1036,8 +1178,6 @@ uint8_t desasignar_recurso(char *recurso, t_PCB *pcb)
     }
     return r;
 }
-
-
 
 t_manejo_bloqueados *crear_manejo_bloqueados(e_tipo_bloqueado identificador)
 {
@@ -1186,37 +1326,41 @@ void signal_interfaz(t_entrada_salida *tes)
     pthread_mutex_unlock(&(tes->mutex));
 }
 
-void sacarle_sus_recursos(uint32_t pid) 
-{   
+void sacarle_sus_recursos(uint32_t pid)
+{
     log_trace(logger, "Voy a sacarle los recursos al proceso %d.", pid);
     for (uint8_t i = 0; i < dictionary_size(diccionario_recursos_e_interfaces); i++) // podria ser un poquito mas lindo esto pero bueno, andar anda
     {
         t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos_e_interfaces, list_get(dictionary_keys(diccionario_recursos_e_interfaces), i));
-        if(tmb->identificador == RECURSO) {
+        if (tmb->identificador == RECURSO)
+        {
             t_manejo_recursos *manejo_recurso = (t_manejo_recursos *)tmb->datos_bloqueados;
-           
+
             bool seElimino = eliminar_id_lista(manejo_recurso->lista_procesos_usando_recurso, pid);
-            
-            if (seElimino) {
-                log_trace(logger, "Se le saco un recurso al proceso %d.",pid);
-                manejo_recurso->instancias_recursos ++;
+
+            if (seElimino)
+            {
+                log_trace(logger, "Se le saco un recurso al proceso %d.", pid);
+                manejo_recurso->instancias_recursos++;
                 evaluar_BLOCKED_a_READY(tmb);
             }
         }
     }
 }
 
-bool eliminar_id_lista(t_list* lista, uint32_t id) 
+bool eliminar_id_lista(t_list *lista, uint32_t id)
 {
     bool seElimino = false;
-    
-    for (uint32_t i = 0; i < list_size(lista); i++) {
+
+    for (uint32_t i = 0; i < list_size(lista); i++)
+    {
         uint32_t id_lista = (uint32_t)list_get(lista, i);
-        if (id_lista == id) {
+        if (id_lista == id)
+        {
             uint32_t elemento = (uint32_t)list_remove(lista, i);
             seElimino = true;
             break;
         }
-    } 
+    }
     return seElimino;
 }
