@@ -358,8 +358,7 @@ int ejecutar_instruccion(t_interfaz_default *interfaz, t_list *datos_desde_kerne
 void consumir_tiempo_trabajo(uint32_t tiempo_en_ms, t_interfaz_default *interfaz)
 {
     uint32_t tiempo_en_micro_s = tiempo_en_ms * 1000;
-    log_debug(logger, "(%s|%u): Tiempo a dormir en ms: %u", interfaz->nombre, interfaz->tipo_interfaz, tiempo_en_ms);
-    log_trace(logger, "(%s|%u): Voy a hacer sleep por %u microsegundos.", interfaz->nombre, interfaz->tipo_interfaz, tiempo_en_micro_s);
+    log_trace(logger, "(%s|%u): Voy a hacer sleep por %u milisegundos.", interfaz->nombre, interfaz->tipo_interfaz, tiempo_en_ms);
     usleep(tiempo_en_micro_s);
     log_trace(logger, "(%s|%u): Termino el sleep.", interfaz->nombre, interfaz->tipo_interfaz);
 }
@@ -378,14 +377,15 @@ void manejo_de_interfaz(void *args)
         case MENSAJE:
             char *mensaje = recibir_mensaje(interfaz->conexion_kernel, logger);
             log_info(logger, "Desde cliente %d | %s: Recibi el mensaje: %s.", interfaz->conexion_kernel, interfaz->nombre, mensaje);
-            // hago algo con el mensaje
+            free(mensaje);
+            // realemente nunca le va a mandar un mensaje pero lo dejo por si acaso
             break;
         case PAQUETE:
             t_list *lista = list_create();
             lista = recibir_paquete(interfaz->conexion_kernel, logger);
             log_info(logger, "Desde cliente %d | %s: Recibi un paquete.", interfaz->conexion_kernel, interfaz->nombre);
             int resultado = ejecutar_instruccion(interfaz, lista);
-
+            // habria que destruir la lista REVISAR
             // le respondo a kernel
             log_trace(logger, "(%s|%u): Le voy a responder a kernel el resultado de la ejecucion: %u.", interfaz->nombre, interfaz->tipo_interfaz, resultado);
             t_paquete *paquete_resp_kernel = crear_paquete();
@@ -403,7 +403,7 @@ void manejo_de_interfaz(void *args)
         }
     }
     liberar_conexion(interfaz->conexion_kernel, logger);
-    // liberar_conexion(interfaz->conexion_memoria, logger);
+    // liberar_conexion(interfaz->conexion_memoria, logger); ¿Por que está comentado? REVISAR
     return EXIT_SUCCESS;
 }
 
@@ -426,7 +426,7 @@ uint8_t crear_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
         uint8_t hay_espacio = 1;
         if (esta_bloque_ocupado(idial->bitmap, i))
         {
-            log_debug(logger, "Bloque %u ocupado, me quedan %u.", i, idial->block_count - (i + 1));
+            log_trace(logger, "Bloque %u ocupado, me quedan %u.", i, idial->block_count - (i + 1));
             hay_espacio = 0;
         }
 
@@ -437,7 +437,7 @@ uint8_t crear_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
             log_trace(logger, "Se encontro un espacio (bloque: %u) para guardar el archivo %s.", i, nombre_archivo);
 
             if (!ocupar_bloque(idial->bitmap, i))
-                log_error(logger, "Error al intentar ocupar el bloque %u para el archivo %s", i, nombre_archivo);
+                log_error(logger, "Error al intentar ocupar el bloque %u para el archivo %s", i, nombre_archivo); // por que habria error? REVISAR
             else
                 log_debug(logger, "Se ocupo el bloque %u para el archivo %s", i, nombre_archivo);
 
@@ -495,7 +495,8 @@ uint8_t borrar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
 
     if (remove(path_metadata))
         r = 0; // error al borrar el archivo
-
+    config_destroy(c); // esto no estaba puesto, despues ver si no rompe nada 9/7/24
+    free(path_metadata); // esto no estaba puesto, despues ver si no rompe nada 9/7/24
     return r;
 }
 
@@ -623,7 +624,7 @@ uint8_t escribir_en_archivo(t_interfaz_dialfs *idialfs, char *nombre_archivo, ui
         return 0;
 
     escribir_bloque(idialfs->bloques, puntero_en_disco, size_dato, dato);
-
+    free(path_metadata); // esto no estaba puesto, despues ver si no rompe nada 9/7/24
     config_destroy(config);
 
     return 1;
@@ -637,6 +638,9 @@ void *leer_en_archivo(t_interfaz_dialfs *idialfs, char *nombre_archivo, uint32_t
     uint32_t bloque_inicial = (uint32_t)config_get_int_value(config, "BLOQUE_INICIAL");
     uint32_t size_archivo = (uint32_t)config_get_int_value(config, "TAMANIO_ARCHIVO");
     uint32_t puntero_en_disco = (bloque_inicial * idialfs->block_size) + puntero_archivo;
+
+    config_destroy(config); // esto no estaba puesto, despues ver si no rompe nada 9/7/24
+    free(path_metadata); // esto no estaba puesto, despues ver si no rompe nada 9/7/24
 
     if (puntero_en_disco + size_dato > bloque_inicial * idialfs->block_size + size_archivo)
         return 0;
