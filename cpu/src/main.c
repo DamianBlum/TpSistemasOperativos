@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
 
     pthread_join(tid[DISPATCH], NULL);
     pthread_join(tid[INTERRUPT], NULL);
-    pthread_join(tid[MMU], NULL);
+    // pthread_join(tid[MMU], NULL); // esto no estaba puesto, despues ver si no rompe nada 9/7/24
 
     liberar_conexion(cliente_memoria, logger);
 
@@ -89,6 +89,7 @@ int main(int argc, char *argv[])
     destruir_config(config);
     destruir_logger(logger);
     string_array_destroy(linea_de_instruccion_separada);
+    free(TLB);
     return 0;
 }
 
@@ -108,7 +109,7 @@ void *servidor_dispatch(void *arg)
         {
         case MENSAJE:
             char *mensaje = recibir_mensaje(socket_cliente_dispatch, logger);
-            log_info(logger, "Recibi el mensaje: %s.", mensaje);
+            log_debug(logger, "Recibi el mensaje: %s.", mensaje);
             free(mensaje);
             break;
         case PAQUETE:
@@ -117,8 +118,8 @@ void *servidor_dispatch(void *arg)
             log_trace(logger, "CPU recibe un PCB desde Kernel");
             // deberia recibir por aca un PCB para ponerme a ejercutar las instrucciones en el hilo principal
             desempaquetar_pcb_a_registros(lista, registros, logger); // aca pasa de los paquete a los registros
-            // list_destroy_and_destroy_elements(lista);
-            log_debug(logger, "%u", list_get(lista, 2));
+
+            list_destroy(lista); // esto no estaba puesto, despues ver si no rompe nada 9/7/24
             break;
         case EXIT: // indica desconeccion
             log_error(logger, "Se desconecto el cliente %d.", socket_cliente_dispatch);
@@ -169,19 +170,23 @@ void *servidor_interrupt(void *arg) // por aca va a recibir un bit cuando quiere
         {
         case MENSAJE:
             char *mensaje = recibir_mensaje(socket_cliente_interrupt, logger);
-            log_info(logger, "Recibi el mensaje: %s.", mensaje);
+            log_debug(logger, "Recibi el mensaje: %s.", mensaje);
             // no deberia haber ningun caso de este estilo
+
+            free(mensaje); // esto no estaba puesto, despues ver si no rompe nada 9/7/24
             break;
         case PAQUETE:
             t_list *lista = list_create();
             lista = recibir_paquete(socket_cliente_interrupt, logger);
-            log_info(logger, "Recibi el id del que se va a interrumpir: %d.", list_get(lista, 0));
+            log_info(logger, "Se va a interrumpir el proceso con id < %d > ", list_get(lista, 0));
             // el paquete tiene el id pero no me importa, nomas ahora cambiar interrupcion a true
 
             // al modificar la variable global, necesito que no se interrumpa en el medio
             pthread_mutex_lock(&mutex_interrupcion);
             interrupcion = true;
             pthread_mutex_unlock(&mutex_interrupcion);
+
+            list_destroy(lista); // esto no estaba puesto, despues ver si no rompe nada 9/7/24
             break;
         case EXIT: // indica desconeccion
             log_error(logger, "Se desconecto el cliente %d.", socket_cliente_interrupt);
@@ -281,7 +286,7 @@ e_instruccion parsear_instruccion(char *instruccionString)
 int fetch()
 {
     // Buscamos la siguiente instruccion con el pc en memoria y la asignamos a la variable instruccion
-    log_info(logger, "PID: < %d > - FETCH - Program Counter: < %d >", registros->PID, registros->PC);
+    log_info(logger, "PID: < %d > - FETCH - Program Counter: < %d >", registros->PID, registros->PC); //OBLIGATORIO
 
     // creacion del paquete a enviar
     t_paquete *envioMemoria = crear_paquete();
@@ -290,7 +295,7 @@ int fetch()
     agregar_a_paquete(envioMemoria, registros->PC, sizeof(registros->PC));
     enviar_paquete(envioMemoria, cliente_memoria, logger);
 
-    log_debug(logger, "Se envio el PID < %d > y el PC < %d > a memoria", registros->PID, registros->PC);
+    log_trace(logger, "Se envio el PID < %d > y el PC < %d > a memoria", registros->PID, registros->PC);
 
     // hay que recibir la operacion porque si no lee mal la instruccion, aunque no se use
     int operacion = recibir_operacion(cliente_memoria, logger);
@@ -305,14 +310,13 @@ int fetch()
     log_debug(logger, "La instruccion leida es: < %s >", linea_de_instruccion);
 
     registros->PC++;
-    // liberamos el paquete
     return EXIT_SUCCESS;
 }
 
 void decode()
 {
     // divide la instruccion en partes y la asigna a la variable instruccion el nombre de la misma
-    linea_de_instruccion_separada = string_split(linea_de_instruccion, " ");
+    linea_de_instruccion_separada = string_split(linea_de_instruccion, " "); //REVISAR
     instruccion = parsear_instruccion(linea_de_instruccion_separada[0]);
 
     // para saber si hay que hacer un uso de la MMU
@@ -348,7 +352,6 @@ void decode()
 
 void execute()
 {
-    log_trace(logger, "Estoy en el execute");
     // en base al nombre de la misma utilizamos una funcion distinta
     switch (instruccion)
     {
@@ -415,14 +418,13 @@ void execute()
     }
 }
 
-void instruccion_resize() // para probar
+void instruccion_resize() 
 {
-    log_info(logger, "PID: < %d > - Ejecutando: < RESIZE > - < %s >", registros->PID, linea_de_instruccion_separada[1]);
+    log_info(logger, "PID: < %d > - Ejecutando: < RESIZE > - < %s >", registros->PID, linea_de_instruccion_separada[1]);//OBLIGATORIO
 
     uint32_t nuevo_size = (uint32_t)atoi(linea_de_instruccion_separada[1]);
-    log_debug(logger, "Nuevo size: %d", nuevo_size);
     // le pido a memoria que haga el resize
-    log_debug(logger, "Le voy a pedir a memoria que haga un resize de %u al proceso %u.", nuevo_size, registros->PID);
+    log_trace(logger, "Le voy a pedir a memoria que haga un resize de %u al proceso %u.", nuevo_size, registros->PID);
     t_paquete *solicitud_a_mem = crear_paquete();
     agregar_a_paquete(solicitud_a_mem, RESIZE_PROCESO, sizeof(RESIZE_PROCESO));
     agregar_a_paquete(solicitud_a_mem, nuevo_size, sizeof(nuevo_size));
@@ -443,12 +445,14 @@ void instruccion_resize() // para probar
         proceso_actual_ejecutando = false; // https://github.com/sisoputnfrba/foro/issues/3799
         ya_se_mando_pcb = true;
     }
-    list_destroy(lista_de_memoria);
+
+    //Liberacion de memoria
+    list_destroy(lista_de_memoria); // esto no estaba puesto, despues ver si no rompe nada 9/7/24
 }
 
 void instruccion_io_fs_create()
 {
-    log_info(logger, "PID: < %d > - Ejecutando: < FS CREATE > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
+    log_info(logger, "PID: < %d > - Ejecutando: < FS CREATE > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);//OBLIGATORIO
     char *nombre_interfaz = string_duplicate(linea_de_instruccion_separada[1]);
     char *nombre_archivo = string_duplicate(linea_de_instruccion_separada[2]);
 
@@ -459,7 +463,8 @@ void instruccion_io_fs_create()
 
     ya_se_mando_pcb = true;
     proceso_actual_ejecutando = false;
-    string_array_destroy(datos_interfaz); // tengo que destruir tambien a nombre_archivo y nombre_interfaz?
+
+    string_array_destroy(datos_interfaz); 
 }
 
 void instruccion_io_fs_delete()
@@ -475,7 +480,7 @@ void instruccion_io_fs_delete()
 
     ya_se_mando_pcb = true;
     proceso_actual_ejecutando = false;
-    string_array_destroy(datos_interfaz); // tengo que destruir tambien a nombre_archivo y nombre_interfaz?}
+    string_array_destroy(datos_interfaz); 
 }
 void instruccion_io_fs_truncate()
 {
@@ -493,7 +498,7 @@ void instruccion_io_fs_truncate()
 
     ya_se_mando_pcb = true;
     proceso_actual_ejecutando = false;
-    string_array_destroy(datos_interfaz); // tengo que destruir tambien a nombre_archivo y nombre_interfaz?}
+    string_array_destroy(datos_interfaz); 
     free(nombre_registro);
 }
 
@@ -518,7 +523,7 @@ void instruccion_io_fs_read()
 
     ya_se_mando_pcb = true;
     proceso_actual_ejecutando = false;
-    string_array_destroy(datos_interfaz); // tengo que destruir tambien a nombre_archivo y nombre_interfaz?}
+    string_array_destroy(datos_interfaz); 
     free(nombre_registro_tamanio);
     free(nombre_registro_puntero_archivo);
 }
@@ -544,7 +549,7 @@ void instruccion_io_fs_write()
 
     ya_se_mando_pcb = true;
     proceso_actual_ejecutando = false;
-    string_array_destroy(datos_interfaz); // tengo que destruir tambien a nombre_archivo y nombre_interfaz?}
+    string_array_destroy(datos_interfaz); 
     free(nombre_registro_puntero_archivo);
     free(nombre_registro_tamanio);
 }
@@ -644,7 +649,7 @@ void instruccion_jnz()
     if (valorDelRegistro != 0)
     {
         registros->PC = (uint32_t)nuevoPC;
-        log_debug(logger, "Se actualizo el PC a la instruccion nro: %d", nuevoPC);
+        log_trace(logger, "Se actualizo el PC a la instruccion nro: %d", nuevoPC);
     }
 
     free(registroDestino);
@@ -676,7 +681,6 @@ void instruccion_wait()
     // envio el pcb a kernel y luego un mensaje con el nombre del recurso que quiero
     // Esta instrucción solicita al Kernel que se asigne una instancia del recurso indicado por parámetro.
     log_info(logger, "PID: < %d > - Ejecutando: < WAIT > - < %s >", registros->PID, linea_de_instruccion_separada[1]);
-    log_trace(logger, "WAIT: CPU va a enviar un PCB a Kernel");
     char *nombre_recurso = string_new();
     nombre_recurso = linea_de_instruccion_separada[1];
 
@@ -704,7 +708,6 @@ void instruccion_signal()
 {
     // Esta instrucción solicita al Kernel que se libere una instancia del recurso indicado por parámetro.
     log_info(logger, "PID: < %d > - Ejecutando: < SIGNAL > - < %s >", registros->PID, linea_de_instruccion_separada[1]);
-    log_trace(logger, "SIGNAL: CPU va a enviar un PCB a Kernel");
 
     char *nombre_recurso = string_new();
     nombre_recurso = linea_de_instruccion_separada[1];
@@ -720,7 +723,7 @@ void instruccion_signal()
 
     if (resultado_numero)
     {
-        log_debug(logger, "No existia ese recurso %s", nombre_recurso);
+        log_debug(logger, "No se pudo obtener el recurso < %s >", nombre_recurso);
         proceso_actual_ejecutando = false;
         ya_se_mando_pcb = true;
     }
@@ -731,7 +734,7 @@ void instruccion_signal()
 
 void instruccion_io_gen_sleep()
 {
-    log_info(logger, "PID: < %d > - Ejecutando: < IO_GEN_SLEEP > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
+    log_info(logger, "PID: < %d > - Ejecutando: < IO_GEN_SLEEP > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]); //OBLIGATORIO
 
     char *nroInterfaz = string_new();
     nroInterfaz = linea_de_instruccion_separada[1];
@@ -751,19 +754,14 @@ void instruccion_io_gen_sleep()
     string_array_destroy(datos_tiempo);
 }
 
-void instruccion_copy_string() // para probar
+void instruccion_copy_string() // "funciona .-."
 {
-    log_info(logger, "PID: < %d > - Ejecutando: < COPY_STRING > - < %s >", registros->PID, linea_de_instruccion_separada[1]);
+    log_info(logger, "PID: < %d > - Ejecutando: < COPY_STRING > - < %s >", registros->PID, linea_de_instruccion_separada[1]); //OBLIGATORIO
 
-    /*COPY_STRING (Tamaño): Toma del string apuntado por el registro SI y
-    copia la cantidad de bytes indicadas en el parámetro tamaño a la
-    posición de memoria apuntada por el registro DI. */
     uint32_t tamanio = (uint32_t)atoi(linea_de_instruccion_separada[1]);       // tamanio a copiar
     uint32_t df_a_leer = (uint32_t)atoi(linea_de_instruccion_separada[2]);     // direccion de memoria a leer
     uint32_t df_a_escribir = (uint32_t)atoi(linea_de_instruccion_separada[3]); // direccion de memoria a escribir
-    log_debug(logger, "Direccion fisica de lectura: %u", df_a_leer);
-    log_debug(logger, "Direccion fisica de escritura: %u", df_a_escribir);
-    log_debug(logger, "Tamanio a copiar: %u", tamanio);
+    log_debug(logger, "Direccion fisica de lectura: %u, Direccion fisica de escritura: %u, Tamanio a copiar: %u", df_a_leer,df_a_escribir,tamanio);
     // hay que hacer un pedido lectura y escritura a memoria
     t_paquete *paquete_lectura = crear_paquete();
     agregar_a_paquete(paquete_lectura, PEDIDO_LECTURA, sizeof(PEDIDO_LECTURA));
@@ -789,8 +787,10 @@ void instruccion_copy_string() // para probar
     char *resultado = recibir_mensaje(cliente_memoria, logger);
     if (strcmp(resultado, "OK"))
     {
-        log_debug(logger, "Se copio correctamente el string");
+        log_trace(logger, "Se copio correctamente el string");
     }
+
+    //Liberacion de memoria
     free(resultado);
     list_destroy(lista_de_memoria);
     free(string_a_copiar);
@@ -798,12 +798,10 @@ void instruccion_copy_string() // para probar
 
 void instruccion_mov_in()
 {
-    log_info(logger, "PID: < %d > - Ejecutando: < MOV_IN > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
+    log_info(logger, "PID: < %d > - Ejecutando: < MOV_IN > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]); //OBLIGATORIO
     // hacer un pedido de lectura
     uint32_t df_a_leer = (uint32_t)atoi(linea_de_instruccion_separada[2]); // direccion de memoria a leer
     uint32_t nuevo_size = obtener_size_del_registro(linea_de_instruccion_separada[1]);
-    log_debug(logger, "Nuevo size: %u", nuevo_size);
-    log_debug(logger, "Direccion de memoria a leer: %u", df_a_leer);
     t_paquete *paquete_lectura = crear_paquete();
     agregar_a_paquete(paquete_lectura, PEDIDO_LECTURA, sizeof(PEDIDO_LECTURA));
     agregar_a_paquete(paquete_lectura, df_a_leer, sizeof(df_a_leer));
@@ -815,11 +813,14 @@ void instruccion_mov_in()
     t_list *lista_de_memoria = recibir_paquete(cliente_memoria, logger);
     uint32_t valor = (uint32_t)list_get(lista_de_memoria, 0);
     asignarValoresIntEnRegistros(linea_de_instruccion_separada[1], valor, "MOV_IN");
+
+    //Liberaciones de memoria
+    list_destroy(lista_de_memoria); // esto no estaba puesto, despues ver si no rompe nada 9/7/24
 }
 
 void instruccion_mov_out()
 {
-    log_info(logger, "PID: < %d > - Ejecutando: < MOV_OUT > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
+    log_info(logger, "PID: < %d > - Ejecutando: < MOV_OUT > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]); //OBLIGATORIO
     uint32_t valorRegistro = obtenerValorRegistros(linea_de_instruccion_separada[2]);
     uint32_t nuevo_size = obtener_size_del_registro(linea_de_instruccion_separada[2]);
     uint32_t df_a_escribir = (uint32_t)atoi(linea_de_instruccion_separada[1]);
@@ -835,13 +836,16 @@ void instruccion_mov_out()
     char *resultado = recibir_mensaje(cliente_memoria, logger);
     if (strcmp(resultado, "OK"))
     {
-        log_debug(logger, "Se copio correctamente el registro");
+        log_trace(logger, "Se copio correctamente el registro");
     }
+
+    //Liberacion de memoria
+    free(resultado); // esto no estaba puesto, despues ver si no rompe nada 9/7/24
 }
 
 void instruccion_exit()
 {
-    log_info(logger, "PID: < %d > - Ejecutando: < EXIT > - < >", registros->PID);
+    log_info(logger, "PID: < %d > - Ejecutando: < EXIT > - < >", registros->PID); //OBLIGATORIO
     // deberia mandar el pcb a kernel
     enviar_pcb(MOTIVO_DESALOJO_EXIT, no_agregar_datos, NULL);
     ya_se_mando_pcb = true;
@@ -1023,7 +1027,8 @@ void enviar_pcb(e_motivo_desalojo motivo_desalojo, Agregar_datos_paquete agregar
     empaquetar_registros(paquete_de_pcb, registros);
     agregar_datos_paquete(paquete_de_pcb, datos);
     enviar_paquete(paquete_de_pcb, socket_cliente_dispatch, logger);
-}
+
+ }
 
 void agregar_datos_recurso(t_paquete *paquete, void *nombre_recurso)
 {
@@ -1081,7 +1086,7 @@ void agregar_datos_interfaz_read_write(t_paquete *paquete, void *datos)
 void agregar_datos_tiempo(t_paquete *paquete, void *datos)
 {
     // en este caso datos tiene dos cosas el numero de interfaz y el tiempo de trabajo
-    log_debug(logger, "Estoy en la funcion agregar_datos_tiempo");
+    log_trace(logger, "Estoy en la funcion agregar_datos_tiempo");
 
     char **datos_tiempo = (char **)datos;
 
@@ -1094,7 +1099,7 @@ void agregar_datos_tiempo(t_paquete *paquete, void *datos)
 
 void no_agregar_datos(t_paquete *paquete, void *datos)
 {
-    log_debug(logger, "Estoy en la funcion no_agregar_datos");
+    log_trace(logger, "Estoy en la funcion no_agregar_datos");
 }
 
 // MMU
@@ -1145,7 +1150,7 @@ int conseguir_marco(uint32_t pid, uint32_t nro_pagina)
         instante_referencia++;
         list_destroy(lista_de_memoria);
     }
-    log_info(logger, "PID: < %u > - OBTENER MARCO - Página: < %u > - Marco: < %u > ", pid, nro_pagina, marco);
+    log_info(logger, "PID: < %u > - OBTENER MARCO - Página: < %u > - Marco: < %u > ", pid, nro_pagina, marco); //OBLIGATORIO
     return marco;
 }
 
@@ -1164,14 +1169,14 @@ int conseguir_marco_en_la_tlb(uint32_t pid, uint32_t nro_pagina)
     for (int i = 0; i < tlb_size; i++)
     {
         if (TLB[i].PID == (int)pid && TLB[i].nro_pag == nro_pagina)
-        {
-            log_info(logger, "PID: < %u > - TLB HIT - Pagina: < %u > ", pid, nro_pagina);
+        { 
+            log_info(logger, "PID: < %u > - TLB HIT - Pagina: < %u > ", pid, nro_pagina); //OBLIGATORIO
             TLB[i].instante_refencia = instante_referencia;
             instante_referencia++;
             return ((int)TLB[i].nro_marco);
         }
     }
-    log_info(logger, "PID: < %u > - TLB MISS - Pagina: < %u > ", pid, nro_pagina);
+    log_info(logger, "PID: < %u > - TLB MISS - Pagina: < %u > ", pid, nro_pagina); //OBLIGATORIO
     return -1;
 }
 

@@ -43,6 +43,8 @@ t_bitarray *marcos;
 // Varibale cantidad marcos
 int cant_marcos;
 
+// la memoria necesaria para *marcos
+void *puntero_a_bits;
 
 int main(int argc, char *argv[])
 {
@@ -78,13 +80,14 @@ void *servidor_kernel(void *arg)
         {
         case MENSAJE:
             char *mensaje = recibir_mensaje(cliente_kernel, logger);
-            log_info(logger, "Desde cliente %d: Recibi el mensaje: %s.", cliente_kernel, mensaje);
-            // hago algo con el mensaje
+            log_debug(logger, "Desde cliente %d: Recibi el mensaje: %s.", cliente_kernel, mensaje);
+            free(mensaje);//esto no estaba puesto, despues ver si no rompe nada 9/7/24
+            // normalemente no se va a usar esto igual pero lo dejo
             break;
         case PAQUETE:
             t_list *lista = list_create();
             lista = recibir_paquete(cliente_kernel, logger);
-            log_info(logger, "Desde cliente %d: Recibi un paquete.", cliente_kernel);
+            log_debug(logger, "Desde cliente %d: Recibi un paquete.", cliente_kernel);
             e_operacion operacion_kernel = (e_operacion)list_get(lista, 0);
             usleep(config_get_int_value(config, "RETARDO_RESPUESTA") * 1000);
             switch (operacion_kernel)
@@ -97,7 +100,7 @@ void *servidor_kernel(void *arg)
 
                 if (resultado == 0)
                 {
-                    log_info(logger, "Se creo el proceso %d con el archivo %s.", process_id, nombre_archivo);
+                    log_debug(logger, "Se creo el proceso %d con el archivo %s.", process_id, nombre_archivo);
                 }
                 else
                 {
@@ -107,7 +110,8 @@ void *servidor_kernel(void *arg)
                 t_paquete *paquete_a_enviar = crear_paquete();
                 agregar_a_paquete(paquete_a_enviar, resultado, sizeof(int));
                 enviar_paquete(paquete_a_enviar, cliente_kernel, logger);
-                log_debug(logger, "Envie el resultado de la operacion INICIAR_PROCESO al kernel");
+                log_trace(logger, "Envie el resultado de la operacion INICIAR_PROCESO al kernel");
+                free(nombre_archivo); //esto no estaba puesto, despues ver si no rompe nada 9/7/24
                 break;
             case BORRAR_PROCESO:
                 uint32_t pid = (uint32_t)list_get(lista, 1);
@@ -119,7 +123,7 @@ void *servidor_kernel(void *arg)
             default:
                 break;
             }
-
+            list_destroy(lista); //esto no estaba puesto, despues ver si no rompe nada 9/7/24
             break;
         case EXIT: // indica desconeccion
             log_error(logger, "Se desconecto el cliente %d.", cliente_cpu);
@@ -147,13 +151,13 @@ void *servidor_cpu(void *arg)
         {
         case MENSAJE:
             char *mensaje = recibir_mensaje(cliente_cpu, logger);
-            log_info(logger, "Desde cliente %d:Recibi el mensaje: %s.", cliente_cpu, mensaje);
+            log_debug(logger, "Desde cliente %d:Recibi el mensaje: %s.", cliente_cpu, mensaje);
             // hago algo con el mensaje
             break;
         case PAQUETE:
             t_list *lista = list_create();
             lista = recibir_paquete(cliente_cpu, logger);
-            log_info(logger, "Desde cliente: %d Recibi un paquete.", cliente_cpu);
+            log_debug(logger, "Desde cliente: %d Recibi un paquete.", cliente_cpu);
 
             // aplico el retardo de la respuesta
             usleep(config_get_int_value(config, "RETARDO_RESPUESTA") * 1000);
@@ -194,9 +198,8 @@ void *servidor_cpu(void *arg)
                 enviar_paquete(paquete_a_enviar, cliente_cpu, logger);
                 break;
             case OBTENER_INSTRUCCION:
-                log_debug(logger, "Voy a obtener la instruccion");
                 char* linea_de_instruccion= obtener_instruccion(lista);
-                log_debug(logger, "La linea de codigo: %s", linea_de_instruccion);
+                log_trace(logger, "La linea de codigo: %s", linea_de_instruccion);
                 enviar_mensaje(linea_de_instruccion, cliente_cpu, logger);
                 free(linea_de_instruccion);
                 break;
@@ -210,6 +213,7 @@ void *servidor_cpu(void *arg)
                 log_error(logger, "Desde cliente: %d Recibi una operacion de memoria rara (%d), termino el servidor.", operacion_memoria);
                 return EXIT_FAILURE;
             }
+            list_destroy(lista);//esto no estaba puesto, despues ver si no rompe nada 9/7/24
             break;
         case EXIT: // indica desconexion
             log_error(logger, "Se desconecto el cliente %d.", cliente_cpu);
@@ -238,13 +242,14 @@ void *servidor_entradasalida(void *arg)
         {
         case MENSAJE:
             char *mensaje = recibir_mensaje(cliente_entradasalida, logger);
-            log_info(logger, "Desde cliente %d: Recibi el mensaje: %s.", cliente_entradasalida, mensaje);
+            log_debug(logger, "Desde cliente %d: Recibi el mensaje: %s.", cliente_entradasalida, mensaje);
+            free(mensaje); //esto no estaba puesto, despues ver si no rompe nada 9/7/24
             // hago algo con el mensaje
             break;
         case PAQUETE:
             t_list *lista = list_create();
             lista = recibir_paquete(cliente_entradasalida, logger);
-            log_info(logger, "Desde cliente %d: Recibi un paquete.", cliente_entradasalida);
+            log_debug(logger, "Desde cliente %d: Recibi un paquete.", cliente_entradasalida);
             e_operacion operacion_io = (e_operacion)list_get(lista, 0);
             usleep(config_get_int_value(config, "RETARDO_RESPUESTA")*1000);
             switch (operacion_io)
@@ -276,6 +281,7 @@ void *servidor_entradasalida(void *arg)
                     free(resultado_lectura);
                     break;
             }
+            list_destroy(lista); //esto no estaba puesto, despues ver si no rompe nada 9/7/24
             break;
         case EXIT: // indica desconexion
             log_error(logger, "Se desconecto el cliente %d.", cliente_entradasalida, cliente_entradasalida);
@@ -294,7 +300,7 @@ void* hacer_pedido_lectura(t_list* lista){
     uint32_t size = (uint32_t)list_get(lista, 2);
     uint32_t pid = (uint32_t)list_get(lista, 3);
     uint8_t tipo = (uint8_t)list_get(lista, 4);
-    log_debug(logger,"PID: <%u> - size: <%u> - df: <%u> - tipo: <%u>", pid, size, df, tipo);
+    log_info(logger,"PID: <%u> - Accion: <LEER> - Direccion fisica: %u - Tamaño <%u>", pid, df, size); // OBLIGATORIO
     uint32_t size_original = size;
     char * elemento_a_guardar = malloc(size_original);
     void * resultado;
@@ -332,7 +338,7 @@ void* hacer_pedido_lectura(t_list* lista){
     }
     else {
         resultado=(void*)string_substring_until(elemento_a_guardar,size_original);
-        log_info(logger,"Lo que lei fue este texto: %s",resultado);
+        log_trace(logger,"Lo que lei fue este texto: %s",resultado);
     }
     free(elemento_a_guardar);
     return resultado;
@@ -346,13 +352,13 @@ int hacer_pedido_escritura(t_list* lista){ // escribe en memoria en Little Endia
         uint8_t tipo = (uint8_t)list_get(lista, 5); // 0 si es char* y 1 si es uint32_t
         int resultado = -1; 
         uint32_t marco = floor(df / tam_pag);
-        log_debug(logger, "Marco donde arranca la escritura: %d", marco);
-        log_info(logger,"PID: <%u> - Accion: <ESCRIBIR> - Direccion fisica: %u - Tamaño <%u>", pid, df, size);
+        log_trace(logger, "Marco donde arranca la escritura: %d", marco);
+        log_info(logger,"PID: <%u> - Accion: <ESCRIBIR> - Direccion fisica: %u - Tamaño <%u>", pid, df, size); // OBLIGATORIO
         
         while (size) {
             uint32_t memoria_disponible  = ((marco + 1) * tam_pag - df);
-            log_debug(logger, "Bytes disponible en este marco: %d", memoria_disponible);
-            log_debug(logger, "Tamaño en bytes que tengo que escribir: %d", size);
+            log_trace(logger, "Bytes disponible en este marco: %d", memoria_disponible);
+            log_trace(logger, "Tamaño en bytes que tengo que escribir: %d", size);
             if (memoria_disponible >= size) {
                 if (tipo)
                 {
@@ -388,21 +394,23 @@ int hacer_pedido_escritura(t_list* lista){ // escribe en memoria en Little Endia
                     elemento_a_insertar += memoria_disponible;
                 }
                 marco = conseguir_siguiente_marco(pid,marco);
-                log_debug(logger, "Avanzo al marco: %u", marco);
+                log_trace(logger, "Avanzo al marco: %u", marco);
                 df = marco * tam_pag;
-                log_debug(logger, "Direccion fisica donde comienzo a escribir: %u", df);
+                log_trace(logger, "Direccion fisica donde comienzo a escribir: %u", df);
             }
         }
         pthread_mutex_lock(&mutex_espacio_memoria);
         mem_hexdump(espacio_memoria, tam_memoria);
         pthread_mutex_unlock(&mutex_espacio_memoria);
+        if (tipo == 0) //Si es numero no lo libero
+            free(elemento_a_insertar);//esto no estaba puesto, despues ver si no rompe nada 9/7/24
         return resultado;
 }
 
 char* obtener_instruccion(t_list* lista){
     uint32_t pid = (uint32_t)list_get(lista, 1);
     uint32_t pc = (uint32_t)list_get(lista, 2);
-    log_debug(logger, "El pid es: %d y el pc es: %d", pid, pc);
+    log_trace(logger, "El pid es: %d y el pc es: %d", pid, pc);
     t_memoria_proceso *proceso_actual = encontrar_proceso(pid);
     char *linea_de_instruccion = string_duplicate(proceso_actual->lineas_de_codigo[pc]);
     return linea_de_instruccion;
@@ -410,10 +418,10 @@ char* obtener_instruccion(t_list* lista){
 
 int crear_proceso(char *nombre_archivo, uint32_t process_id)
 {
-    char **lineas = string_array_new();
+    char **lineas = string_array_new(); // no lo destruyo aca porque es parte de cada proceso en el diccionario, despues liberarlos ahi
     char *linea, longitud[100];
 
-    log_debug(logger, "Voy a crear el proceso %d con el archivo %s", process_id, nombre_archivo);
+    log_trace(logger, "Voy a crear el proceso %d con el archivo %s", process_id, nombre_archivo);
 
     char *path_completo = string_from_format("%s%s", path, nombre_archivo);
 
@@ -435,7 +443,7 @@ int crear_proceso(char *nombre_archivo, uint32_t process_id)
         // linea se esta guardando al final con un \n y despues con el \O, ahora elimino el \n pero dejando el \0
         if (linea[strlen(linea) - 1] == '\n')
             linea[strlen(linea) - 1] = '\0';
-        log_debug(logger, "Linea: %s", linea);
+        log_trace(logger, "Linea: %s", linea);
         string_array_push(&lineas, linea);
     }
 
@@ -443,7 +451,7 @@ int crear_proceso(char *nombre_archivo, uint32_t process_id)
 
     t_memoria_proceso *proceso = crear_estructura_proceso(nombre_archivo, lineas);
 
-    log_info(logger, "PID: <%u> - Tamaño: <0>", process_id);
+    log_info(logger, "PID: <%u> - Tamaño: <0>", process_id);// OBLIGATORIO
     // lo guardo en mi diccionario de procesos
     //  paso de uint32_t a string
     char *string_pid = string_itoa((int)process_id);
@@ -454,7 +462,6 @@ int crear_proceso(char *nombre_archivo, uint32_t process_id)
     // libero variables
     free(path_completo);
     free(string_pid);
-
     return 0;
 }
 
@@ -477,7 +484,7 @@ t_memoria_proceso *encontrar_proceso(uint32_t pid)
     pthread_mutex_lock(&mutex_procesos);
     t_memoria_proceso *proceso = dictionary_get(procesos, string_pid);
     pthread_mutex_unlock(&mutex_procesos);
-    log_debug(logger, "Proceso encontrado %s", proceso->nombre_archivo);
+    log_trace(logger, "Proceso encontrado %s", proceso->nombre_archivo);
     free(string_pid);
     return proceso;
 }
@@ -489,7 +496,7 @@ void destruir_proceso(uint32_t pid)
     pthread_mutex_lock(&mutex_procesos);
     t_memoria_proceso *proceso = dictionary_remove(procesos, string_pid);
     pthread_mutex_unlock(&mutex_procesos);
-    log_info(logger, "PID: <%u> - Tamaño: <%u>", pid, proceso->paginas_actuales);
+    log_info(logger, "PID: <%u> - Tamaño: <%u>", pid, proceso->paginas_actuales); //OBLIGATORIO
     borrar_paginas(proceso, 0, proceso->paginas_actuales);
     // libero la memoria del proceso
     free(proceso->nombre_archivo);
@@ -505,7 +512,7 @@ void crear_espacio_memoria()
     cant_marcos = tam_memoria / tam_pag; // tam_pag = 4 bytes => 8 marcos
     espacio_memoria = malloc(tam_memoria);
     int bytes_redondeados = ceil( (double)cant_marcos / 8.0);
-    void *puntero_a_bits = malloc(bytes_redondeados);
+    puntero_a_bits = malloc(bytes_redondeados);
     marcos = bitarray_create_with_mode(puntero_a_bits, bytes_redondeados, MSB_FIRST);
 
     // hago prueba, recorro todo el bitmap y voy mostrando su contenido
@@ -531,7 +538,7 @@ uint32_t conseguir_siguiente_marco(uint32_t pid,uint32_t marco)
         if (proceso->tabla_paginas[i] == marco)
         {
             sig_marco = proceso->tabla_paginas[i + 1];
-            log_info(logger, "PID: <%u> - Marco actual: <%u> - Siguiente Marco: <%u>", pid, marco, sig_marco);
+            log_debug(logger, "PID: <%u> - Marco actual: <%u> - Siguiente Marco: <%u>", pid, marco, sig_marco); 
         }
     }
     return sig_marco;
@@ -592,7 +599,7 @@ uint32_t obtener_marco(t_list* lista)
     uint32_t pagina = (uint32_t)list_get(lista, 2);
     t_memoria_proceso *proceso = encontrar_proceso(pid);
     uint32_t marco = proceso->tabla_paginas[pagina];
-    log_info(logger, "PID: <%u> - Pagina: <%u> - Marco: <%u>\n", pid, pagina, marco);
+    log_info(logger, "PID: <%u> - Pagina: <%u> - Marco: <%u>", pid, pagina, marco); //OBLIGATORIO
     return marco;
 }
 
@@ -612,12 +619,12 @@ int modificar_tamanio_proceso(t_list* lista)
     uint32_t paginas_actuales = proceso->paginas_actuales;
     if (paginas_actuales>paginas_necesarias)
     {
-        log_info(logger, "PID: <%u> - Tamaño Actual: <%u> - Tamaño a Reducir: <%u>", pid, paginas_actuales, paginas_necesarias);
+        log_info(logger, "PID: <%u> - Tamaño Actual: <%u> - Tamaño a Reducir: <%u>", pid, paginas_actuales, paginas_necesarias); //OBLIGATORIO
         borrar_paginas(proceso, paginas_necesarias, paginas_actuales);
     }
     else if (paginas_actuales<paginas_necesarias)
     {
-        log_info(logger, "PID: <%u> - Tamaño Actual: <%u> - Tamaño a Ampliar: <%u>", pid, paginas_actuales, paginas_necesarias);
+        log_info(logger, "PID: <%u> - Tamaño Actual: <%u> - Tamaño a Ampliar: <%u>", pid, paginas_actuales, paginas_necesarias);//OBLIGATORIO
         resultado = agregar_paginas(proceso, paginas_actuales, paginas_necesarias);
     }
     return resultado;
@@ -729,6 +736,7 @@ void testear_modulo_memoria()
 
 void finalizar_modulo_memoria()
 {
+    // espero a cpu y kernel
     pthread_join(tid[SOY_CPU], NULL);
     pthread_join(tid[SOY_KERNEL], NULL);
     dictionary_destroy(procesos);
@@ -738,6 +746,7 @@ void finalizar_modulo_memoria()
     destruir_config(config);
     pthread_mutex_destroy(&mutex_espacio_memoria);
     pthread_mutex_destroy(&mutex_procesos);
+    free(puntero_a_bits); //esto no estaba puesto, despues ver si no rompe nada 9/7/24
 }
 
 void creacion_servidor_y_clientes()
