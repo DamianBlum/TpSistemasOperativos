@@ -2,7 +2,8 @@
 bin/
 obj/
 *.log
-dialfs/
+*.dat
+*.metadata
 
 # Eclipse files
 .settings/
