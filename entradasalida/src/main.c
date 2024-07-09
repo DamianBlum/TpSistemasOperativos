@@ -216,6 +216,9 @@ int ejecutar_instruccion(t_interfaz_default *interfaz, t_list *datos_desde_kerne
             char *mensaje_memoria = recibir_mensaje(cm, logger);
             log_debug(logger, "(%s|%u): Resultado de la escritura en memoria: %s", interfaz->nombre, interfaz->tipo_interfaz, mensaje_memoria);
             ejecuto_correctamente = 1;
+            free(texto_chiquito);
+            free(texto_ingresado);
+            free(mensaje_memoria);
         }
         else
             log_error(logger, "ERROR: la instruccion pedida (%s) no corresponde a una interfaz generica.", nombre_instruccion);

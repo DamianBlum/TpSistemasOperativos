@@ -402,8 +402,6 @@ int hacer_pedido_escritura(t_list* lista){ // escribe en memoria en Little Endia
         pthread_mutex_lock(&mutex_espacio_memoria);
         mem_hexdump(espacio_memoria, tam_memoria);
         pthread_mutex_unlock(&mutex_espacio_memoria);
-        if (tipo == 0) //Si es numero no lo libero
-            free(elemento_a_insertar);//esto no estaba puesto, despues ver si no rompe nada 9/7/24
         return resultado;
 }
 
