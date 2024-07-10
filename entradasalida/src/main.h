@@ -89,4 +89,5 @@ uint32_t aplicar_algoritmo_compactacion(t_interfaz_dialfs *idial);
 t_config *conseguir_config_archivo_por_inicio(t_interfaz_dialfs *idialfs, int i);
 void mover_archivo(t_interfaz_dialfs *idialfs, int nuevo_origen, t_config *config_archivo);
 uint8_t hay_espacio_suficiente(t_interfaz_dialfs *idial, uint32_t nuevo_size);
+void destruir_interfaz(t_interfaz_default* interfaz);
 #endif

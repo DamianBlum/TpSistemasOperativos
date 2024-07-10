@@ -221,8 +221,8 @@ void *servidor_cpu(void *arg)
             return EXIT_FAILURE;
         default: // recibi algo q no es eso, vamos a suponer q es para terminar
             log_error(logger, "Desde cliente: %d Recibi una operacion rara (%d), termino el servidor.", operacion);
+            sigo_funcionando = 0;
             return EXIT_FAILURE;
-        
         }
     }
     return EXIT_SUCCESS;
@@ -737,6 +737,8 @@ void finalizar_modulo_memoria()
     // espero a cpu y kernel
     pthread_join(tid[SOY_CPU], NULL);
     pthread_join(tid[SOY_KERNEL], NULL);
+    liberar_conexion(cliente_cpu, logger);
+    liberar_conexion(cliente_kernel, logger);
     dictionary_destroy(procesos);
     free(espacio_memoria);
     bitarray_destroy(marcos);

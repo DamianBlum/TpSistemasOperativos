@@ -1,7 +1,6 @@
 #include "main.h"
 
 t_log *logger;
-t_config *config;
 
 // Conexion con kernel
 int cliente_kernel;
@@ -47,7 +46,6 @@ int main(int argc, char *argv[])
         pthread_join(hilo, NULL);
     }
 
-    destruir_config(config);
     destruir_logger(logger);
 
     return EXIT_SUCCESS;
@@ -127,7 +125,7 @@ t_interfaz_default *crear_nueva_interfaz(char *nombre_archivo_config)
     log_debug(logger, "Interfaz creada correctamente de tipo %s.", config_get_string_value(config, "TIPO_INTERFAZ"));
     destruir_config(config);
     free(nombre_archivo_con_carpeta);
-
+    list_destroy(paquete); // esto no estaba puesto, despues ver si no rompe nada 10/7/24
     return interfaz;
 }
 
@@ -212,13 +210,14 @@ int ejecutar_instruccion(t_interfaz_default *interfaz, t_list *datos_desde_kerne
             enviar_paquete(paquete_para_mem, cm, logger);
 
             // aca podria esperar a ver q me dice memoria sobre esto
-            recibir_operacion(cm, logger);
+            recibir_operacion(cm, logger); 
+
             char *mensaje_memoria = recibir_mensaje(cm, logger);
             log_debug(logger, "(%s|%u): Resultado de la escritura en memoria: %s", interfaz->nombre, interfaz->tipo_interfaz, mensaje_memoria);
             ejecuto_correctamente = 1;
-            free(texto_chiquito);
-            free(texto_ingresado);
-            free(mensaje_memoria);
+            free(texto_chiquito); // esto no estaba puesto, despues ver si no rompe nada 10/7/24
+            free(texto_ingresado); // esto no estaba puesto, despues ver si no rompe nada 10/7/24
+            free(mensaje_memoria); // esto no estaba puesto, despues ver si no rompe nada 10/7/24
         }
         else
             log_error(logger, "ERROR: la instruccion pedida (%s) no corresponde a una interfaz generica.", nombre_instruccion);
@@ -255,6 +254,8 @@ int ejecutar_instruccion(t_interfaz_default *interfaz, t_list *datos_desde_kerne
             // log_info(logger, "Print del valor leido en memoria: %s", mensaje_obtenido);
 
             ejecuto_correctamente = 1;
+            list_destroy(lista_recibida); // esto no estaba puesto, despues ver si no rompe nada 10/7/24
+            free(mensaje_obtenido); // esto no estaba puesto, despues ver si no rompe nada 10/7/24
         }
         else
             log_error(logger, "ERROR: la instruccion pedida (%s) no corresponde a una interfaz generica.", nombre_instruccion);
@@ -347,6 +348,7 @@ int ejecutar_instruccion(t_interfaz_default *interfaz, t_list *datos_desde_kerne
             char *respuesta_memoria = recibir_mensaje((int)((t_interfaz_dialfs *)interfaz->configs_especificas)->conexion_memoria, logger);
             if (string_equals_ignore_case(respuesta_memoria, "OK"))
                 ejecuto_correctamente = 1;
+            free(respuesta_memoria); // esto no estaba puesto, despues ver si no rompe nada 10/7/24
         }
         else
             log_error(logger, "ERROR: la instruccion pedida (%s) no corresponde a una interfaz generica.", nombre_instruccion);
@@ -394,6 +396,7 @@ void manejo_de_interfaz(void *args)
             t_paquete *paquete_resp_kernel = crear_paquete();
             agregar_a_paquete(paquete_resp_kernel, (uint8_t)resultado, sizeof(uint8_t));
             enviar_paquete(paquete_resp_kernel, interfaz->conexion_kernel, logger);
+            list_destroy(lista); // esto no estaba puesto, despues ver si no rompe nada 10/7/24
             break;
         case EXIT: // indica desconeccion
             log_error(logger, "Se desconecto el cliente %d | %s.", interfaz->conexion_kernel, interfaz->nombre);
@@ -401,12 +404,13 @@ void manejo_de_interfaz(void *args)
             break;
         default: // recibi algo q no es eso, vamos a suponer q es para terminar
             log_error(logger, "Desde cliente %d | %s: Recibi una operacion rara (%d), termino el servidor.", interfaz->conexion_kernel, interfaz->nombre, operacion);
-            return EXIT_FAILURE;
+            sigo_funcionando = 0;
             break;
         }
     }
     liberar_conexion(interfaz->conexion_kernel, logger);
-    // liberar_conexion(interfaz->conexion_memoria, logger); ¿Por que está comentado? REVISAR
+    destruir_interfaz(interfaz); // esto no estaba puesto, despues ver si no rompe nada 10/7/24
+    
     return EXIT_SUCCESS;
 }
 
@@ -821,4 +825,31 @@ void mover_archivo(t_interfaz_dialfs *idialfs, int nuevo_origen, t_config *confi
     ocupar_bitmap(idialfs, nuevo_origen, desplazamiento);
     escribir_bloque(idialfs->bloques, puntero_en_disco, size_archivo, informacion_archivo);
     limpiar_bitmap(idialfs, nuevo_ultimo_bloque + 1, desplazamiento);
+}
+
+void destruir_interfaz(t_interfaz_default* interfaz) // esto no estaba puesto, despues ver si no rompe nada 10/7/24
+{
+    switch (interfaz->tipo_interfaz)
+    {
+    case STDIN:
+        t_interfaz_stdin* istdin = (t_interfaz_stdin*)interfaz->configs_especificas;
+        liberar_conexion(istdin->conexion_memoria, logger);
+        break;
+    case STDOUT:
+        t_interfaz_stdout* istdout = (t_interfaz_stdout*)interfaz->configs_especificas;
+        liberar_conexion(istdout->conexion_memoria, logger);
+        break;
+    case DIALFS:
+        t_interfaz_dialfs* idialfs = (t_interfaz_dialfs*)interfaz->configs_especificas;
+        liberar_conexion(idialfs->conexion_memoria, logger);
+        free(idialfs->bitmap);
+        free(idialfs->bloques);
+        free(idialfs->path_base_dialfs);
+        break;
+    default:
+        break;
+    }
+    free(interfaz->configs_especificas);
+    free(interfaz->nombre);
+    free(interfaz);
 }

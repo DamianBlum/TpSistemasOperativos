@@ -2,22 +2,34 @@
 
 t_log *logger;
 t_config *config;
+
 // sockets servidor
 int socket_servidor;
 int socket_cliente_io;
+
 // clientes con el CPU
 int cliente_cpu_dispatch;
 int cliente_cpu_interrupt;
 int cliente_memoria;
+
 // hilo servidor I/O
 pthread_t hilo_servidor_io;
+
 // otro
 int contadorParaGenerarIdProcesos = 0;
 int quantum;
 int grado_multiprogramacion;  // este es el definido por parametro de config
+
+// Variable para el mutex del grado_multiprogramacion
+pthread_mutex_t mutex_grado_multiprogramacion = PTHREAD_MUTEX_INITIALIZER;
+// Variable para el mutex de la cola de new
+pthread_mutex_t mutex_cola_ready = PTHREAD_MUTEX_INITIALIZER;
 int cant_procesos_ejecutando; // y este es un contador de procesos en el sistema, se modifica en el planificador de largo plazo
+
 e_algoritmo_planificacion algoritmo_planificacion;
+
 bool esta_planificacion_pausada = true;
+
 // lista de pcbs
 t_list *lista_de_pcbs;
 // lista de i/os
@@ -38,7 +50,8 @@ int main(int argc, char *argv[])
 {
     logger = iniciar_logger("kernel.log", "KERNEL", argc, argv);
     config = iniciar_config("kernel.config");
-
+    pthread_mutex_init(&mutex_grado_multiprogramacion, NULL);
+    pthread_mutex_init(&mutex_cola_ready, NULL);
     // Instancio variables de configuracion desde el config
     quantum = config_get_int_value(config, "QUANTUM");
     grado_multiprogramacion = config_get_int_value(config, "GRADO_MULTIPROGRAMACION");
@@ -158,7 +171,11 @@ uint8_t ejecutar_comando(char *comando)
     {
         log_debug(logger, "Entraste a MULTIPROGRAMACION, nuevo grado: %s.", comandoSpliteado[1]);
         log_debug(logger, "Se va a modificar el grado de multiprogramacion de %d a %s.", grado_multiprogramacion, comandoSpliteado[1]);
+        pthread_mutex_lock(&mutex_grado_multiprogramacion);
         grado_multiprogramacion = atoi(comandoSpliteado[1]);
+        pthread_mutex_unlock(&mutex_grado_multiprogramacion);
+        evaluar_NEW_a_READY();
+        
     }
     else if (string_equals_ignore_case("SALIR", comandoSpliteado[0]) || string_equals_ignore_case("S", comandoSpliteado[0]))
     {
@@ -509,12 +526,15 @@ void evaluar_NEW_a_READY()
 
     while (!esta_planificacion_pausada && !queue_is_empty(cola_NEW)) // agrego esta_planificacion_pausada para el caso borde donde creas un proceso nuevo con planificacion pausada
     {
+        pthread_mutex_lock(&mutex_grado_multiprogramacion);
         if (cant_procesos_ejecutando < grado_multiprogramacion)
         {
+            pthread_mutex_unlock(&mutex_grado_multiprogramacion);
             uint32_t id = queue_pop(cola_NEW);
 
+            pthread_mutex_lock(&mutex_cola_ready);
             queue_push(cola_READY, id);
-
+            pthread_mutex_unlock(&mutex_cola_ready);
             t_PCB *pcb_elegido = obtener_pcb_de_lista_por_id(id);
             pcb_elegido->estado = E_READY;
 
@@ -525,6 +545,7 @@ void evaluar_NEW_a_READY()
         }
         else
         {
+            pthread_mutex_unlock(&mutex_grado_multiprogramacion);
             log_trace(logger, "No puedo porque el grado de multiprogramacion (%d) no admite mas programas en el sistema (actual: %d).", grado_multiprogramacion, cant_procesos_ejecutando);
             break;
         }
@@ -534,19 +555,25 @@ void evaluar_NEW_a_READY()
 void evaluar_READY_a_EXEC() // hilar (me olvide xq xD), (me acorde y no lo voy a hacer)
 {
     log_trace(logger, "Voy a evaluar si puedo mover un proceso de READY a EXEC (asignar un proceso al CPU).");
+    pthread_mutex_lock(&mutex_cola_ready);
     if (queue_is_empty(cola_RUNNING) && (!queue_is_empty(cola_READY) || !queue_is_empty(cola_READY_PRIORITARIA)) && !esta_planificacion_pausada) // valido q no este nadie corriendo, ready no este vacio y la planificacion no este pausada
-    {                                                                                                                                            // tengo q hacer algo distinto segun cada algoritmo de planificacion
+    {              
+        pthread_mutex_unlock(&mutex_cola_ready);                                                                                                                         // tengo q hacer algo distinto segun cada algoritmo de planificacion
         uint32_t id;
 
         switch (algoritmo_planificacion)
         {
         case FIFO: // saco el primero
             log_trace(logger, "Entre a planificacion por FIFO.");
+            pthread_mutex_lock(&mutex_cola_ready);
             id = queue_pop(cola_READY);
+            pthread_mutex_unlock(&mutex_cola_ready);
             break;
         case RR: // igual q fifo pero creo el hilo con el quantum
             log_trace(logger, "Entre a planificacion por RR.");
+            pthread_mutex_lock(&mutex_cola_ready);
             id = queue_pop(cola_READY);
+            pthread_mutex_unlock(&mutex_cola_ready);
             pthread_t prr;
             pthread_create(&prr, NULL, trigger_interrupcion_quantum, obtener_pcb_de_lista_por_id(id));
             break;
@@ -560,7 +587,9 @@ void evaluar_READY_a_EXEC() // hilar (me olvide xq xD), (me acorde y no lo voy a
             else
             {
                 log_trace(logger, "Voy a elegir un proceso de la cola normal.");
+                pthread_mutex_lock(&mutex_cola_ready);
                 id = queue_pop(cola_READY);
+                pthread_mutex_unlock(&mutex_cola_ready);
             }
             pthread_t pvrr;
             pthread_create(&pvrr, NULL, trigger_interrupcion_quantum, obtener_pcb_de_lista_por_id(id));
@@ -587,9 +616,11 @@ void evaluar_READY_a_EXEC() // hilar (me olvide xq xD), (me acorde y no lo voy a
     }
     else
     {
+        pthread_mutex_unlock(&mutex_cola_ready);
         log_trace(logger, "No fue posible asignar un proceso al CPU.");
         log_debug(logger, "Cant. procesos en READY: %d | Cant. procesos en RUNNING: %d", queue_size(cola_READY), queue_size(cola_RUNNING));
     }
+    
 }
 
 void evaluar_NEW_a_EXIT(t_PCB *pcb)
@@ -627,7 +658,10 @@ void evaluar_EXEC_a_READY()
         else
         {
             pcb->estado = E_READY;
+            pthread_mutex_lock(&mutex_cola_ready);
             queue_push(cola_READY, pcb->processID);
+            pthread_mutex_unlock(&mutex_cola_ready);
+            
             log_trace(logger, "Se movio el proceso %d de EXEC a READY.", pcb->processID);
         }
     }
@@ -646,7 +680,9 @@ void evaluar_READY_a_EXIT(t_PCB *pcb)
     // le cambio el estado
     pcb->estado = E_EXIT;
     // lo popeo de su cola actual
+    pthread_mutex_lock(&mutex_cola_ready);
     eliminar_id_de_la_cola(cola_READY, pcb->processID);
+    pthread_mutex_unlock(&mutex_cola_ready);
     // lo pusheo en exit
     queue_push(cola_EXIT, pcb->processID);
     // desminuyo el contador de procesos
@@ -799,7 +835,9 @@ void evaluar_BLOCKED_a_READY(t_manejo_bloqueados *tmb)
     { // entra aca si estoy en FIFO y RR
         log_trace(logger, "El proceso %d va a desbloquearse a la cola de READY.", pcb->processID);
         pcb->estado = E_READY;
+        pthread_mutex_lock(&mutex_cola_ready);
         queue_push(cola_READY, pcb->processID);
+        pthread_mutex_unlock(&mutex_cola_ready);
     }
 }
 
@@ -825,9 +863,31 @@ void evaluar_EXEC_a_EXIT()
 void mostrar_menu()
 {
     if (logger->is_active_console)
-        log_info(logger, "\n\n|##########################|\n|     MENU DE OPCIONES     |\n|##########################|\n|  INICIAR_PROCESO [PATH]  |\n|      PROCESO_ESTADO      |\n|  FINALIZAR_PROCESO [PI]  |\n|   INICIAR_PLAFICACION    |\n|  DETENER_PLANIFICACION   |\n|  EJECUTAR_SCRIPT [PATH]  |\n| MULTIPROGRAMACION [VALOR]|\n|          SALIR           |\n|##########################|\n");
+        log_info(logger, "\n\n|################################|\n"
+                        "|         MENU DE OPCIONES       |\n"
+                        "|################################|\n"
+                        "|  INICIAR_PROCESO [IP] [PATH]   |\n"
+                        "|     PROCESO_ESTADO [PE]        |\n"
+                        "|  FINALIZAR_PROCESO [FP]        |\n"
+                        "|  INICIAR_PLANIFICACION [IPL]   |\n"
+                        "|  DETENER_PLANIFICACION [DP]    |\n"
+                        "|  EJECUTAR_SCRIPT [ES] [PATH]   |\n"
+                        "| MULTIPROGRAMACION [MP] [VALOR] |\n"
+                        "|          SALIR                 |\n"
+                        "|################################|\n");
     else
-        printf("\n\n|##########################|\n|     MENU DE OPCIONES     |\n|##########################|\n|  INICIAR_PROCESO [PATH]  |\n|      PROCESO_ESTADO      |\n|  FINALIZAR_PROCESO [PI]  |\n|   INICIAR_PLAFICACION    |\n|  DETENER_PLANIFICACION   |\n|  EJECUTAR_SCRIPT [PATH]  |\n| MULTIPROGRAMACION [VALOR]|\n|          SALIR           |\n|##########################|\n");
+        printf("\n\n|################################|\n"
+               "|         MENU DE OPCIONES       |\n"
+               "|################################|\n"
+               "|  INICIAR_PROCESO [IP] [PATH]   |\n"
+               "|     PROCESO_ESTADO [PE]        |\n"
+               "|  FINALIZAR_PROCESO [FP]        |\n"
+               "|  INICIAR_PLANIFICACION [IPL]   |\n"
+               "|  DETENER_PLANIFICACION [DP]    |\n"
+               "|  EJECUTAR_SCRIPT [ES] [PATH]   |\n"
+               "| MULTIPROGRAMACION [MP] [VALOR] |\n"
+               "|          SALIR                 |\n"
+               "|################################|\n");
 }
 
 void *atender_respuesta_proceso(void *arg)

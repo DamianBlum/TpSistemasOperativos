@@ -127,12 +127,13 @@ void *servidor_dispatch(void *arg)
             break;
         default: // recibi algo q no es eso, vamos a suponer q es para terminar
             log_error(logger, "Recibi una operacion rara (%d), termino el servidor.", operacion);
-            return EXIT_FAILURE;
+            conexion_activa = 0;
+            break;
         }
         mandar_pcb = false;
         ya_se_mando_pcb = false;
         proceso_actual_ejecutando = true;
-        while (proceso_actual_ejecutando)
+        while (proceso_actual_ejecutando && conexion_activa)
         {
             // ciclo de la instruccion en la cpu
             int resultado = fetch();
@@ -147,7 +148,7 @@ void *servidor_dispatch(void *arg)
             check_interrupt();
         }
 
-        if (mandar_pcb && !ya_se_mando_pcb)
+        if (mandar_pcb && !ya_se_mando_pcb && conexion_activa)
         { // hubo una interrupcion
             enviar_pcb(MOTIVO_DESALOJO_INTERRUPCION, no_agregar_datos, NULL);
         }
@@ -304,8 +305,14 @@ int fetch()
     {
         return EXIT_FAILURE;
     }
+    
+    if(!string_equals_ignore_case(linea_de_instruccion, ""))
+    {
+        free(linea_de_instruccion);
+    }
 
     // Recibimos la instruccion de memoria
+
     linea_de_instruccion = recibir_mensaje(cliente_memoria, logger);
     log_debug(logger, "La instruccion leida es: < %s >", linea_de_instruccion);
 
@@ -315,6 +322,10 @@ int fetch()
 
 void decode()
 {
+    if (!string_array_is_empty(linea_de_instruccion_separada))
+    {
+        string_array_destroy(linea_de_instruccion_separada);
+    }
     // divide la instruccion en partes y la asigna a la variable instruccion el nombre de la misma
     linea_de_instruccion_separada = string_split(linea_de_instruccion, " "); //REVISAR
     instruccion = parsear_instruccion(linea_de_instruccion_separada[0]);
@@ -557,8 +568,8 @@ void instruccion_io_fs_write()
 void instruccion_io_stdin_read()
 {
     log_info(logger, "PID: < %d > - Ejecutando: < IO_STDIN_READ > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
-    char *df = linea_de_instruccion_separada[2];
-    char *nombreInterfaz = linea_de_instruccion_separada[1];
+    char *df = string_duplicate(linea_de_instruccion_separada[2]);
+    char *nombreInterfaz = string_duplicate(linea_de_instruccion_separada[1]);
     char *tamanio = string_itoa(obtenerValorRegistros(linea_de_instruccion_separada[3]));
 
     char **datos_interfaz_stdin_read = string_array_new();
@@ -596,12 +607,10 @@ void instruccion_io_stdout_write()
 void instruction_set()
 {
     log_info(logger, "PID: < %d > - Ejecutando: < SET > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
-    char *registroDestino = string_new();
-    char *valorEnString = string_new();
 
-    registroDestino = linea_de_instruccion_separada[1];
+    char *registroDestino = string_duplicate(linea_de_instruccion_separada[1]);
 
-    valorEnString = linea_de_instruccion_separada[2];
+    char *valorEnString = string_duplicate(linea_de_instruccion_separada[2]);
 
     int valorEnInt = atoi(valorEnString);
 
@@ -610,18 +619,15 @@ void instruction_set()
 
     free(registroDestino);
     free(valorEnString);
-    return EXIT_SUCCESS;
 }
 
 void instruccion_sum()
 {
     log_info(logger, "PID: < %d > - Ejecutando: < SUM > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
 
-    char *registroDestino = string_new();
-    registroDestino = linea_de_instruccion_separada[1];
+    char *registroDestino = string_duplicate(linea_de_instruccion_separada[1]);
 
-    char *registroOrigen = string_new();
-    registroOrigen = linea_de_instruccion_separada[2];
+    char *registroOrigen = string_duplicate(linea_de_instruccion_separada[2]);
 
     // Obtengo el valor almacenado en el registro uint8_t
     int valorDestino = obtenerValorRegistros(registroDestino);
@@ -637,11 +643,9 @@ void instruccion_jnz()
 {
     log_info(logger, "PID: < %d > - Ejecutando: < JNZ > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
 
-    char *registroDestino = string_new();
-    registroDestino = linea_de_instruccion_separada[1];
+    char* registroDestino = string_duplicate(linea_de_instruccion_separada[1]);
 
-    char *parametro = string_new();
-    parametro = linea_de_instruccion_separada[2];
+    char* parametro = string_duplicate(linea_de_instruccion_separada[2]);
 
     int nuevoPC = atoi(parametro) - 1;
 
@@ -660,11 +664,9 @@ void instruccion_sub()
 {
     log_info(logger, "PID: < %d > - Ejecutando: < SUB > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]);
 
-    char *registroDestino = string_new();
-    registroDestino = linea_de_instruccion_separada[1];
+    char *registroDestino = string_duplicate(linea_de_instruccion_separada[1]);
 
-    char *registroOrigen = string_new();
-    registroOrigen = linea_de_instruccion_separada[2];
+    char *registroOrigen = string_duplicate(linea_de_instruccion_separada[2]);
 
     // Obtengo el valor almacenado en el registro uint8_t
     int valorOrigen = obtenerValorRegistros(registroOrigen);
@@ -681,8 +683,7 @@ void instruccion_wait()
     // envio el pcb a kernel y luego un mensaje con el nombre del recurso que quiero
     // Esta instrucción solicita al Kernel que se asigne una instancia del recurso indicado por parámetro.
     log_info(logger, "PID: < %d > - Ejecutando: < WAIT > - < %s >", registros->PID, linea_de_instruccion_separada[1]);
-    char *nombre_recurso = string_new();
-    nombre_recurso = linea_de_instruccion_separada[1];
+    char *nombre_recurso = string_duplicate(linea_de_instruccion_separada[1]);
 
     enviar_pcb(MOTIVO_DESALOJO_WAIT, agregar_datos_recurso, nombre_recurso);
 
@@ -709,8 +710,7 @@ void instruccion_signal()
     // Esta instrucción solicita al Kernel que se libere una instancia del recurso indicado por parámetro.
     log_info(logger, "PID: < %d > - Ejecutando: < SIGNAL > - < %s >", registros->PID, linea_de_instruccion_separada[1]);
 
-    char *nombre_recurso = string_new();
-    nombre_recurso = linea_de_instruccion_separada[1];
+    char* nombre_recurso = string_duplicate(linea_de_instruccion_separada[1]);
 
     enviar_pcb(MOTIVO_DESALOJO_SIGNAL, agregar_datos_recurso, nombre_recurso);
 
@@ -736,11 +736,10 @@ void instruccion_io_gen_sleep()
 {
     log_info(logger, "PID: < %d > - Ejecutando: < IO_GEN_SLEEP > - < %s %s >", registros->PID, linea_de_instruccion_separada[1], linea_de_instruccion_separada[2]); //OBLIGATORIO
 
-    char *nroInterfaz = string_new();
-    nroInterfaz = linea_de_instruccion_separada[1];
+    char * nroInterfaz = string_duplicate(linea_de_instruccion_separada[1]);
 
-    char *tiempoTrabajoString = string_new();
-    tiempoTrabajoString = linea_de_instruccion_separada[2];
+
+    char * tiempoTrabajoString = string_duplicate(linea_de_instruccion_separada[2]);
 
     char **datos_tiempo = string_array_new();
     string_array_push(&datos_tiempo, nroInterfaz);
@@ -1027,8 +1026,7 @@ void enviar_pcb(e_motivo_desalojo motivo_desalojo, Agregar_datos_paquete agregar
     empaquetar_registros(paquete_de_pcb, registros);
     agregar_datos_paquete(paquete_de_pcb, datos);
     enviar_paquete(paquete_de_pcb, socket_cliente_dispatch, logger);
-
- }
+}
 
 void agregar_datos_recurso(t_paquete *paquete, void *nombre_recurso)
 {
