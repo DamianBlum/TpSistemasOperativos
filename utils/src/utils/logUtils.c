@@ -3,7 +3,7 @@
 t_log *iniciar_logger(char *nombreLog, char *rutaLog, int argc, char *argv[])
 {
     t_log *nuevo_logger;
-    char *modo = string_new();
+    char *modo;
 
     // con el argumento defino el log level
     if (argc > 1)
@@ -57,6 +57,7 @@ t_log *iniciar_logger(char *nombreLog, char *rutaLog, int argc, char *argv[])
     }
 
     log_info(nuevo_logger, "---------- INICIO DEL LOG EN MODO %s ----------\n", modo);
+    free(modo);
     return nuevo_logger;
 }
 
