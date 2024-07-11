@@ -132,4 +132,6 @@ void signal_interfaz(t_entrada_salida *tes);
 t_manejo_bloqueados* conseguir_tmb(uint32_t id);
 void sacarle_sus_recursos(uint32_t pid);
 bool eliminar_id_lista(t_list* lista, uint32_t id);
+bool verificar_interfaz(char* nombre_interfaz);
+void log_obligatorio_ready(t_queue* cola, uint8_t tipo_cola);
 #endif

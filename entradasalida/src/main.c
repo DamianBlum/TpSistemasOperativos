@@ -567,10 +567,10 @@ uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t
         }
         else if (hay_espacio_suficiente(idial, bloques_a_agregar))
         {
-            log_info(logger, "PID: <%u> - Inicio Compactación.", pid);
+            log_info(logger, "PID: <%u> - Inicio Compactación.", pid); // log obligatorio
             compactar(idial, nombre_archivo, nuevo_size);
 
-            log_info(logger, "PID: <%u> - Fin Compactación.", pid);
+            log_info(logger, "PID: <%u> - Fin Compactación.", pid); // log obligatorio
             resultado = 1;
         }
         else
