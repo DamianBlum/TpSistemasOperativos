@@ -80,13 +80,10 @@ int main(int argc, char *argv[])
         comandoLeido = readline(">"); // Lee de consola lo ingresado
 
         seguir = ejecutar_comando(comandoLeido);
+        free(comandoLeido);
     }
 
-    liberar_conexion(cliente_cpu_dispatch, logger);
-    liberar_conexion(cliente_cpu_interrupt, logger);
-    liberar_conexion(cliente_memoria, logger);
-    destruir_logger(logger);
-    destruir_config(config);
+    finalizar_kernel();
 
     return EXIT_SUCCESS;
 }
@@ -165,6 +162,7 @@ uint8_t ejecutar_comando(char *comando)
 
         // matar todo
         string_array_destroy(lineas_de_comando);
+        free(path);
         free(buffer);
     }
     else if ((string_equals_ignore_case("MULTIPROGRAMACION", comandoSpliteado[0]) || string_equals_ignore_case("MP", comandoSpliteado[0])) && comandoSpliteado[1] != NULL)
@@ -186,7 +184,7 @@ uint8_t ejecutar_comando(char *comando)
     {
         log_error(logger, "COMANDO NO VALIDO: %s", comandoSpliteado[0]);
     }
-
+    string_array_destroy(comandoSpliteado);
     return seguir;
 }
 
@@ -235,6 +233,7 @@ void *atender_cliente_io(void *arg)
         enviar_paquete(resp, cliente_io, logger);
         return EXIT_FAILURE;
     }
+    
 
     // list_add(lista_de_entradas_salidas, crear_interfaz(nombreInterfaz, cliente_io));
     crear_interfaz(nombreInterfaz, cliente_io);
@@ -293,21 +292,21 @@ void *atender_cliente_io(void *arg)
                 agregar_a_paquete(paquete_para_io, (uint32_t)list_get(lista_de_parametros, 2), sizeof(uint32_t));
                 agregar_a_paquete(paquete_para_io, dir_stdout, sizeof(uint32_t));
                 agregar_a_paquete(paquete_para_io, size_reg_stdout, sizeof(uint32_t));
-
+                
                 break;
             case DIALFS_CREATE:
                 char *nombre_archivo_c = list_get(lista_de_parametros, 0);
                 agregar_a_paquete(paquete_para_io, "IO_FS_CREATE", strlen("IO_FS_CREATE") + 1);
                 agregar_a_paquete(paquete_para_io, (uint32_t)list_get(lista_de_parametros, 1), sizeof(uint32_t));
                 agregar_a_paquete(paquete_para_io, nombre_archivo_c, strlen(nombre_archivo_c) + 1);
-
+                free(nombre_archivo_c);
                 break;
             case DIALFS_DELETE:
                 char *nombre_archivo_d = list_get(lista_de_parametros, 0);
                 agregar_a_paquete(paquete_para_io, "IO_FS_DELETE", strlen("IO_FS_DELETE") + 1);
                 agregar_a_paquete(paquete_para_io, (uint32_t)list_get(lista_de_parametros, 0), sizeof(uint32_t));
                 agregar_a_paquete(paquete_para_io, nombre_archivo_d, strlen(nombre_archivo_d) + 1);
-
+                free(nombre_archivo_d);
                 break;
             case DIALFS_TRUNCATE:
                 char *nombre_archivo_t = list_get(lista_de_parametros, 0);
@@ -316,7 +315,7 @@ void *atender_cliente_io(void *arg)
                 agregar_a_paquete(paquete_para_io, (uint32_t)list_get(lista_de_parametros, 1), sizeof(uint32_t));
                 agregar_a_paquete(paquete_para_io, nombre_archivo_t, strlen(nombre_archivo_t) + 1);
                 agregar_a_paquete(paquete_para_io, tamanio_t, sizeof(tamanio_t));
-
+                free(nombre_archivo_c);
                 break;
             case DIALFS_READ:
                 char *nombre_archivo_r = list_get(lista_de_parametros, 0);
@@ -329,6 +328,7 @@ void *atender_cliente_io(void *arg)
                 agregar_a_paquete(paquete_para_io, df_r, sizeof(df_r));
                 agregar_a_paquete(paquete_para_io, tamanio_r, sizeof(tamanio_r));
                 agregar_a_paquete(paquete_para_io, puntero_archivo_r, sizeof(puntero_archivo_r));
+                free(nombre_archivo_r);
 
                 break;
             case DIALFS_WRITE:
@@ -342,7 +342,7 @@ void *atender_cliente_io(void *arg)
                 agregar_a_paquete(paquete_para_io, df_w, sizeof(df_w));
                 agregar_a_paquete(paquete_para_io, tamanio_w, sizeof(tamanio_w));
                 agregar_a_paquete(paquete_para_io, puntero_archivo_w, sizeof(puntero_archivo_w));
-
+                free(nombre_archivo_w);
                 break;
             }
 
@@ -365,6 +365,8 @@ void *atender_cliente_io(void *arg)
                 // consego el pcb
                 evaluar_BLOCKED_a_EXIT(devolver_pcb_desde_lista(lista_de_pcbs, pid_con_datos->pid));
             }
+            list_destroy(resp);
+            list_destroy(lista_de_parametros);
         }
     }
 }
@@ -825,7 +827,7 @@ void evaluar_BLOCKED_a_READY(t_manejo_bloqueados *tmb)
     }
 
     t_PCB *pcb = devolver_pcb_desde_lista(lista_de_pcbs, pid_con_datos->pid);
-
+    free(pid_con_datos);
     // hago las cosas especificas de VRR
     if (debe_ir_a_cola_prioritaria(pcb)) // se fija si estoy en vrr y si tiene q ir a prio
     {
@@ -909,15 +911,14 @@ void *atender_respuesta_proceso(void *arg)
 
         if (op == PAQUETE)
         {
-            t_list *lista_respuesta_cpu = list_create();
-            lista_respuesta_cpu = recibir_paquete(cliente_cpu_dispatch, logger);
+            t_list *lista_respuesta_cpu = recibir_paquete(cliente_cpu_dispatch, logger);
             log_trace(logger, "CPU me devolvio el contexto de ejecucion.");
             pcb_en_running = devolver_pcb_desde_lista(lista_de_pcbs, idProcesoActual);
             actualizar_pcb(lista_respuesta_cpu, pcb_en_running, logger);
             // ---------------------------------------------- //
             e_motivo_desalojo motivo_desalojo = conseguir_motivo_desalojo_de_registros_empaquetados(lista_respuesta_cpu);
             log_trace(logger, "Motivo de desalojo de %d: %s", pcb_en_running->processID, motivo_desalojo_texto(motivo_desalojo));
-
+            
             switch (motivo_desalojo)
             {
             case MOTIVO_DESALOJO_OUT_OF_MEMORY:
@@ -966,6 +967,7 @@ void *atender_respuesta_proceso(void *arg)
                     // termino el ciclo
                     sigo_esperando_cosas_de_cpu = false;
                 }
+                free(argWait);
                 break;
             case MOTIVO_DESALOJO_SIGNAL:
                 char *nombreRecurso = list_get(lista_respuesta_cpu, 13); // hacer desp esto en una funcion
@@ -990,6 +992,7 @@ void *atender_respuesta_proceso(void *arg)
                     // termino el ciclo
                     sigo_esperando_cosas_de_cpu = false;
                 }
+                free(nombreRecurso);
                 break;
             case MOTIVO_DESALOJO_INTERRUPCION:
                 // termino el ciclo
@@ -1027,7 +1030,7 @@ void *atender_respuesta_proceso(void *arg)
                     // termino el ciclo
                     sigo_esperando_cosas_de_cpu = false;
                 }
-                
+                free(nombre_interfaz);
                 break;
             case MOTIVO_DESALOJO_IO_STDIN_READ:
                 char *nombre_interfaz_stdin = list_get(lista_respuesta_cpu, 13);
@@ -1056,6 +1059,7 @@ void *atender_respuesta_proceso(void *arg)
                     // termino el ciclo
                     sigo_esperando_cosas_de_cpu = false;
                 }
+                free(nombre_interfaz_stdin);
                 break;
             case MOTIVO_DESALOJO_IO_STDOUT_WRITE:
                 char *nombre_interfaz_write = list_get(lista_respuesta_cpu, 13);
@@ -1085,6 +1089,7 @@ void *atender_respuesta_proceso(void *arg)
                     // termino el ciclo
                     sigo_esperando_cosas_de_cpu = false;
                 }
+                free(nombre_interfaz_write);
                 break;
             case MOTIVO_DESALOJO_IO_FS_CREATE:
                 char *nombre_interfaz_create = list_get(lista_respuesta_cpu, 13);
@@ -1098,7 +1103,7 @@ void *atender_respuesta_proceso(void *arg)
                 // armo los datos
                 t_list *l_io_fs_create = list_create();
                 list_add(l_io_fs_create, DIALFS_CREATE);
-                list_add(l_io_fs_create, nombre_archivo_create);
+                list_add(l_io_fs_create, string_duplicate(nombre_archivo_create));
                 list_add(l_io_fs_create, pcb_en_running->processID);
 
                 evaluar_EXEC_a_BLOCKED(nombre_interfaz_create, l_io_fs_create);
@@ -1112,6 +1117,8 @@ void *atender_respuesta_proceso(void *arg)
                     // termino el ciclo
                     sigo_esperando_cosas_de_cpu = false;
                 }
+                free(nombre_archivo_create);
+                free(nombre_interfaz_create);
                 break;
             case MOTIVO_DESALOJO_IO_FS_DELETE:
                 char *nombre_interfaz_delete = list_get(lista_respuesta_cpu, 13);
@@ -1125,7 +1132,7 @@ void *atender_respuesta_proceso(void *arg)
                 // armo los datos
                 t_list *l_io_fs_delete = list_create();
                 list_add(l_io_fs_delete, DIALFS_DELETE);
-                list_add(l_io_fs_delete, nombre_archivo_delete);
+                list_add(l_io_fs_delete, string_duplicate(nombre_archivo_delete));
                 list_add(l_io_fs_delete, pcb_en_running->processID);
 
                 evaluar_EXEC_a_BLOCKED(nombre_interfaz_delete, l_io_fs_delete);
@@ -1139,6 +1146,8 @@ void *atender_respuesta_proceso(void *arg)
                     // termino el ciclo
                     sigo_esperando_cosas_de_cpu = false;
                 }
+                free(nombre_archivo_delete);
+                free(nombre_interfaz_delete);
                 break;
             case MOTIVO_DESALOJO_IO_FS_TRUNCATE:
                 char *nombre_interfaz_truncate = list_get(lista_respuesta_cpu, 13);
@@ -1153,7 +1162,7 @@ void *atender_respuesta_proceso(void *arg)
                 // armo los datos
                 t_list *l_io_fs_truncate = list_create();
                 list_add(l_io_fs_truncate, DIALFS_TRUNCATE);
-                list_add(l_io_fs_truncate, nombre_archivo_truncate);
+                list_add(l_io_fs_truncate, string_duplicate(nombre_archivo_truncate));
                 list_add(l_io_fs_truncate, pcb_en_running->processID);
                 list_add(l_io_fs_truncate, tamanio_truncate);
 
@@ -1168,6 +1177,8 @@ void *atender_respuesta_proceso(void *arg)
                     // termino el ciclo
                     sigo_esperando_cosas_de_cpu = false;
                 }
+                free(nombre_archivo_truncate);
+                free(nombre_interfaz_truncate);
                 break;
             case MOTIVO_DESALOJO_IO_FS_WRITE:
                 char *nombre_interfaz_fs_write = list_get(lista_respuesta_cpu, 13);
@@ -1184,7 +1195,7 @@ void *atender_respuesta_proceso(void *arg)
                     // armo los datos
                     t_list *l_io_fs_write = list_create();
                     list_add(l_io_fs_write, DIALFS_WRITE);
-                    list_add(l_io_fs_write, nombre_archivo_write);
+                    list_add(l_io_fs_write, string_duplicate(nombre_archivo_write));
                     list_add(l_io_fs_write, pcb_en_running->processID);
                     list_add(l_io_fs_write, df_fs_write);
                     list_add(l_io_fs_write, tamanio_fs_write);
@@ -1200,6 +1211,8 @@ void *atender_respuesta_proceso(void *arg)
                     // termino el ciclo
                     sigo_esperando_cosas_de_cpu = false;
                 }
+                free(nombre_archivo_write);
+                free(nombre_interfaz_fs_write);
                 break;
             case MOTIVO_DESALOJO_IO_FS_READ:
                 char *nombre_interfaz_read = list_get(lista_respuesta_cpu, 13);
@@ -1216,7 +1229,7 @@ void *atender_respuesta_proceso(void *arg)
                     // armo los datos
                     t_list *l_io_fs_read = list_create();
                     list_add(l_io_fs_read, DIALFS_READ);
-                    list_add(l_io_fs_read, nombre_archivo_read);
+                    list_add(l_io_fs_read, string_duplicate(nombre_archivo_read));
                     list_add(l_io_fs_read, pcb_en_running->processID);
                     list_add(l_io_fs_read, df_read);
                     list_add(l_io_fs_read, tamanio_read);
@@ -1233,11 +1246,14 @@ void *atender_respuesta_proceso(void *arg)
                     // termino el ciclo
                     sigo_esperando_cosas_de_cpu = false;
                 }
+                free(nombre_archivo_read);
+                free(nombre_interfaz_read);
                 break;
             default:
                 log_error(logger, "Recibi cualquier cosa como motivo de desalojo");
                 break;
             }
+            list_destroy(lista_respuesta_cpu);
         }
         else
         {
@@ -1255,7 +1271,7 @@ void obtener_valores_de_recursos()
     diccionario_recursos_e_interfaces = dictionary_create();
     char **lista1 = config_get_array_value(config, "RECURSOS");
     char **lista2 = config_get_array_value(config, "INSTANCIAS_RECURSOS");
-
+    
     int i = 0;
     while (true)
     {
@@ -1337,7 +1353,7 @@ t_manejo_bloqueados *crear_manejo_bloqueados(e_tipo_bloqueado identificador)
     return tmb;
 }
 
-void destruir_manejor_bloqueados(t_manejo_bloqueados *tmb)
+void destruir_manejo_bloqueados(t_manejo_bloqueados *tmb)
 {
     queue_destroy(tmb->cola_bloqueados);
     free(tmb);
@@ -1358,6 +1374,8 @@ void liberar_memoria(uint32_t id)
     t_list *resp_memoria = recibir_paquete(cliente_memoria, logger);
     if (!list_get(resp_memoria, 0))
         log_debug(logger, "Memoria pudo liberar el proceso %u correctamente.", id);
+    
+    list_destroy(resp_memoria);
 }
 
 bool crear_proceso_en_memoria(uint32_t id, char *path)
@@ -1373,8 +1391,8 @@ bool crear_proceso_en_memoria(uint32_t id, char *path)
     bool v = false;
     recibir_operacion(cliente_memoria, logger);
 
-    t_list *l = list_create();
-    l = recibir_paquete(cliente_memoria, logger);
+    
+    t_list* l = recibir_paquete(cliente_memoria, logger);
     log_debug(logger, "Respuesta recibida de Memoria: %u", (uint8_t)list_get(l, 0));
     v = ((uint8_t)list_get(l, 0) == 0);
     list_destroy(l);
@@ -1446,13 +1464,13 @@ void crear_interfaz(char *nombre_interfaz, int cliente)
     t_manejo_bloqueados *tmb = crear_manejo_bloqueados(INTERFAZ);
     t_entrada_salida *tes = (t_entrada_salida *)tmb->datos_bloqueados;
 
-    tes->nombre_interfaz = nombre_interfaz;
+    tes->nombre_interfaz = string_duplicate(nombre_interfaz);
     tes->cliente = cliente;
     pthread_mutex_init(&(tes->mutex), NULL);
     pthread_mutex_init(&(tes->binario), NULL);
     pthread_mutex_lock(&(tes->binario)); // esto es porque quiero q arranque bloqueado y se desbloquee cuando meto a alguien en la queue
     wait_interfaz(tes);
-    dictionary_put(diccionario_recursos_e_interfaces, nombre_interfaz, tmb);
+    dictionary_put(diccionario_recursos_e_interfaces, string_duplicate(nombre_interfaz), tmb);
     signal_interfaz(tes);
 }
 
@@ -1469,9 +1487,11 @@ void signal_interfaz(t_entrada_salida *tes)
 void sacarle_sus_recursos(uint32_t pid)
 {
     log_trace(logger, "Voy a sacarle los recursos al proceso %d.", pid);
+    t_list* lista_keys = dictionary_keys(diccionario_recursos_e_interfaces);
     for (uint8_t i = 0; i < dictionary_size(diccionario_recursos_e_interfaces); i++) // podria ser un poquito mas lindo esto pero bueno, andar anda
     {
-        t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos_e_interfaces, list_get(dictionary_keys(diccionario_recursos_e_interfaces), i));
+
+        t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos_e_interfaces, list_get(lista_keys, i));
         if (tmb->identificador == RECURSO)
         {
             t_manejo_recursos *manejo_recurso = (t_manejo_recursos *)tmb->datos_bloqueados;
@@ -1485,7 +1505,13 @@ void sacarle_sus_recursos(uint32_t pid)
                 evaluar_BLOCKED_a_READY(tmb);
             }
         }
+
     }
+    /*for(uint8_t i = 0; i < dictionary_size(diccionario_recursos_e_interfaces); i++)
+    {
+        free(list_remove(lista_keys, i));
+    }*/
+    list_destroy(lista_keys);
 }
 
 bool eliminar_id_lista(t_list *lista, uint32_t id)
@@ -1510,7 +1536,7 @@ bool verificar_interfaz(char* nombre_interfaz)
     return dictionary_has_key(diccionario_recursos_e_interfaces,nombre_interfaz);
 }
 
-void log_obligatorio_ready(t_queue* cola, uint8_t tipo_cola) // Fui a buscar morfi, deje esto y ya lo puse en el .h
+void log_obligatorio_ready(t_queue* cola, uint8_t tipo_cola) 
 {
     pthread_mutex_lock(&mutex_cola_ready);
     t_list* lista_de_cola = cola->elements;
@@ -1529,4 +1555,45 @@ void log_obligatorio_ready(t_queue* cola, uint8_t tipo_cola) // Fui a buscar mor
         log_info(logger, "Cola Ready Prioridad: %s", pids);
 
     free(pids);
+}
+
+void finalizar_kernel() 
+{
+    liberar_conexion(cliente_cpu_dispatch, logger);
+    liberar_conexion(cliente_cpu_interrupt, logger);
+    liberar_conexion(cliente_memoria, logger);
+    destruir_logger(logger);
+    destruir_config(config);
+    liberar_diccionario();
+    queue_destroy(cola_EXIT);
+    queue_destroy(cola_READY);
+    queue_destroy(cola_NEW);
+    queue_destroy(cola_RUNNING);
+    queue_destroy(cola_READY_PRIORITARIA);
+}
+
+void liberar_diccionario()
+{
+    t_list* lista_keys = dictionary_keys(diccionario_recursos_e_interfaces);
+    for (uint8_t i = 0; i < dictionary_size(diccionario_recursos_e_interfaces); i++) // podria ser un poquito mas lindo esto pero bueno, andar anda
+    {
+        t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos_e_interfaces, list_get(lista_keys, i));
+        if (tmb->identificador == RECURSO)
+        {
+            t_manejo_recursos *manejo_recurso = (t_manejo_recursos *)tmb->datos_bloqueados;
+            list_destroy(manejo_recurso->lista_procesos_usando_recurso);
+            free(manejo_recurso);
+        }
+        else if (tmb->identificador == INTERFAZ)
+        {
+            t_entrada_salida *tes = (t_entrada_salida *)tmb->datos_bloqueados;
+            free(tes->nombre_interfaz);
+            pthread_mutex_destroy(&(tes->mutex));
+            pthread_mutex_destroy(&(tes->binario));
+            free(tes);
+        }
+        destruir_manejo_bloqueados(tmb);
+    }
+    list_destroy(lista_keys);
+    dictionary_destroy(diccionario_recursos_e_interfaces);
 }

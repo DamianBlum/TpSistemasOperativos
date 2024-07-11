@@ -91,4 +91,5 @@ char *motivo_desalojo_texto(e_motivo_desalojo e)
         motivo = string_duplicate("Chanfles");
         break;
     }
+    return motivo;
 }

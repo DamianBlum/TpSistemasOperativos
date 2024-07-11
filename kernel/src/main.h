@@ -87,8 +87,10 @@ uint8_t desasignar_recurso(char *recurso, t_PCB *pcb);
 bool eliminar_id_de_la_cola(t_queue *cola, uint32_t id);
 bool eliminar_id_de_la_cola_blocked(t_queue *cola, uint32_t id);
 t_manejo_bloqueados *crear_manejo_bloqueados();
-void destruir_manejor_bloqueados(t_manejo_bloqueados *tmb);
+void destruir_manejo_bloqueados(t_manejo_bloqueados *tmb);
 bool pidio_el_recurso(t_PCB *pcb, char *recurso);
+void finalizar_kernel();
+void liberar_diccionario();
 
 // planificacion de largo plazo
 void crear_proceso();
