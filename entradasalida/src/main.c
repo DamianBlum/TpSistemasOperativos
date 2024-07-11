@@ -61,11 +61,12 @@ t_interfaz_default *crear_nueva_interfaz(char *nombre_archivo_config)
     t_interfaz_default *interfaz = malloc(sizeof(t_interfaz_default));
 
     // agrego los datos de la interfaz default
-    interfaz->nombre = string_split(nombre_archivo_config, ".")[0];
+    char** nombre = string_split(nombre_archivo_config, ".");
+    interfaz->nombre = string_duplicate(nombre[0]);
     interfaz->tipo_interfaz = convertir_tipo_interfaz_enum(config_get_string_value(config, "TIPO_INTERFAZ"));
     interfaz->conexion_kernel = crear_conexion(config, "IP_KERNEL", "PUERTO_KERNEL", logger);
     interfaz->accesos = 0;
-
+    
     // agrego los datos de la interfaz especifica segun corresponda
     switch (interfaz->tipo_interfaz)
     {
@@ -108,6 +109,8 @@ t_interfaz_default *crear_nueva_interfaz(char *nombre_archivo_config)
         string_append(&path_bitmap, "bitmap.dat");
         tid->bitmap = crear_bitmap(path_bitmap, tid->block_count, logger);
 
+        free(path_bloques);
+        free(path_bitmap);
         break;
     default:
         break;
@@ -125,6 +128,7 @@ t_interfaz_default *crear_nueva_interfaz(char *nombre_archivo_config)
     log_debug(logger, "Interfaz creada correctamente de tipo %s.", config_get_string_value(config, "TIPO_INTERFAZ"));
     destruir_config(config);
     free(nombre_archivo_con_carpeta);
+    string_array_destroy(nombre);
     list_destroy(paquete); // esto no estaba puesto, despues ver si no rompe nada 10/7/24
     return interfaz;
 }
@@ -408,7 +412,7 @@ void manejo_de_interfaz(void *args)
             break;
         }
     }
-    liberar_conexion(interfaz->conexion_kernel, logger);
+    
     destruir_interfaz(interfaz); // esto no estaba puesto, despues ver si no rompe nada 10/7/24
     
     return EXIT_SUCCESS;
@@ -842,13 +846,18 @@ void destruir_interfaz(t_interfaz_default* interfaz) // esto no estaba puesto, d
     case DIALFS:
         t_interfaz_dialfs* idialfs = (t_interfaz_dialfs*)interfaz->configs_especificas;
         liberar_conexion(idialfs->conexion_memoria, logger);
+        free(idialfs->bitmap->path);
+        bitarray_destroy(idialfs->bitmap->bitarray);
         free(idialfs->bitmap);
+        free(idialfs->bloques->path);
+        munmap(idialfs->bloques->bloques, (idialfs->bloques->cant_bloques)*(idialfs->bloques->size_bloque));
         free(idialfs->bloques);
         free(idialfs->path_base_dialfs);
         break;
     default:
         break;
     }
+    liberar_conexion(interfaz->conexion_kernel, logger);
     free(interfaz->configs_especificas);
     free(interfaz->nombre);
     free(interfaz);

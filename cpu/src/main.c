@@ -113,13 +113,12 @@ void *servidor_dispatch(void *arg)
             free(mensaje);
             break;
         case PAQUETE:
-            //t_list *lista = list_create();
             t_list *lista = recibir_paquete(socket_cliente_dispatch, logger);
             log_trace(logger, "CPU recibe un PCB desde Kernel");
             // deberia recibir por aca un PCB para ponerme a ejercutar las instrucciones en el hilo principal
             desempaquetar_pcb_a_registros(lista, registros, logger); // aca pasa de los paquete a los registros
 
-            list_destroy(lista); // esto no estaba puesto, despues ver si no rompe nada 9/7/24
+            list_destroy(lista); 
             break;
         case EXIT: // indica desconeccion
             log_error(logger, "Se desconecto el cliente %d.", socket_cliente_dispatch);
@@ -177,7 +176,7 @@ void *servidor_interrupt(void *arg) // por aca va a recibir un bit cuando quiere
             free(mensaje); // esto no estaba puesto, despues ver si no rompe nada 9/7/24
             break;
         case PAQUETE:
-            //t_list *lista = list_create();
+            
             t_list * lista = recibir_paquete(socket_cliente_interrupt, logger);
             log_info(logger, "Se va a interrumpir el proceso con id < %d > ", list_get(lista, 0));
             // el paquete tiene el id pero no me importa, nomas ahora cambiar interrupcion a true
@@ -187,7 +186,7 @@ void *servidor_interrupt(void *arg) // por aca va a recibir un bit cuando quiere
             interrupcion = true;
             pthread_mutex_unlock(&mutex_interrupcion);
 
-            list_destroy(lista); // esto no estaba puesto, despues ver si no rompe nada 9/7/24
+            list_destroy(lista);
             break;
         case EXIT: // indica desconeccion
             log_error(logger, "Se desconecto el cliente %d.", socket_cliente_interrupt);
@@ -306,10 +305,6 @@ int fetch()
         return EXIT_FAILURE;
     }
     
-    /*if(!string_equals_ignore_case(linea_de_instruccion, ""))
-    {
-        free(linea_de_instruccion);
-    }*/
     free(linea_de_instruccion);
     // Recibimos la instruccion de memoria
 
@@ -322,13 +317,10 @@ int fetch()
 
 void decode()
 {
-    /*if (!string_array_is_empty(linea_de_instruccion_separada))
-    {
-        string_array_destroy(linea_de_instruccion_separada);
-    }*/
+
     string_array_destroy(linea_de_instruccion_separada);
     // divide la instruccion en partes y la asigna a la variable instruccion el nombre de la misma
-    linea_de_instruccion_separada = string_split(linea_de_instruccion, " "); //REVISAR
+    linea_de_instruccion_separada = string_split(linea_de_instruccion, " "); 
     instruccion = parsear_instruccion(linea_de_instruccion_separada[0]);
 
     // para saber si hay que hacer un uso de la MMU
@@ -425,7 +417,7 @@ void execute()
         instruccion_exit();
         break;
     default:
-        log_error(logger, "instruccion incorreta: fatal error :p");
+        log_error(logger, "instruccion incorrecta: fatal error :p");
         break;
     }
 }
@@ -459,7 +451,7 @@ void instruccion_resize()
     }
 
     //Liberacion de memoria
-    list_destroy(lista_de_memoria); // esto no estaba puesto, despues ver si no rompe nada 9/7/24
+    list_destroy(lista_de_memoria); 
 }
 
 void instruccion_io_fs_create()
@@ -689,7 +681,7 @@ void instruccion_wait()
     enviar_pcb(MOTIVO_DESALOJO_WAIT, agregar_datos_recurso, nombre_recurso);
 
     // Espero la respuesta de Kernel
-    //t_list *resp_kernel_wait = list_create();
+    
     recibir_operacion(socket_cliente_dispatch, logger);
     t_list *resp_kernel_wait = recibir_paquete(socket_cliente_dispatch, logger);
 
@@ -716,7 +708,6 @@ void instruccion_signal()
     enviar_pcb(MOTIVO_DESALOJO_SIGNAL, agregar_datos_recurso, nombre_recurso);
 
     // Espero la respuesta de Kernel
-    //t_list *resp_kernel_signal = list_create();
     recibir_operacion(socket_cliente_dispatch, logger);
     t_list *resp_kernel_signal = recibir_paquete(socket_cliente_dispatch, logger);
 
@@ -1142,7 +1133,6 @@ int conseguir_marco(uint32_t pid, uint32_t nro_pagina)
 
         // recibir el marco
         recibir_operacion(cliente_memoria, logger);
-        //t_list *lista_de_memoria = list_create();
         t_list *lista_de_memoria = recibir_paquete(cliente_memoria, logger);
         marco = (int)list_get(lista_de_memoria, 0);
         agregar_a_tlb(pid, nro_pagina, marco);
@@ -1223,6 +1213,7 @@ int agregar_a_tlb(uint32_t pid, uint32_t nro_pagina, uint32_t nro_marco)
         TLB[indice].nro_marco = nro_marco;
         TLB[indice].instante_refencia = instante_referencia;
     }
+    free(algortimo_tlb);
     return EXIT_FAILURE;
 }
 

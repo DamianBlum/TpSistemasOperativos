@@ -9,6 +9,7 @@ int socket_servidor;
 // clientes
 int cliente_kernel;
 int cliente_cpu;
+t_list* lista_clientes_io;
 
 // hilos
 pthread_t tid[3];
@@ -63,6 +64,7 @@ void *esperar_io(void *arg)
         // con la variable pthread_t *hilos_io, guardo la direccion de memoria de los hilos que voy creando
         pthread_t hilo_io;
         int cliente_entradasalida = esperar_cliente(socket_servidor, logger);
+        list_add(lista_clientes_io,cliente_entradasalida);
         pthread_create(&hilo_io, NULL, servidor_entradasalida, cliente_entradasalida);
     }
 }
@@ -85,8 +87,8 @@ void *servidor_kernel(void *arg)
             // normalemente no se va a usar esto igual pero lo dejo
             break;
         case PAQUETE:
-            t_list *lista = list_create();
-            lista = recibir_paquete(cliente_kernel, logger);
+            
+            t_list *lista = recibir_paquete(cliente_kernel, logger);
             log_debug(logger, "Desde cliente %d: Recibi un paquete.", cliente_kernel);
             e_operacion operacion_kernel = (e_operacion)list_get(lista, 0);
             usleep(config_get_int_value(config, "RETARDO_RESPUESTA") * 1000);
@@ -155,8 +157,8 @@ void *servidor_cpu(void *arg)
             // hago algo con el mensaje
             break;
         case PAQUETE:
-            t_list *lista = list_create();
-            lista = recibir_paquete(cliente_cpu, logger);
+            
+            t_list *lista = recibir_paquete(cliente_cpu, logger);
             log_debug(logger, "Desde cliente: %d Recibi un paquete.", cliente_cpu);
 
             // aplico el retardo de la respuesta
@@ -247,8 +249,7 @@ void *servidor_entradasalida(void *arg)
             // hago algo con el mensaje
             break;
         case PAQUETE:
-            t_list *lista = list_create();
-            lista = recibir_paquete(cliente_entradasalida, logger);
+            t_list *lista = recibir_paquete(cliente_entradasalida, logger);
             log_debug(logger, "Desde cliente %d: Recibi un paquete.", cliente_entradasalida);
             e_operacion operacion_io = (e_operacion)list_get(lista, 0);
             usleep(config_get_int_value(config, "RETARDO_RESPUESTA")*1000);
@@ -638,6 +639,7 @@ void inicializar_modulo_memoria(int argc, char *argv[])
     crear_espacio_memoria();
     pthread_mutex_init(&mutex_espacio_memoria, NULL);
     pthread_mutex_init(&mutex_procesos, NULL);
+    lista_clientes_io = list_create();
 }
 
 void testear_modulo_memoria()
@@ -734,9 +736,15 @@ void testear_modulo_memoria()
 
 void finalizar_modulo_memoria()
 {
+
     // espero a cpu y kernel
     pthread_join(tid[SOY_CPU], NULL);
     pthread_join(tid[SOY_KERNEL], NULL);
+    while(!list_is_empty(lista_clientes_io)){
+        int conexion_io=list_remove(lista_clientes_io,0);
+        liberar_conexion(conexion_io,logger);
+    }
+    list_destroy(lista_clientes_io);
     liberar_conexion(cliente_cpu, logger);
     liberar_conexion(cliente_kernel, logger);
     dictionary_destroy(procesos);
