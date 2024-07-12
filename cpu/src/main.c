@@ -1189,7 +1189,7 @@ int agregar_a_tlb(uint32_t pid, uint32_t nro_pagina, uint32_t nro_marco)
     }
     // si no hay hueco libre, lo agrega en la primera posicion que se uso
     log_debug(logger, "TLB LLENA - Se va a reemplazar una entrada");
-    char *algortimo_tlb = config_get_string_value(config, "ALGORITMO_TLB");
+    char *algortimo_tlb = string_duplicate(config_get_string_value(config, "ALGORITMO_TLB"));
     if (string_equals_ignore_case(algortimo_tlb, "FIFO"))
     {
         if (ultima_fila_modificada == tlb_size)
