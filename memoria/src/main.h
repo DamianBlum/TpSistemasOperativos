@@ -21,7 +21,6 @@ typedef enum
     SOY_IO
 } e_quien_soy;
 
-
 typedef struct t_memoria_proceso
 {
     char **lineas_de_codigo;
@@ -40,11 +39,9 @@ t_memoria_proceso *encontrar_proceso(uint32_t pid);
 void destruir_proceso(uint32_t pid);
 void crear_espacio_memoria();
 void *esperar_io(void *arg);
-uint32_t conseguir_siguiente_marco(uint32_t pid,uint32_t marco);
-int hacer_pedido_escritura(t_list* lista);
-void* hacer_pedido_lectura(t_list* lista);
-char* obtener_instruccion(t_list* lista);
-uint32_t obtener_marco(t_list* lista);
-void destruir_diccionario_procesos();
-void destruir_proceso_al_final(void *proceso);
+uint32_t conseguir_siguiente_marco(uint32_t pid, uint32_t marco);
+int hacer_pedido_escritura(t_list *lista);
+void *hacer_pedido_lectura(t_list *lista);
+char *obtener_instruccion(t_list *lista);
+uint32_t obtener_marco(t_list *lista);
 #endif

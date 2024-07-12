@@ -1573,7 +1573,6 @@ void finalizar_kernel()
         {
             eliminar_proceso(p->processID);
         }
-        temporal_destroy(p->tiempo_en_ejecucion);
     }
     list_destroy_and_destroy_elements(lista_de_pcbs, free);
 
