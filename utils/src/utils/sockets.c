@@ -38,21 +38,21 @@ int crear_conexion(t_config *config, char *key_ip, char *key_puerto, t_log *logg
 					servinfo->ai_socktype,
 					servinfo->ai_protocol);
 
-	log_info(logger, "Cliente %d creado con exito.", sc);
-	log_info(logger, "Cliente %d: Voy a iniciar la conexion con el servidor en %s:%s.", sc, ip, puerto);
+	log_debug(logger, "Cliente %d creado con exito.", sc);
+	log_debug(logger, "Cliente %d: Voy a iniciar la conexion con el servidor en %s:%s.", sc, ip, puerto);
 	int connection = connect(sc, servinfo->ai_addr, servinfo->ai_addrlen);
 	if (connection == -1)
 	{
 		log_error(logger, "Cliente %d: Fallo la conexion con el servidor %s:%s, se cierra el cliente.", sc, ip, puerto);
 		return -1;
 	}
-	log_info(logger, "Cliente %d: Pude establecer conexion con el servidor %s:%s.", sc, ip, puerto);
+	log_debug(logger, "Cliente %d: Pude establecer conexion con el servidor %s:%s.", sc, ip, puerto);
 	freeaddrinfo(servinfo);
 
 	// handshake
 	uint32_t handshake = 1;
 	uint32_t result;
-	log_info(logger, "Cliente %d: Voy a hacer el handshake.", sc);
+	log_debug(logger, "Cliente %d: Voy a hacer el handshake.", sc);
 	send(sc, &handshake, sizeof(uint32_t), NULL);
 	recv(sc, &result, sizeof(uint32_t), MSG_WAITALL);
 	if (result == -1)
@@ -61,13 +61,13 @@ int crear_conexion(t_config *config, char *key_ip, char *key_puerto, t_log *logg
 		return -1;
 	}
 
-	log_info(logger, "Cliente %d: handshake exitoso con el servidor.", sc);
+	log_debug(logger, "Cliente %d: handshake exitoso con el servidor.", sc);
 	return sc;
 }
 
 void enviar_mensaje(char *mensaje, int socket_cliente, t_log *logger)
 {
-	log_info(logger, "Mediante el socket %d, se va a enviar el mensaje \"%s\".", socket_cliente, mensaje);
+	log_debug(logger, "Mediante el socket %d, se va a enviar el mensaje \"%s\".", socket_cliente, mensaje);
 	t_paquete *paquete = malloc(sizeof(t_paquete));
 
 	paquete->codigo_operacion = MENSAJE;
@@ -192,18 +192,18 @@ int esperar_cliente(int socket_servidor, t_log *logger)
 	{
 		// Aceptamos un nuevo cliente
 		socket_cliente = accept(socket_servidor, NULL, NULL);
-		log_info(logger, "Servidor %d: Se conecto un nuevo cliente, %d.", socket_servidor, socket_cliente);
+		log_debug(logger, "Servidor %d: Se conecto un nuevo cliente, %d.", socket_servidor, socket_cliente);
 
 		// handshake
 		uint32_t resultOk = 0;
 		uint32_t resultError = -1;
 
-		log_info(logger, "Servidor %d: Esperando el handshake del cliente %d.", socket_servidor, socket_cliente);
+		log_debug(logger, "Servidor %d: Esperando el handshake del cliente %d.", socket_servidor, socket_cliente);
 
 		recv(socket_cliente, &handshake, sizeof(uint32_t), MSG_WAITALL);
 		if (handshake == 1)
 		{
-			log_info(logger, "Servidor %d: Handshake exitoso con el cliente %d.", socket_servidor, socket_cliente);
+			log_debug(logger, "Servidor %d: Handshake exitoso con el cliente %d.", socket_servidor, socket_cliente);
 			send(socket_cliente, &resultOk, sizeof(uint32_t), NULL);
 		}
 		else
@@ -223,11 +223,11 @@ int recibir_operacion(int socket_cliente, t_log *logger)
 	int estado = recv(socket_cliente, &cod_op, sizeof(int), MSG_WAITALL);
 	if (estado > 0)
 	{
-		log_info("Codigo de operacion recibido: %d | Cantidad de bytes recibidos: %d", cod_op, estado);
+		log_debug("Codigo de operacion recibido: %d | Cantidad de bytes recibidos: %d", cod_op, estado);
 		int size;
 		// esto no tengo idea xq esta aca, pero bueno, por las dudas lo comento xq tecnicamente no deberia estar
 		// int asd = recv(socket_cliente, &size, sizeof(int), MSG_WAITALL);
-		// log_info(logger, "SIZE DEL SIZE: %d | SIZE: %d", asd, size);
+		// log_debug(logger, "SIZE DEL SIZE: %d | SIZE: %d", asd, size);
 		return cod_op;
 	}
 	log_error(logger, "Error al recibir el codigo de operacion.");
