@@ -736,7 +736,6 @@ void testear_modulo_memoria()
 
 void finalizar_modulo_memoria()
 {
-
     // espero a cpu y kernel
     pthread_join(tid[SOY_CPU], NULL);
     pthread_join(tid[SOY_KERNEL], NULL);
@@ -747,7 +746,8 @@ void finalizar_modulo_memoria()
     list_destroy(lista_clientes_io);
     liberar_conexion(cliente_cpu, logger);
     liberar_conexion(cliente_kernel, logger);
-    dictionary_destroy(procesos);
+    destruir_diccionario_procesos();
+    
     free(espacio_memoria);
     bitarray_destroy(marcos);
     destruir_logger(logger);
@@ -776,4 +776,19 @@ void creacion_servidor_y_clientes()
     // Recibimos las multiples conexiones de la I/O y creamos los hilo para trabajar
     pthread_create(&tid[SOY_IO], NULL, esperar_io, NULL);
 
+}
+
+void destruir_diccionario_procesos()
+{
+    dictionary_iterator(procesos, destruir_proceso_al_final);
+    dictionary_destroy(procesos);
+}
+
+void destruir_proceso_al_final(void *proceso)
+{
+    t_memoria_proceso *proceso_a_destruir = (t_memoria_proceso *)proceso;
+    free(proceso_a_destruir->nombre_archivo);
+    string_array_destroy(proceso_a_destruir->lineas_de_codigo);
+    free(proceso_a_destruir->tabla_paginas);
+    free(proceso_a_destruir);
 }

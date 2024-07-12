@@ -45,4 +45,6 @@ int hacer_pedido_escritura(t_list* lista);
 void* hacer_pedido_lectura(t_list* lista);
 char* obtener_instruccion(t_list* lista);
 uint32_t obtener_marco(t_list* lista);
+void destruir_diccionario_procesos();
+void destruir_proceso_al_final(void *proceso);
 #endif
