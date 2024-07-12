@@ -11,12 +11,18 @@ int cliente_memoria;
 // hilos
 t_list *lista_de_hilos;
 
+// config conexiones
+t_config *config_conexiones;
+
 int main(int argc, char *argv[])
 {
     // Hacer un while que segun la cantidad de archivos de configuracion que haya, va a crear una interfaz por cada uno de ellos
     // Listar todo los archivos configs en la ruta actual
     logger = iniciar_logger("e-s.log", "ENTRADA-SALIDA", argc, argv);
     lista_de_hilos = list_create();
+
+    // config conexiones
+    config_conexiones = config_create("configs/conexiones.config");
 
     DIR *d;
     struct dirent *directorio;
@@ -46,6 +52,7 @@ int main(int argc, char *argv[])
         pthread_join(hilo, NULL);
     }
 
+    destruir_config(config_conexiones);
     destruir_logger(logger);
 
     return EXIT_SUCCESS;
@@ -61,12 +68,12 @@ t_interfaz_default *crear_nueva_interfaz(char *nombre_archivo_config)
     t_interfaz_default *interfaz = malloc(sizeof(t_interfaz_default));
 
     // agrego los datos de la interfaz default
-    char** nombre = string_split(nombre_archivo_config, ".");
+    char **nombre = string_split(nombre_archivo_config, ".");
     interfaz->nombre = string_duplicate(nombre[0]);
     interfaz->tipo_interfaz = convertir_tipo_interfaz_enum(config_get_string_value(config, "TIPO_INTERFAZ"));
-    interfaz->conexion_kernel = crear_conexion(config, "IP_KERNEL", "PUERTO_KERNEL", logger);
+    interfaz->conexion_kernel = crear_conexion(config_conexiones, "IP_KERNEL", "PUERTO_KERNEL", logger);
     interfaz->accesos = 0;
-    
+
     // agrego los datos de la interfaz especifica segun corresponda
     switch (interfaz->tipo_interfaz)
     {
@@ -78,20 +85,20 @@ t_interfaz_default *crear_nueva_interfaz(char *nombre_archivo_config)
     case STDIN:
         t_interfaz_stdin *tisin = malloc(sizeof(t_interfaz_stdin));
         log_debug(logger, "Como soy una interfaz STDIN voy a crear la conexion con memoria.");
-        tisin->conexion_memoria = crear_conexion(config, "IP_MEMORIA", "PUERTO_MEMORIA", logger);
+        tisin->conexion_memoria = crear_conexion(config_conexiones, "IP_MEMORIA", "PUERTO_MEMORIA", logger);
         interfaz->configs_especificas = tisin;
         break;
     case STDOUT:
         t_interfaz_stdout *tisout = malloc(sizeof(t_interfaz_stdout));
         log_debug(logger, "Como soy una interfaz STDOUT voy a crear la conexion con memoria.");
         tisout->tiempo_unidad_trabajo = (uint32_t)config_get_long_value(config, "TIEMPO_UNIDAD_TRABAJO");
-        tisout->conexion_memoria = crear_conexion(config, "IP_MEMORIA", "PUERTO_MEMORIA", logger);
+        tisout->conexion_memoria = crear_conexion(config_conexiones, "IP_MEMORIA", "PUERTO_MEMORIA", logger);
         interfaz->configs_especificas = tisout;
         break;
     case DIALFS:
         t_interfaz_dialfs *tid = malloc(sizeof(t_interfaz_dialfs));
         tid->tiempo_unidad_trabajo = (uint32_t)config_get_long_value(config, "TIEMPO_UNIDAD_TRABAJO");
-        tid->conexion_memoria = crear_conexion(config, "IP_MEMORIA", "PUERTO_MEMORIA", logger);
+        tid->conexion_memoria = crear_conexion(config_conexiones, "IP_MEMORIA", "PUERTO_MEMORIA", logger);
         tid->path_base_dialfs = string_duplicate(config_get_string_value(config, "PATH_BASE_DIALFS"));
         tid->block_size = (uint32_t)config_get_long_value(config, "BLOCK_SIZE");
         tid->block_count = (uint32_t)config_get_long_value(config, "BLOCK_COUNT");
@@ -214,12 +221,12 @@ int ejecutar_instruccion(t_interfaz_default *interfaz, t_list *datos_desde_kerne
             enviar_paquete(paquete_para_mem, cm, logger);
 
             // aca podria esperar a ver q me dice memoria sobre esto
-            recibir_operacion(cm, logger); 
+            recibir_operacion(cm, logger);
 
             char *mensaje_memoria = recibir_mensaje(cm, logger);
             log_debug(logger, "(%s|%u): Resultado de la escritura en memoria: %s", interfaz->nombre, interfaz->tipo_interfaz, mensaje_memoria);
             ejecuto_correctamente = 1;
-            free(texto_chiquito); // esto no estaba puesto, despues ver si no rompe nada 10/7/24
+            free(texto_chiquito);  // esto no estaba puesto, despues ver si no rompe nada 10/7/24
             free(texto_ingresado); // esto no estaba puesto, despues ver si no rompe nada 10/7/24
             free(mensaje_memoria); // esto no estaba puesto, despues ver si no rompe nada 10/7/24
         }
@@ -259,7 +266,7 @@ int ejecutar_instruccion(t_interfaz_default *interfaz, t_list *datos_desde_kerne
 
             ejecuto_correctamente = 1;
             list_destroy(lista_recibida); // esto no estaba puesto, despues ver si no rompe nada 10/7/24
-            free(mensaje_obtenido); // esto no estaba puesto, despues ver si no rompe nada 10/7/24
+            free(mensaje_obtenido);       // esto no estaba puesto, despues ver si no rompe nada 10/7/24
         }
         else
             log_error(logger, "ERROR: la instruccion pedida (%s) no corresponde a una interfaz generica.", nombre_instruccion);
@@ -337,14 +344,14 @@ int ejecutar_instruccion(t_interfaz_default *interfaz, t_list *datos_desde_kerne
 
             log_info(logger, "PID: <%u> - Escribir Archivo: <%s> - Tamaño a Escribir: <%u> - Puntero Archivo: <%u>", pid, nombre_archivo, size_dato, puntero_archivo); // log obligatorio
 
-            char *resultado = (char*)leer_en_archivo(idialfs, nombre_archivo, size_dato, puntero_archivo);
+            char *resultado = (char *)leer_en_archivo(idialfs, nombre_archivo, size_dato, puntero_archivo);
 
             t_paquete *paquete_para_mem = crear_paquete();
             agregar_a_paquete(paquete_para_mem, PEDIDO_ESCRITURA, sizeof(uint8_t));
             agregar_a_paquete(paquete_para_mem, dir_fisica_mem, sizeof(uint32_t)); // Reg direc logica (en realidad aca mepa q recivo la fisica)
             agregar_a_paquete(paquete_para_mem, size_dato, sizeof(uint32_t));      // Reg tam
             agregar_a_paquete(paquete_para_mem, pid, sizeof(uint32_t));            // PID
-            agregar_a_paquete(paquete_para_mem, resultado, strlen(resultado)+1);
+            agregar_a_paquete(paquete_para_mem, resultado, strlen(resultado) + 1);
             agregar_a_paquete(paquete_para_mem, 0, sizeof(uint8_t)); // 0 char* - 1 Numero
             enviar_paquete(paquete_para_mem, (int)((t_interfaz_dialfs *)interfaz->configs_especificas)->conexion_memoria, logger);
 
@@ -412,9 +419,9 @@ void manejo_de_interfaz(void *args)
             break;
         }
     }
-    
+
     destruir_interfaz(interfaz); // esto no estaba puesto, despues ver si no rompe nada 10/7/24
-    
+
     return EXIT_SUCCESS;
 }
 
@@ -490,7 +497,7 @@ uint8_t borrar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
     t_config *c = config_create(path_metadata);
     uint32_t bloque_inicial = (uint32_t)config_get_int_value(c, "BLOQUE_INICIAL");
     uint32_t tamanio_archivo = (uint32_t)config_get_int_value(c, "TAMANIO_ARCHIVO");
-    //Esto lo cambiaria por (double)tamanio_archivo / (double)idial->block_size 
+    // Esto lo cambiaria por (double)tamanio_archivo / (double)idial->block_size
     uint32_t cant_bloques = (uint32_t)ceil((double)tamanio_archivo / (double)idial->block_size); // ceil redondea para arriba
 
     limpiar_bitmap(idial, bloque_inicial, cant_bloques);
@@ -505,8 +512,8 @@ uint8_t borrar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo)
     uint8_t r = 1;
 
     if (remove(path_metadata))
-        r = 0; // error al borrar el archivo
-    config_destroy(c); // esto no estaba puesto, despues ver si no rompe nada 9/7/24
+        r = 0;           // error al borrar el archivo
+    config_destroy(c);   // esto no estaba puesto, despues ver si no rompe nada 9/7/24
     free(path_metadata); // esto no estaba puesto, despues ver si no rompe nada 9/7/24
     return r;
 }
@@ -522,7 +529,7 @@ uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t
 
     if (nuevo_size > size_archivo)
     { // en este caso me tengo q fijar que exista el espacio
-        double bloque_a_agregar_sin_redondear = (double)(nuevo_size)/(double)(idial->block_size);
+        double bloque_a_agregar_sin_redondear = (double)(nuevo_size) / (double)(idial->block_size);
         uint32_t bloques_a_agregar = (uint32_t)ceil(bloque_a_agregar_sin_redondear);
         uint32_t pos_arranque = bloque_inicial + size_archivo; // esto es el primer bloque que le sigue al ultimo que ya tiene asignado el archivo
         uint8_t puedo_truncar = 1;
@@ -533,7 +540,7 @@ uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t
             pos_arranque++;
             bloques_a_agregar--;
         }
-        for (uint32_t i = pos_arranque; i < (pos_arranque+bloques_a_agregar); i++)
+        for (uint32_t i = pos_arranque; i < (pos_arranque + bloques_a_agregar); i++)
         { // se pueden dar 2 situacion por las cuales no pueda truncar:
             // 1- pido mas de lo que le queda al filesystem de espacio (desde mi pos actual, ej: hay 1024, estoy en la 700 y pido 500)
             // 2- hay bloques ocupados que necesitaria tomar para poder hacer el trunque (ej: estoy en 200, pido 50 y desde la 230 esta ocupado por otro archivo)
@@ -581,8 +588,8 @@ uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t
     } // si es menor no valido nada, interpreto que es valido perder informacion al truncar
     else
     {
-        uint32_t cant_bloques_actual = (uint32_t)ceil( (double)size_archivo / (double) idial->block_size);
-        uint32_t cant_bloques_nueva = (uint32_t)ceil((double) nuevo_size /(double) idial->block_size);
+        uint32_t cant_bloques_actual = (uint32_t)ceil((double)size_archivo / (double)idial->block_size);
+        uint32_t cant_bloques_nueva = (uint32_t)ceil((double)nuevo_size / (double)idial->block_size);
         uint32_t bloques_a_sacar = cant_bloques_actual - cant_bloques_nueva;
         uint32_t pos_arranque = bloque_inicial + size_archivo;
 
@@ -651,7 +658,7 @@ void *leer_en_archivo(t_interfaz_dialfs *idialfs, char *nombre_archivo, uint32_t
     uint32_t puntero_en_disco = (bloque_inicial * idialfs->block_size) + puntero_archivo;
 
     config_destroy(config); // esto no estaba puesto, despues ver si no rompe nada 9/7/24
-    free(path_metadata); // esto no estaba puesto, despues ver si no rompe nada 9/7/24
+    free(path_metadata);    // esto no estaba puesto, despues ver si no rompe nada 9/7/24
 
     if (puntero_en_disco + size_dato > bloque_inicial * idialfs->block_size + size_archivo)
         return 0;
@@ -752,13 +759,12 @@ uint32_t aplicar_algoritmo_compactacion(t_interfaz_dialfs *idial)
             uint32_t bloque_inicial = (uint32_t)config_get_int_value(config_archivo_a_mover, "BLOQUE_INICIAL");
             uint32_t tamanio_archivo = (uint32_t)config_get_int_value(config_archivo_a_mover, "TAMANIO_ARCHIVO");
             uint32_t cant_bloques = (uint32_t)ceil((double)tamanio_archivo / (double)idial->block_size); // ceil redondea para arriba
-            if(tamanio_archivo == 0)
+            if (tamanio_archivo == 0)
             {
                 cant_bloques++;
             }
             primer_bloque_libre = bloque_inicial + cant_bloques;
             i = primer_bloque_libre - 1; // primer_bloque_libre = primer_bloque_libre-1
-            
         }
     }
     config_destroy(config_archivo_a_mover);
@@ -811,16 +817,16 @@ void mover_archivo(t_interfaz_dialfs *idialfs, int nuevo_origen, t_config *confi
     uint32_t bloque_inicial = (uint32_t)config_get_int_value(config_archivo, "BLOQUE_INICIAL");
     uint32_t size_archivo = (uint32_t)config_get_int_value(config_archivo, "TAMANIO_ARCHIVO");
     uint32_t puntero_en_disco = (bloque_inicial * idialfs->block_size);
-    uint32_t cant_bloques = (uint32_t)ceil( (double) size_archivo / (double) idialfs->block_size); // ceil redondea para arriba
-    
+    uint32_t cant_bloques = (uint32_t)ceil((double)size_archivo / (double)idialfs->block_size); // ceil redondea para arriba
+
     // caso especial SOLAMENTE si el el truncate es para un archivo recien creado (size 0)
     if (size_archivo == 0)
-    { 
+    {
         cant_bloques++;
     }
-    uint32_t actual_ultimo_bloque = bloque_inicial + cant_bloques - 1;          // 1 
-    uint32_t nuevo_ultimo_bloque = nuevo_origen + cant_bloques - 1;             // 0
-    uint32_t desplazamiento = bloque_inicial - nuevo_origen;                    // 1 - 0 = 1
+    uint32_t actual_ultimo_bloque = bloque_inicial + cant_bloques - 1; // 1
+    uint32_t nuevo_ultimo_bloque = nuevo_origen + cant_bloques - 1;    // 0
+    uint32_t desplazamiento = bloque_inicial - nuevo_origen;           // 1 - 0 = 1
     void *informacion_archivo = leer_bloque(idialfs->bloques, puntero_en_disco, size_archivo);
 
     config_set_value(config_archivo, "BLOQUE_INICIAL", string_itoa(nuevo_origen));
@@ -831,26 +837,26 @@ void mover_archivo(t_interfaz_dialfs *idialfs, int nuevo_origen, t_config *confi
     limpiar_bitmap(idialfs, nuevo_ultimo_bloque + 1, desplazamiento);
 }
 
-void destruir_interfaz(t_interfaz_default* interfaz) // esto no estaba puesto, despues ver si no rompe nada 10/7/24
+void destruir_interfaz(t_interfaz_default *interfaz) // esto no estaba puesto, despues ver si no rompe nada 10/7/24
 {
     switch (interfaz->tipo_interfaz)
     {
     case STDIN:
-        t_interfaz_stdin* istdin = (t_interfaz_stdin*)interfaz->configs_especificas;
+        t_interfaz_stdin *istdin = (t_interfaz_stdin *)interfaz->configs_especificas;
         liberar_conexion(istdin->conexion_memoria, logger);
         break;
     case STDOUT:
-        t_interfaz_stdout* istdout = (t_interfaz_stdout*)interfaz->configs_especificas;
+        t_interfaz_stdout *istdout = (t_interfaz_stdout *)interfaz->configs_especificas;
         liberar_conexion(istdout->conexion_memoria, logger);
         break;
     case DIALFS:
-        t_interfaz_dialfs* idialfs = (t_interfaz_dialfs*)interfaz->configs_especificas;
+        t_interfaz_dialfs *idialfs = (t_interfaz_dialfs *)interfaz->configs_especificas;
         liberar_conexion(idialfs->conexion_memoria, logger);
         free(idialfs->bitmap->path);
         bitarray_destroy(idialfs->bitmap->bitarray);
         free(idialfs->bitmap);
         free(idialfs->bloques->path);
-        munmap(idialfs->bloques->bloques, (idialfs->bloques->cant_bloques)*(idialfs->bloques->size_bloque));
+        munmap(idialfs->bloques->bloques, (idialfs->bloques->cant_bloques) * (idialfs->bloques->size_bloque));
         free(idialfs->bloques);
         free(idialfs->path_base_dialfs);
         break;
