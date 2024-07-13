@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
     lista_de_hilos = list_create();
 
     // config conexiones
-    config_conexiones = config_create("configs/conexiones.config");
+    config_conexiones = config_create("conexiones.config");
 
     DIR *d;
     struct dirent *directorio;
