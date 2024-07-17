@@ -22,36 +22,50 @@ int main(int argc, char *argv[])
     lista_de_hilos = list_create();
 
     // config conexiones
-    config_conexiones = config_create("conexiones.config");
+    config_conexiones = iniciar_config("conexiones.config");
 
-    DIR *d;
-    struct dirent *directorio;
-    d = opendir("./configs");
-    if (d == NULL)
+    // logica para elegir cual entrada salida ejecutar
+    uint8_t todaviaNoEligio = 1;
+    t_interfaz_default *interfaz_elegida;
+
+    while (todaviaNoEligio)
     {
-        log_error(logger, "No se pudo abrir el directorio.");
-        return EXIT_FAILURE;
-    }
-    int i = 0;
-    while (directorio = readdir(d))
-    {
-        if (string_ends_with(directorio->d_name, ".config"))
+        DIR *d;
+        struct dirent *directorio;
+        d = opendir("./configs");
+        if (d == NULL)
         {
-            t_interfaz_default *interfaz = crear_nueva_interfaz(directorio->d_name);
-            pthread_t hilo_para_atender_interfaz;
-            pthread_create(&hilo_para_atender_interfaz, NULL, manejo_de_interfaz, interfaz);
-            list_add(lista_de_hilos, hilo_para_atender_interfaz);
-            i++;
+            log_error(logger, "No se pudo abrir el directorio.");
+            return EXIT_FAILURE;
         }
-    }
-    closedir(d);
 
-    while (!list_is_empty(lista_de_hilos))
-    {
-        pthread_t hilo = list_remove(lista_de_hilos, 0);
-        pthread_join(hilo, NULL);
+        log_info(logger, "Ingrese la interfaz a ejecutar");
+        char *interfazElegida;
+        interfazElegida = readline(">");
+        string_append(&interfazElegida, ".config");
+        log_debug(logger, "%s", interfazElegida);
+
+        while ((directorio = readdir(d)) && todaviaNoEligio)
+        {
+            if (string_equals_ignore_case(interfazElegida, directorio->d_name))
+            {
+                interfaz_elegida = crear_nueva_interfaz(directorio->d_name);
+                todaviaNoEligio = 0;
+                /*pthread_t hilo_para_atender_interfaz;
+                pthread_create(&hilo_para_atender_interfaz, NULL, manejo_de_interfaz, interfaz);
+                list_add(lista_de_hilos, hilo_para_atender_interfaz);*/
+            }
+        }
+        if (todaviaNoEligio)
+            log_error(logger, "No se encontro el config \"%s\"", interfazElegida);
+        free(interfazElegida);
+        closedir(d);
     }
 
+    log_info(logger, "Voy a ejecutar la interfaz %s", interfaz_elegida->nombre);
+    manejo_de_interfaz(interfaz_elegida);
+
+    log_info(logger, "Se cerro la interfaz, se va a liberar memoria.");
     destruir_config(config_conexiones);
     destruir_logger(logger);
 
