@@ -314,7 +314,7 @@ void *atender_cliente_io(void *arg)
                 agregar_a_paquete(paquete_para_io, (uint32_t)list_get(lista_de_parametros, 1), sizeof(uint32_t));
                 agregar_a_paquete(paquete_para_io, nombre_archivo_t, strlen(nombre_archivo_t) + 1);
                 agregar_a_paquete(paquete_para_io, tamanio_t, sizeof(tamanio_t));
-                free(nombre_archivo_c);
+                free(nombre_archivo_t);
                 break;
             case DIALFS_READ:
                 char *nombre_archivo_r = list_get(lista_de_parametros, 0);
@@ -412,9 +412,7 @@ void eliminar_proceso(uint32_t id)
     }
     e_estado_proceso estado = pcb_a_finalizar->estado;
     // hay que hacer lo de buscar el recurso que tengo disponible
-
     sacarle_sus_recursos(pcb_a_finalizar->processID); // busca en los recursos donde esta el proceso y lo aumento y le aviso por si alguno se puede desbloquear
-
     // lo saco de queue
     switch (estado)
     {
@@ -434,6 +432,7 @@ void eliminar_proceso(uint32_t id)
         evaluar_EXEC_a_EXIT();
         break;
     case E_BLOCKED:
+        log_trace(logger, "Pase los recursos uwu");
         evaluar_BLOCKED_a_EXIT(pcb_a_finalizar);
         break;
     default:
@@ -468,6 +467,7 @@ bool eliminar_id_de_la_cola_blocked(t_queue *cola, uint32_t id)
         return false;
     bool loEncontre = false;
     t_pid_con_datos *primerId = queue_pop(cola);
+    
     if (primerId->pid != id)
     {
         queue_push(cola, primerId);
@@ -475,13 +475,21 @@ bool eliminar_id_de_la_cola_blocked(t_queue *cola, uint32_t id)
         {
             t_pid_con_datos *idActual = queue_pop(cola);
             if (idActual->pid == id)
+            {
                 loEncontre = true; // es el id q tengo q sacar
+                t_list *datos = idActual->datos;
+                if(string_contains(list_get(datos, 0),"DIALFS")){
+                    free(list_get(datos,1));
+                }
+                list_destroy(idActual->datos);
+                free(idActual);
+            }
             else
                 queue_push(cola, idActual);
         }
     }
     else
-    {
+    {   
         loEncontre = true;
     }
     return loEncontre;
@@ -694,6 +702,7 @@ void evaluar_READY_a_EXIT(t_PCB *pcb)
 void evaluar_BLOCKED_a_EXIT(t_PCB *pcb)
 {
     t_manejo_bloqueados *tmb = conseguir_tmb(pcb->processID); // si me interesa tener esta tmb y la funcion me permite eliminar a este de blocked
+    
     // Tambien se recupera el recurso del proceso bloqueado que se pidio antes :p
     if (tmb->identificador == RECURSO)
     {
@@ -716,8 +725,10 @@ t_manejo_bloqueados *conseguir_tmb(uint32_t id)
 {
     for (uint8_t i = 0; i < dictionary_size(diccionario_recursos_e_interfaces); i++) // podria ser un poquito mas lindo esto pero bueno, andar anda
     {
-        t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos_e_interfaces, list_get(dictionary_keys(diccionario_recursos_e_interfaces), i));
+        t_list* lista_keys=list_get(dictionary_keys(diccionario_recursos_e_interfaces), i);
+        t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos_e_interfaces, lista_keys);
         int size_queue = queue_size(tmb->cola_bloqueados);
+        list_destroy(lista_keys);
         switch (tmb->identificador)
         {
         case RECURSO:
@@ -731,6 +742,7 @@ t_manejo_bloqueados *conseguir_tmb(uint32_t id)
             wait_interfaz(tes);
             if (eliminar_id_de_la_cola_blocked(tmb->cola_bloqueados, id))
             {
+                signal_interfaz(tes);
                 return tmb;
             }
             signal_interfaz(tes);
@@ -1286,6 +1298,8 @@ void obtener_valores_de_recursos()
         dictionary_put(diccionario_recursos_e_interfaces, (lista1)[i], tmb);
         i++;
     }
+    string_array_destroy(lista1);
+    string_array_destroy(lista2);
 }
 
 uint8_t asignar_recurso(char *recurso, t_PCB *pcb)
@@ -1472,7 +1486,7 @@ void crear_interfaz(char *nombre_interfaz, int cliente)
     pthread_mutex_init(&(tes->binario), NULL);
     pthread_mutex_lock(&(tes->binario)); // esto es porque quiero q arranque bloqueado y se desbloquee cuando meto a alguien en la queue
     wait_interfaz(tes);
-    dictionary_put(diccionario_recursos_e_interfaces, string_duplicate(nombre_interfaz), tmb);
+    dictionary_put(diccionario_recursos_e_interfaces, nombre_interfaz, tmb);
     signal_interfaz(tes);
 }
 
