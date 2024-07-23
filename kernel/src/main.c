@@ -22,8 +22,13 @@ int grado_multiprogramacion; // este es el definido por parametro de config
 
 // Variable para el mutex del grado_multiprogramacion
 pthread_mutex_t mutex_grado_multiprogramacion = PTHREAD_MUTEX_INITIALIZER;
-// Variable para el mutex de la cola de new
+// Variable para el mutex de la cola de ready
 pthread_mutex_t mutex_cola_ready = PTHREAD_MUTEX_INITIALIZER;
+// Variable para el mutex de la cola de ready+
+pthread_mutex_t mutex_cola_ready_plus = PTHREAD_MUTEX_INITIALIZER;
+// Variable para el mutex para evaluar ready a exec
+pthread_mutex_t mutex_ready_a_exec = PTHREAD_MUTEX_INITIALIZER;
+
 int cant_procesos_ejecutando; // y este es un contador de procesos en el sistema, se modifica en el planificador de largo plazo
 
 e_algoritmo_planificacion algoritmo_planificacion;
@@ -52,6 +57,7 @@ int main(int argc, char *argv[])
     config = iniciar_config("kernel.config");
     pthread_mutex_init(&mutex_grado_multiprogramacion, NULL);
     pthread_mutex_init(&mutex_cola_ready, NULL);
+    pthread_mutex_init(&mutex_cola_ready_plus, NULL);
     // Instancio variables de configuracion desde el config
     quantum = config_get_int_value(config, "QUANTUM");
     grado_multiprogramacion = config_get_int_value(config, "GRADO_MULTIPROGRAMACION");
@@ -118,7 +124,9 @@ uint8_t ejecutar_comando(char *comando)
     {
         log_debug(logger, "Entraste a FINALIZAR_PROCESO para el proceso: %s.", comandoSpliteado[1]);
         eliminar_proceso(atoi(comandoSpliteado[1]));
+        pthread_mutex_lock(&mutex_ready_a_exec);
         evaluar_READY_a_EXEC();
+        pthread_mutex_unlock(&mutex_ready_a_exec);
         evaluar_NEW_a_READY();
     }
     else if (string_equals_ignore_case("INICIAR_PLAFICACION", comandoSpliteado[0]) || string_equals_ignore_case("IPL", comandoSpliteado[0]))
@@ -126,7 +134,9 @@ uint8_t ejecutar_comando(char *comando)
         log_debug(logger, "Entraste a INICIAR_PLAFICACION.");
         esta_planificacion_pausada = false;
         evaluar_NEW_a_READY();
+        pthread_mutex_lock(&mutex_ready_a_exec);
         evaluar_READY_a_EXEC(); // este esta para cuando recien se arranco el programa y cuando se despausa la planificacion
+        pthread_mutex_unlock(&mutex_ready_a_exec);
     }
     else if (string_equals_ignore_case("DETENER_PLANIFICACION", comandoSpliteado[0]) || string_equals_ignore_case("DP", comandoSpliteado[0]))
     {
@@ -356,7 +366,9 @@ void *atender_cliente_io(void *arg)
                 log_info(logger, "La interfaz %s ejecuto correctamente la instruccion.", tes->nombre_interfaz);
                 evaluar_BLOCKED_a_READY(tmb);
                 // para el caso donde solamente hay 1 proceso, hago RaE
+                pthread_mutex_lock(&mutex_ready_a_exec);
                 evaluar_READY_a_EXEC();
+                pthread_mutex_unlock(&mutex_ready_a_exec);
             }
             else
             {
@@ -478,9 +490,10 @@ bool eliminar_id_de_la_cola_blocked(t_queue *cola, uint32_t id)
             {
                 loEncontre = true; // es el id q tengo q sacar
                 t_list *datos = idActual->datos;
-                if(string_contains(list_get(datos, 0),"DIALFS")){
-                    free(list_get(datos,1));
-                }
+                /*if(string_contains(list_get(datos, 0),"DIALFS")){
+                    char* caca = list_get(datos,1);
+                    free(caca);
+                }*/
                 list_destroy(idActual->datos);
                 free(idActual);
             }
@@ -564,11 +577,16 @@ void evaluar_NEW_a_READY()
 
 void evaluar_READY_a_EXEC() // hilar (me olvide xq xD), (me acorde y no lo voy a hacer)
 {
+
     log_trace(logger, "Voy a evaluar si puedo mover un proceso de READY a EXEC (asignar un proceso al CPU).");
+    pthread_mutex_lock(&mutex_cola_ready_plus);
+
     pthread_mutex_lock(&mutex_cola_ready);
+
     if (queue_is_empty(cola_RUNNING) && (!queue_is_empty(cola_READY) || !queue_is_empty(cola_READY_PRIORITARIA)) && !esta_planificacion_pausada) // valido q no este nadie corriendo, ready no este vacio y la planificacion no este pausada
     {
         pthread_mutex_unlock(&mutex_cola_ready); // tengo q hacer algo distinto segun cada algoritmo de planificacion
+        pthread_mutex_unlock(&mutex_cola_ready_plus);
         uint32_t id;
 
         switch (algoritmo_planificacion)
@@ -589,17 +607,23 @@ void evaluar_READY_a_EXEC() // hilar (me olvide xq xD), (me acorde y no lo voy a
             break;
         case VRR: // esto lo q tiene de especial es q tengo q hacer un hilo mas q vaya contando el tiempo de ejecucion y una segunda cola de ready para los procesos prioritarios
             log_trace(logger, "Entre a planificacion por VRR.");
+            pthread_mutex_lock(&mutex_cola_ready_plus);
             if (!queue_is_empty(cola_READY_PRIORITARIA))
             {
+                pthread_mutex_unlock(&mutex_cola_ready_plus);
                 log_trace(logger, "Voy a elegir un proceso de la cola prioritaria.");
+                pthread_mutex_lock(&mutex_cola_ready_plus);
                 id = queue_pop(cola_READY_PRIORITARIA);
+                pthread_mutex_unlock(&mutex_cola_ready_plus);
             }
             else
             {
+                pthread_mutex_unlock(&mutex_cola_ready_plus);
                 log_trace(logger, "Voy a elegir un proceso de la cola normal.");
                 pthread_mutex_lock(&mutex_cola_ready);
                 id = queue_pop(cola_READY);
                 pthread_mutex_unlock(&mutex_cola_ready);
+                
             }
             pthread_t pvrr;
             pthread_create(&pvrr, NULL, trigger_interrupcion_quantum, obtener_pcb_de_lista_por_id(id));
@@ -628,6 +652,7 @@ void evaluar_READY_a_EXEC() // hilar (me olvide xq xD), (me acorde y no lo voy a
     else
     {
         pthread_mutex_unlock(&mutex_cola_ready);
+        pthread_mutex_unlock(&mutex_cola_ready_plus);
         log_trace(logger, "No fue posible asignar un proceso al CPU.");
         log_debug(logger, "Cant. procesos en READY: %d | Cant. procesos en RUNNING: %d", queue_size(cola_READY), queue_size(cola_RUNNING));
     }
@@ -661,7 +686,9 @@ void evaluar_EXEC_a_READY()
         if (debe_ir_a_cola_prioritaria(pcb)) // se fija si estoy en vrr y si tiene q ir a prio
         {
             pcb->estado = E_READY_PRIORITARIO;
+            pthread_mutex_lock(&mutex_cola_ready_plus);
             queue_push(cola_READY_PRIORITARIA, pcb->processID);
+            pthread_mutex_unlock(&mutex_cola_ready_plus);
             log_info(logger, "PID: < %u > - Estado Anterior: < EXEC > - Estado Actual: < READY + >", pcb->processID); // log obligatorio
         }
         else
@@ -678,7 +705,9 @@ void evaluar_EXEC_a_READY()
     {
         log_trace(logger, "No fue posible mover un proceso de EXEC a READY, por que no habia.");
     }
+    pthread_mutex_lock(&mutex_ready_a_exec);
     evaluar_READY_a_EXEC(); // planifico xq se libero la cpu
+    pthread_mutex_unlock(&mutex_ready_a_exec);
 }
 
 void evaluar_READY_a_EXIT(t_PCB *pcb)
@@ -723,17 +752,17 @@ void evaluar_BLOCKED_a_EXIT(t_PCB *pcb)
 
 t_manejo_bloqueados *conseguir_tmb(uint32_t id)
 {
+    t_list* lista_keys = dictionary_keys(diccionario_recursos_e_interfaces);
     for (uint8_t i = 0; i < dictionary_size(diccionario_recursos_e_interfaces); i++) // podria ser un poquito mas lindo esto pero bueno, andar anda
     {
-        t_list* lista_keys=list_get(dictionary_keys(diccionario_recursos_e_interfaces), i);
-        t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos_e_interfaces, lista_keys);
-        int size_queue = queue_size(tmb->cola_bloqueados);
-        list_destroy(lista_keys);
+        char* key = list_get(lista_keys,i);
+        t_manejo_bloqueados *tmb = dictionary_get(diccionario_recursos_e_interfaces, key);
         switch (tmb->identificador)
         {
         case RECURSO:
             if (eliminar_id_de_la_cola_blocked(tmb->cola_bloqueados, id))
             {
+                list_destroy(lista_keys);
                 return tmb;
             }
             break;
@@ -743,12 +772,15 @@ t_manejo_bloqueados *conseguir_tmb(uint32_t id)
             if (eliminar_id_de_la_cola_blocked(tmb->cola_bloqueados, id))
             {
                 signal_interfaz(tes);
+                list_destroy(lista_keys);
                 return tmb;
             }
             signal_interfaz(tes);
+            list_destroy(lista_keys);
             break;
         }
     }
+    list_destroy(lista_keys);
     return NULL;
 }
 
@@ -796,7 +828,9 @@ void evaluar_EXEC_a_BLOCKED(char *key, t_list *lista) // antes era recurso, ahor
     {
         log_trace(logger, "No fue posible mover un proceso de EXEC a BLOCKED, por que no habia.");
     }
+    pthread_mutex_lock(&mutex_ready_a_exec);
     evaluar_READY_a_EXEC(); // planifico xq se libero la cpu
+    pthread_mutex_unlock(&mutex_ready_a_exec);
 }
 
 void evaluar_BLOCKED_a_READY(t_manejo_bloqueados *tmb)
@@ -845,6 +879,7 @@ void evaluar_BLOCKED_a_READY(t_manejo_bloqueados *tmb)
         log_info(logger, "PID: < %u > - Estado Anterior: < BLOCKED > - Estado Actual: < READY + >", pcb->processID); // log obligatorio
         pcb->estado = E_READY_PRIORITARIO;
         queue_push(cola_READY_PRIORITARIA, pcb->processID);
+        pthread_mutex_unlock(&mutex_cola_ready_plus);
         log_obligatorio_ready(cola_READY_PRIORITARIA, 1);
     }
     else
@@ -872,7 +907,9 @@ void evaluar_EXEC_a_EXIT()
     cant_procesos_ejecutando--;
     log_trace(logger, "Se movio el proceso %d a EXIT. Grado de multiprogramacion actual: %d.", id, cant_procesos_ejecutando);
     // los pongo en este orden segun el tipo de planificadores q son
+    pthread_mutex_lock(&mutex_ready_a_exec);
     evaluar_READY_a_EXEC();
+    pthread_mutex_unlock(&mutex_ready_a_exec);
     evaluar_NEW_a_READY();
 }
 
@@ -1553,7 +1590,11 @@ bool verificar_interfaz(char *nombre_interfaz)
 
 void log_obligatorio_ready(t_queue *cola, uint8_t tipo_cola)
 {
-    pthread_mutex_lock(&mutex_cola_ready);
+    if( tipo_cola == 0 )
+        pthread_mutex_lock(&mutex_cola_ready);
+    else
+        pthread_mutex_lock(&mutex_cola_ready_plus);
+    
     t_list *lista_de_cola = cola->elements;
     char *pids = string_new(); // Buffer para almacenar los PIDs
     for (int i = 0; i < list_size(lista_de_cola); i++)
@@ -1564,13 +1605,15 @@ void log_obligatorio_ready(t_queue *cola, uint8_t tipo_cola)
         free(id_texto);
         string_append(&pids, ", ");
     }
-    pthread_mutex_unlock(&mutex_cola_ready);
     pids[strlen(pids) - 2] = '\0'; // Elimino la ultima coma
-    if (tipo_cola == 0)            // READY
+    if (tipo_cola == 0) {
+        pthread_mutex_unlock(&mutex_cola_ready);
         log_info(logger, "Cola Ready: %s", pids);
-    else
+    }            
+    else {
+        pthread_mutex_unlock(&mutex_cola_ready_plus);     
         log_info(logger, "Cola Ready Prioridad: %s", pids);
-
+    }
     free(pids);
 }
 

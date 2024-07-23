@@ -1196,7 +1196,7 @@ int agregar_a_tlb(uint32_t pid, uint32_t nro_pagina, uint32_t nro_marco)
         {
             ultima_fila_modificada = 0;
         }
-        log_debug(logger, "TLB - Se remplaza una entrada en el indice %d", ultima_fila_modificada);
+        log_info(logger, "TLB - Se remplaza una entrada en el indice %d", ultima_fila_modificada);
         TLB[ultima_fila_modificada].PID = (int)pid;
         TLB[ultima_fila_modificada].nro_pag = nro_pagina;
         TLB[ultima_fila_modificada].nro_marco = nro_marco;
@@ -1207,7 +1207,7 @@ int agregar_a_tlb(uint32_t pid, uint32_t nro_pagina, uint32_t nro_marco)
     {
         // LRU
         int indice = buscar_tlb_con_menor_referencia();
-        log_debug(logger, "TLB - Se remplaza una entrada en el indice %d", indice);
+        log_info(logger, "TLB - Se remplaza una entrada en el indice %d", indice);
         TLB[indice].PID = (int)pid;
         TLB[indice].nro_pag = nro_pagina;
         TLB[indice].nro_marco = nro_marco;
