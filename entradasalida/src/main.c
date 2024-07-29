@@ -561,7 +561,7 @@ uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t
             // 2- hay bloques ocupados que necesitaria tomar para poder hacer el trunque (ej: estoy en 200, pido 50 y desde la 230 esta ocupado por otro archivo)
             if (i >= idial->block_count || esta_bloque_ocupado(idial->bitmap, i))
             {
-                log_error(logger, "No se puede truncar porque el bloque %u esta ocupado por otro proceso (me faltaron %u bloques).", i, bloques_a_agregar - i);
+                log_error(logger, "No se puede truncar porque el bloque %u esta ocupado por otro proceso.", i);
                 puedo_truncar = 0;
                 break;
             }
@@ -703,7 +703,7 @@ void compactar(t_interfaz_dialfs *idialfs, char *archivo_agrandar, uint32_t nuev
     { // esto es xq aunque yo en el bitmap le asigno un bloque al archivo cuando lo creo, en la metadata le tengo que poner tamanio 0
         cant_bloques++;
     }
-    
+
     log_debug(logger, "Bloque inicial archivo_agrandar: %u", bloque_inicial);
     // primero voy a sacar el archivo q quiere agrandarse
     void *buffer = leer_en_archivo(idialfs, archivo_agrandar, size_archivo, 0);
