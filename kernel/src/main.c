@@ -313,7 +313,7 @@ void *atender_cliente_io(void *arg)
             case DIALFS_DELETE:
                 char *nombre_archivo_d = list_get(lista_de_parametros, 0);
                 agregar_a_paquete(paquete_para_io, "IO_FS_DELETE", strlen("IO_FS_DELETE") + 1);
-                agregar_a_paquete(paquete_para_io, (uint32_t)list_get(lista_de_parametros, 0), sizeof(uint32_t));
+                agregar_a_paquete(paquete_para_io, (uint32_t)list_get(lista_de_parametros, 1), sizeof(uint32_t));
                 agregar_a_paquete(paquete_para_io, nombre_archivo_d, strlen(nombre_archivo_d) + 1);
                 free(nombre_archivo_d);
                 break;

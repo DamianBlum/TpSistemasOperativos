@@ -543,9 +543,10 @@ uint8_t truncar_archivo(t_interfaz_dialfs *idial, char *nombre_archivo, uint32_t
 
     if (nuevo_size > size_archivo)
     { // en este caso me tengo q fijar que exista el espacio
+        uint32_t size_archivo_en_bloques = (uint32_t)ceil((double)(size_archivo) / (double)(idial->block_size));
         double bloque_a_agregar_sin_redondear = (double)(nuevo_size) / (double)(idial->block_size);
-        uint32_t bloques_a_agregar = (uint32_t)ceil(bloque_a_agregar_sin_redondear);
-        uint32_t pos_arranque = bloque_inicial + size_archivo; // esto es el primer bloque que le sigue al ultimo que ya tiene asignado el archivo
+        uint32_t bloques_a_agregar = (uint32_t)ceil(bloque_a_agregar_sin_redondear) - size_archivo_en_bloques;
+        uint32_t pos_arranque = bloque_inicial + size_archivo_en_bloques; // esto es el primer bloque que le sigue al ultimo que ya tiene asignado el archivo
         uint8_t puedo_truncar = 1;
 
         // caso especial SOLAMENTE si el el truncate es para un archivo recien creado (size 0)
@@ -702,7 +703,7 @@ void compactar(t_interfaz_dialfs *idialfs, char *archivo_agrandar, uint32_t nuev
     { // esto es xq aunque yo en el bitmap le asigno un bloque al archivo cuando lo creo, en la metadata le tengo que poner tamanio 0
         cant_bloques++;
     }
-
+    
     log_debug(logger, "Bloque inicial archivo_agrandar: %u", bloque_inicial);
     // primero voy a sacar el archivo q quiere agrandarse
     void *buffer = leer_en_archivo(idialfs, archivo_agrandar, size_archivo, 0);
